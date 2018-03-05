@@ -5,8 +5,8 @@
 | 考点 | 序号 | 题目 | 解答 |
 |:---:|:---:|:---:|:---:|
 | 语言 | 1 | 赋值运算符函数 | X |
-| 语言 | 2 | 实现Singleton模式 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/2-%E6%95%B0%E7%BB%84%E4%B8%AD%E9%87%8D%E5%A4%8D%E7%9A%84%E6%95%B0%E5%AD%97.md) |
-| 数组 | 3 | 数组中重复的数 | X |
+| 语言 | 2 | 实现Singleton模式 | X |
+| 数组 | 3 | 数组中重复的数 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/2-%E6%95%B0%E7%BB%84%E4%B8%AD%E9%87%8D%E5%A4%8D%E7%9A%84%E6%95%B0%E5%AD%97.md) |
 | 数组 | 4 | 二维数组中的查找 | X |
 | 数组 | 21 | 调整数组顺序使奇数位于偶数前面 | X |
 | 数组 | 29 | 顺时针打印矩阵 | X |
