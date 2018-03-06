@@ -8,7 +8,7 @@
 | 语言 | 2 | 实现Singleton模式 | X |
 | 数组 | 3 | 数组中重复的数 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/2-%E6%95%B0%E7%BB%84%E4%B8%AD%E9%87%8D%E5%A4%8D%E7%9A%84%E6%95%B0%E5%AD%97.md) |
 | 数组 | 4 | 二维数组中的查找 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/3-%E4%BA%8C%E7%BB%B4%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E6%9F%A5%E6%89%BE.md) |
-| 数组 | 21 | 调整数组顺序使奇数位于偶数前面 | X |
+| 数组 | 21 | 调整数组顺序使奇数位于偶数前面 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/21-%E8%B0%83%E6%95%B4%E6%95%B0%E7%BB%84%E9%A1%BA%E5%BA%8F%E4%BD%BF%E5%A5%87%E6%95%B0%E4%BD%8D%E4%BA%8E%E5%81%B6%E6%95%B0%E5%89%8D%E9%9D%A2.md) |
 | 数组 | 29 | 顺时针打印矩阵 | X |
 | 数组 | 39 | 数组中出现次数超过一半的数字 | X |
 | 数组、动态规划 | 42 | 连续子数组的最大和 | X |
