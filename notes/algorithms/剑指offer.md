@@ -13,7 +13,7 @@
 | 数组 | 39 | 数组中出现次数超过一半的数字 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/39-%E6%95%B0%E7%BB%84%E4%B8%AD%E5%87%BA%E7%8E%B0%E6%AC%A1%E6%95%B0%E8%B6%85%E8%BF%87%E4%B8%80%E5%8D%8A%E7%9A%84%E6%95%B0%E5%AD%97.md) |
 | 数组、动态规划 | 42 | 连续子数组的最大和 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/42-%E8%BF%9E%E7%BB%AD%E5%AD%90%E6%95%B0%E7%BB%84%E7%9A%84%E6%9C%80%E5%A4%A7%E5%92%8C.md) |
 | 数组 | 51 | 数组中的逆序对 | X |
-| 数组 | 57 | 和为s的数字 | X |
+| 数组 | 57 | 和为s的数字 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/57-%E5%92%8C%E4%B8%BAs%E7%9A%84%E6%95%B0%E5%AD%97.md) |
 | 数组 | 66 | 构建乘积数组 | X |
 | 数组、查找算法 | 53 | 在排序数组中查找数字 | X |
 | 字符串 | 5 | 替换空格 | X |
