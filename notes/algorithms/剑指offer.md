@@ -31,7 +31,7 @@
 | 字符串 | 62 | 圆圈中最后剩下的数字 | X |
 | 字符串 | 67 | 把字符串转换成整数 | X |
 | 树 | 7 | 重建二叉树 | X |
-| 树 | 8 | 二叉树的下一个节点 | X |
+| 树 | 8 | 二叉树的下一个节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/8-%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E4%B8%8B%E4%B8%80%E4%B8%AA%E8%8A%82%E7%82%B9.md) |
 | 树 | 26 | 树的子结构 | X |
 | 树 | 27 | 二叉树的镜像 | X |
 | 树 | 28 | 对称的二叉树 | X |
