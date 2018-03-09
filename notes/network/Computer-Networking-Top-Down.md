@@ -15,7 +15,7 @@
     * [3.6 拥塞控制原理](#36-拥塞控制原理)
     * [3.7 TCP 拥塞控制](#37-tcp-拥塞控制)
 * [第5章 链路层概述](#第5章-链路层概述)
-* [5.7 回顾 Web 页面请求的历程](#57-回顾-web-页面请求的历程)
+    * [5.7 回顾 Web 页面请求的历程](#57-回顾-web-页面请求的历程)
         * [DHCP 获得 IP 本机地址](#dhcp-获得-ip-本机地址)
         * [DNS、ARP 获取 www.google.com 的 IP 地址](#dnsarp-获取-wwwgooglecom-的-ip-地址)
         * [TCP、HTTP Web 客户-服务器交互](#tcphttp-web-客户-服务器交互)
@@ -378,7 +378,7 @@ LastByteSent - LastByteAcked <= min{ cwnd, rwnd }
 
 # 第5章 链路层概述
 
-# 5.7 回顾 Web 页面请求的历程
+## 5.7 回顾 Web 页面请求的历程
 
 <div align="center"><img src="https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_5_32.png"/></div> <br>
 
@@ -396,7 +396,7 @@ LastByteSent - LastByteAcked <= min{ cwnd, rwnd }
 
 分为两部分：获取网关路由器的 MAC 地址、发送 DNS 查询报文。
 
-#### 第一部分.ARP 获取网关路由器的 MAC 地址
+**第一部分.ARP 获取网关路由器的 MAC 地址** 
 
 -   8.Bob 生成一个 DNS 查询报文，该报文的目的 IP 地址为 DNS 服务器的 IP 地址。
 -   9.将 DNS 请求报文放入一个以太网帧中，需要将该以太网帧发往默认网关路由器，但不知道网关路由器的 MAC 地址。为了获得网关路由器的 MAC 地址，需要使用 ARP 协议。
@@ -405,7 +405,7 @@ LastByteSent - LastByteAcked <= min{ cwnd, rwnd }
 -   12.Bob 主机接收到包含 ARP 回答的帧，抽取网关路由器的 MAC 地址。
 -   13.现在，可以发送 DNS 查询报文了，该报文的 IP 目的地址为 DNS 服务器的 IP 地址，而 MAC 目的地址为网关路由器的 MAC 地址。Bob 主机向交换机发送包含 DNS 查询报文的以太网帧。交换机再将该帧交付给网关路由器。
 
-#### 第二部分.DNS 获取 www.google.com 的 IP 地址
+**第二部分.DNS 获取 www.google.com 的 IP 地址** 
 
 -   14.网关路由器接收该帧并抽取包含 DNS 查询的 IP 数据报，根据其转发表决定该数据报应发送到图中 Comcast 网络中最左边的路由器。
 -   15.在 Comcast 网络中最左边的路由器接收到该帧，抽取 IP 数据报，根据其转发表，朝着 DNS 服务器转发数据报。而转发表已根据 Comcast 的域内协议（RIP、OSPF 或 IS-IS）以及因特网的域间协议 BGP 所填写。
