@@ -23,9 +23,9 @@
 
 ## 网络
 
-> [计算机网络 自顶向下方法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/network/Computer-Networking-Top-Down.md)
+> [计算机网络-自顶向下](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/network/Computer-Networking-Top-Down.md)
 
-自己根据《计算机网络 自顶向下方法》总结的一些关键知识点
+根据《计算机网络 自顶向下方法》整理的一些关键知识点
 
 > [计算机网络---CyC2018](https://github.com/CyC2018/Interview-Notebook/blob/master/notes/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C.md)
 
