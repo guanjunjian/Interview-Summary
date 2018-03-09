@@ -17,7 +17,7 @@
 | 数组 | 66 | 构建乘积数组 | X |
 | 数组、查找算法 | 53 | 在排序数组中查找数字 | X |
 | 字符串 | 5 | 替换空格 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/5-%E6%9B%BF%E6%8D%A2%E7%A9%BA%E6%A0%BC.md) |
-| 字符串 | 20 | 表示数值的字符串 | X |
+| 字符串 | 20 | 表示数值的字符串 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/20-%E8%A1%A8%E7%A4%BA%E6%95%B0%E5%80%BC%E7%9A%84%E5%AD%97%E7%AC%A6%E4%B8%B2.md) |
 | 字符串、分治法 | 38 | 字符串的排序 | X |
 | 字符串 | 58 | 翻转字符串 | X |
 | 字符串 | 62 | 圆圈中最后剩下的数字 | X |
