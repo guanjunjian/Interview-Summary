@@ -23,7 +23,7 @@
 
 ## 网络
 
-> [计算机网络-自顶向下](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/network/Computer-Networking-Top-Down.md)
+> [计算机网络 自顶向下方法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/network/Computer-Networking-Top-Down.md)
 
 自己根据《计算机网络 自顶向下方法》总结的一些关键知识点
 
