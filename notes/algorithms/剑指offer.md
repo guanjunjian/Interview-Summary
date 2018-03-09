@@ -16,7 +16,7 @@
 | 数组 | 57 | 和为s的数字 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/57-%E5%92%8C%E4%B8%BAs%E7%9A%84%E6%95%B0%E5%AD%97.md) |
 | 数组 | 66 | 构建乘积数组 | X |
 | 数组、查找算法 | 53 | 在排序数组中查找数字 | X |
-| 字符串 | 5 | 替换空格 | X |
+| 字符串 | 5 | 替换空格 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/5-%E6%9B%BF%E6%8D%A2%E7%A9%BA%E6%A0%BC.md) |
 | 字符串 | 6 | 从尾到头打印链表 | X |
 | 字符串 | 18 | 删除链表的节点 | X |
 | 字符串 | 20 | 表示数值的字符串 | X |
