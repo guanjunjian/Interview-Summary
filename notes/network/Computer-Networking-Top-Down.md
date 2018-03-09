@@ -6,7 +6,7 @@
     * [2.4 因特网中的电子邮件](#24-因特网中的电子邮件)
         * [2.4.1 SMTP](#241-smtp)
         * [2.4.4 邮件访问协议](#244-邮件访问协议)
-    * [2.5 DNS:因特网的目录服务](#25-dns:因特网的目录服务)
+    * [2.5 DNS 因特网的目录服务](#25-dns-因特网的目录服务)
 * [第 3 层 运输层](#第-3-层-运输层)
     * [3.4 可靠数据传输原理](#34-可靠数据传输原理)
     * [3.5 面向连接的运输：TCP](#35-面向连接的运输tcp)
@@ -16,9 +16,9 @@
     * [3.7 TCP 拥塞控制](#37-tcp-拥塞控制)
 * [第5章 链路层概述](#第5章-链路层概述)
 * [5.7 回顾 Web 页面请求的历程](#57-回顾-web-页面请求的历程)
-        * [DHCP：获得 IP 本机地址](#dhcp获得-ip-本机地址)
-        * [DNS、ARP：获取 www.google.com 的 IP 地址](#dnsarp获取-wwwgooglecom-的-ip-地址)
-        * [TCP、HTTP：Web 客户-服务器交互](#tcphttpweb-客户-服务器交互)
+        * [DHCP 获得 IP 本机地址](#dhcp-获得-ip-本机地址)
+        * [DNS、ARP 获取 www.google.com 的 IP 地址](#dnsarp-获取-wwwgooglecom-的-ip-地址)
+        * [TCP、HTTP Web 客户-服务器交互](#tcphttp-web-客户-服务器交互)
 <!-- GFM-TOC -->
 
 
@@ -58,7 +58,7 @@ POP3：不维护会话状态信息
 
 IMAP:维护会话的额用户状态信息
 
-## 2.5 DNS:因特网的目录服务
+## 2.5 DNS 因特网的目录服务
 
 **DNS 是：** 
 
@@ -219,11 +219,11 @@ TCP 可靠数据传输是 GBN 和选择重传的结合
 -   `TIME_WAIT`状态中锁消耗的时间与具体实现有关，典型值为 30 秒、1 分钟或 2 分钟
 -   经过等待后，连接正式关闭，客户端所有资源（包括端口号）将被释放
 
-![](https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_3_41.png)
+<div align="center"><img src="https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_3_41.png"/></div> <br>
 
 -   服务器三次握手和四次挥手 TCP 状态变迁图
 
-![](https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_3_42.png)
+<div align="center"><img src="https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_3_42.png"/></div> <br>
 
 #### 一台主机接收到端口或源地址与本机套接字不匹配的情况
 
@@ -287,9 +287,7 @@ LastByteSent - LastByteAcked <= min{ cwnd, rwnd }
     -   它俩的差异在于收到 ACK 做出反应时增加 cwnd 长度的方式，慢启动更快地增长 cwnd
 -   推荐部分：快速恢复，非必需的
 
----
-
-![](https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_3_52.png)
+<div align="center"><img src="https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_3_52.png"/></div> <br>
 
 #### 慢启动
 
@@ -382,9 +380,9 @@ LastByteSent - LastByteAcked <= min{ cwnd, rwnd }
 
 # 5.7 回顾 Web 页面请求的历程
 
-![](https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_5_32.png)
+<div align="center"><img src="https://raw.githubusercontent.com/guanjunjian/Interview-Summary/master/pics/network/Computer-Networking-Top-Down/img_5_32.png"/></div> <br>
 
-### DHCP：获得 IP 本机地址
+### DHCP 获得 IP 本机地址
 
 -   1.Bob 主机的操作系统生成一个 DHCP 请求报文。
 -   2.包含 DHCP 请求报文的 IP 数据报被放置在以太网帧中。
@@ -394,11 +392,11 @@ LastByteSent - LastByteAcked <= min{ cwnd, rwnd }
 -   6.以太网帧由路由器发给交换机，交换机从通向目的主机（最初发送 DHCP 请求的主机）的输出端口转发。
 -   7.Bob 主机收到 DHCP ACK，记录下它的 IP 地址、DNS 服务器 IP 地址，并在其 IP 转发表中安装默认路由网关的地址。
 
-### DNS、ARP：获取 www.google.com 的 IP 地址
+### DNS、ARP 获取 www.google.com 的 IP 地址
 
 分为两部分：获取网关路由器的 MAC 地址、发送 DNS 查询报文。
 
-#### 第一部分.ARP：获取网关路由器的 MAC 地址
+#### 第一部分.ARP 获取网关路由器的 MAC 地址
 
 -   8.Bob 生成一个 DNS 查询报文，该报文的目的 IP 地址为 DNS 服务器的 IP 地址。
 -   9.将 DNS 请求报文放入一个以太网帧中，需要将该以太网帧发往默认网关路由器，但不知道网关路由器的 MAC 地址。为了获得网关路由器的 MAC 地址，需要使用 ARP 协议。
@@ -407,14 +405,14 @@ LastByteSent - LastByteAcked <= min{ cwnd, rwnd }
 -   12.Bob 主机接收到包含 ARP 回答的帧，抽取网关路由器的 MAC 地址。
 -   13.现在，可以发送 DNS 查询报文了，该报文的 IP 目的地址为 DNS 服务器的 IP 地址，而 MAC 目的地址为网关路由器的 MAC 地址。Bob 主机向交换机发送包含 DNS 查询报文的以太网帧。交换机再将该帧交付给网关路由器。
 
-#### 第二部分.DNS：获取 www.google.com 的 IP 地址
+#### 第二部分.DNS 获取 www.google.com 的 IP 地址
 
 -   14.网关路由器接收该帧并抽取包含 DNS 查询的 IP 数据报，根据其转发表决定该数据报应发送到图中 Comcast 网络中最左边的路由器。
 -   15.在 Comcast 网络中最左边的路由器接收到该帧，抽取 IP 数据报，根据其转发表，朝着 DNS 服务器转发数据报。而转发表已根据 Comcast 的域内协议（RIP、OSPF 或 IS-IS）以及因特网的域间协议 BGP 所填写。
 -   16.包含 DNS 查询的 IP 数据报到达 DNS 服务器。DNS 服务器在其数据库中查找`www.google.com`。找到 DNS 源记录，形参一个 DNS 回答报文，放入 UDP 报文段，寻址到 Bob 的主机。反向转发到 Bob 的网关路由器。
 -   17.Bob 主机收到 DNS 回答报文，抽取出 www.google.com 的 IP 地址。
 
-### TCP、HTTP：Web 客户-服务器交互
+### TCP、HTTP Web 客户-服务器交互
 
 -   18.根据 google IP 生成 TCP 套接字，用于向 google 发送 HTTP GET 报文。需要与 google 进行 TCP 三次握手：Bob 生成 TCP SYN 报文段，目的 IP 地址为 google IP，目的 MAC 地址为网关路由器，并向交换机发送该帧。
 -   19.在学生网络、Comcast 网络、谷歌网络中的路由器朝着 www.google.com 转发包含 TCP SYN 的数据报。
