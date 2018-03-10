@@ -41,6 +41,6 @@
 
 ## 操作系统
 
-> [操作系统——精髓与设计原理---arkingc](https://github.com/arkingc/note/blob/master/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F.md)
+> [《操作系统——精髓与设计原理》---arkingc](https://github.com/arkingc/note/blob/master/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F.md)
 
 好基友鸡哥整理的《操作系统——精髓与设计原理》重点部分
