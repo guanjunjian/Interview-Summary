@@ -8,7 +8,7 @@
 
 > [排序算法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%8E%92%E5%BA%8F%E7%AE%97%E6%B3%95.md)
 
-整理自他人博客以及自己的代码实现
+转CSDN“真实的归宿”以及自己的代码实现的整理
 
 ## C/C++
 
@@ -38,3 +38,9 @@
 > [HTTP---CyC2018](https://github.com/CyC2018/Interview-Notebook/blob/master/notes/HTTP.md)
 
 转自CyC2018
+
+## 操作系统
+
+> [操作系统——精髓与设计原理---arkingc](https://github.com/arkingc/note/blob/master/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F.md)
+
+好基友鸡哥整理的《操作系统——精髓与设计原理》重点部分
