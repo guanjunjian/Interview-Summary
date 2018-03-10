@@ -6,6 +6,10 @@
 
 整理自《剑指 Offer 第二版》
 
+> [排序算法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%8E%92%E5%BA%8F%E7%AE%97%E6%B3%95.md)
+
+整理自他人博客以及自己的代码实现
+
 ## C/C++
 
 > C++
