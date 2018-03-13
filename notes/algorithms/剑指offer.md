@@ -19,10 +19,10 @@
 | 字符串 | 5 | 替换空格 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/5-%E6%9B%BF%E6%8D%A2%E7%A9%BA%E6%A0%BC.md) |
 | 字符串 | 20 | 表示数值的字符串 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/20-%E8%A1%A8%E7%A4%BA%E6%95%B0%E5%80%BC%E7%9A%84%E5%AD%97%E7%AC%A6%E4%B8%B2.md) |
 | 字符串、分治法 | 38 | 字符串的排序 | X |
-| 字符串 | 58 | 翻转字符串 | X |
+| 字符串 | 58 | 翻转字符串 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/58-%E7%BF%BB%E8%BD%AC%E5%AD%97%E7%AC%A6%E4%B8%B2.md) |
 | 字符串 | 62 | 圆圈中最后剩下的数字 | X |
 | 字符串 | 67 | 把字符串转换成整数 | X |
-| 链表 | 6 | 从尾到头打印链表 | X |
+| 链表 | 6 | 从尾到头打印链表 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/6-%E4%BB%8E%E5%B0%BE%E5%88%B0%E5%A4%B4%E6%89%93%E5%8D%B0%E9%93%BE%E8%A1%A8.md) |
 | 链表 | 18 | 删除链表的节点 | X |
 | 链表 | 22 | 链表中倒数第k个节点 | X |
 | 链表 | 23 | 链表中的入口节点 | X |
