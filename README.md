@@ -10,7 +10,9 @@
 
 转CSDN“真实的归宿”以及自己的代码实现的整理
 
-> [遍历查找算法]()
+> [遍历查找算法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E9%81%8D%E5%8E%86%E6%9F%A5%E6%89%BE%E7%AE%97%E6%B3%95.md)
+
+二叉树的遍历、图的遍历、二分查找等
 
 ## C/C++
 
