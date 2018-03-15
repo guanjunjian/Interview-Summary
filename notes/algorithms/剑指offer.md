@@ -32,7 +32,7 @@
 | 链表、树、查找算法、分治法 | 36 | 二叉搜索树与双向链表 | X |
 | 树 | 7 | 重建二叉树 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/7-%E9%87%8D%E5%BB%BA%E4%BA%8C%E5%8F%89%E6%A0%91.md) |
 | 树 | 8 | 二叉树的下一个节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/8-%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E4%B8%8B%E4%B8%80%E4%B8%AA%E8%8A%82%E7%82%B9.md) |
-| 树 | 26 | 树的子结构 | X |
+| 树 | 26 | 树的子结构 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/26-%E6%A0%91%E7%9A%84%E5%AD%90%E7%BB%93%E6%9E%84.md) |
 | 树 | 27 | 二叉树的镜像 | X |
 | 树 | 28 | 对称的二叉树 | X |
 | 树 | 32 | 从上到下打印二叉树 | X |
