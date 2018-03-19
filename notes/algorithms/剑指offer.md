@@ -26,7 +26,7 @@
 | 链表 | 18 | 删除链表的节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/18-%E5%88%A0%E9%99%A4%E9%93%BE%E8%A1%A8%E7%9A%84%E8%8A%82%E7%82%B9.md) |
 | 链表 | 22 | 链表中倒数第k个节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/22-%E9%93%BE%E8%A1%A8%E4%B8%AD%E5%80%92%E6%95%B0%E7%AC%ACk%E4%B8%AA%E8%8A%82%E7%82%B9.md) |
 | 链表 | 23 | 链表中的入口节点 | X |
-| 链表 | 24 | 反转链表 | X |
+| 链表 | 24 | 反转链表 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/24-%E5%8F%8D%E8%BD%AC%E9%93%BE%E8%A1%A8.md) |
 | 链表 | 25 | 合并两个排序的链表 | X |
 | 链表 | 35 | 复杂链表的赋值 | X |
 | 链表、树、查找算法、分治法 | 36 | 二叉搜索树与双向链表 | X |
