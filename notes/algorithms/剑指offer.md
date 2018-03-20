@@ -39,7 +39,7 @@
 | 树、查找算法 | 33 | 二叉搜索树的后序遍历序列 | X |
 | 树 | 34 | 二叉树中和为某一值的路径 | X |
 | 树 | 37 | 序列化二叉树 | X |
-| 树 | 40 | 最小的k个数 | X |
+| 树 | 40 | 最小的k个数 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/40-%E6%9C%80%E5%B0%8F%E7%9A%84k%E4%B8%AA%E6%95%B0.md) |
 | 树 | 41 | 数据流中的中位数 | X |
 | 树 | 54 | 二叉搜索树的第k大节点 | X |
 | 树 | 55 | 二叉树的深度 | X |
