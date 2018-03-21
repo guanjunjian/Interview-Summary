@@ -1,6 +1,6 @@
 # 面试复习总结
 
-## 算法
+## 数据结构与算法
 
 > [剑指 offer](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer.md)
 
@@ -8,11 +8,15 @@
 
 > [排序算法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%8E%92%E5%BA%8F%E7%AE%97%E6%B3%95.md)
 
-转CSDN“真实的归宿”以及自己的代码实现的整理
+八大排序算法
 
 > [查找算法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%9F%A5%E6%89%BE%E7%AE%97%E6%B3%95.md)
 
-二叉树的遍历、图的遍历、二分查找等
+二分查找等
+
+> [数据结构](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.md)
+
+树、堆、哈希的相关知识和算法
 
 ## C/C++
 
