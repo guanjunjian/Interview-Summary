@@ -6,8 +6,8 @@
 |:---:|:---:|:---:|:---:|
 | 语言 | 1 | 赋值运算符函数 | X |
 | 语言 | 2 | 实现Singleton模式 | X |
-| 数组 | 3 | 数组中重复的数 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/2-%E6%95%B0%E7%BB%84%E4%B8%AD%E9%87%8D%E5%A4%8D%E7%9A%84%E6%95%B0%E5%AD%97.md) |
-| 数组 | 4 | 二维数组中的查找 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/3-%E4%BA%8C%E7%BB%B4%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E6%9F%A5%E6%89%BE.md) |
+| 数组 | 3 | 数组中重复的数 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/3-%E6%95%B0%E7%BB%84%E4%B8%AD%E9%87%8D%E5%A4%8D%E7%9A%84%E6%95%B0%E5%AD%97.md) |
+| 数组 | 4 | 二维数组中的查找 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/4-%E4%BA%8C%E7%BB%B4%E6%95%B0%E7%BB%84%E4%B8%AD%E7%9A%84%E6%9F%A5%E6%89%BE.md) |
 | 数组 | 21 | 调整数组顺序使奇数位于偶数前面 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/21-%E8%B0%83%E6%95%B4%E6%95%B0%E7%BB%84%E9%A1%BA%E5%BA%8F%E4%BD%BF%E5%A5%87%E6%95%B0%E4%BD%8D%E4%BA%8E%E5%81%B6%E6%95%B0%E5%89%8D%E9%9D%A2.md) |
 | 数组 | 29 | 顺时针打印矩阵 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/29-%E9%A1%BA%E6%97%B6%E9%92%88%E6%89%93%E5%8D%B0%E7%9F%A9%E9%98%B5.md) |
 | 数组 | 39 | 数组中出现次数超过一半的数字 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/39-%E6%95%B0%E7%BB%84%E4%B8%AD%E5%87%BA%E7%8E%B0%E6%AC%A1%E6%95%B0%E8%B6%85%E8%BF%87%E4%B8%80%E5%8D%8A%E7%9A%84%E6%95%B0%E5%AD%97.md) |
@@ -28,7 +28,7 @@
 | 链表 | 23 | 链表中的入口节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/23-%E9%93%BE%E8%A1%A8%E4%B8%AD%E7%9A%84%E5%85%A5%E5%8F%A3%E8%8A%82%E7%82%B9.md) |
 | 链表 | 24 | 反转链表 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/24-%E5%8F%8D%E8%BD%AC%E9%93%BE%E8%A1%A8.md) |
 | 链表 | 25 | 合并两个排序的链表 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/25-%E5%90%88%E5%B9%B6%E4%B8%A4%E4%B8%AA%E6%8E%92%E5%BA%8F%E7%9A%84%E9%93%BE%E8%A1%A8.md) |
-| 链表 | 35 | 复杂链表的复制 | X |
+| 链表 | 35 | 复杂链表的复制 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/35-%E5%A4%8D%E6%9D%82%E9%93%BE%E8%A1%A8%E7%9A%84%E5%A4%8D%E5%88%B6.md) |
 | 链表、树、查找算法、分治法 | 36 | 二叉搜索树与双向链表 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/36-%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91%E4%B8%8E%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8.md) |
 | 树 | 7 | 重建二叉树 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/7-%E9%87%8D%E5%BB%BA%E4%BA%8C%E5%8F%89%E6%A0%91.md) |
 | 树 | 8 | 二叉树的下一个节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/8-%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E4%B8%8B%E4%B8%80%E4%B8%AA%E8%8A%82%E7%82%B9.md) |
