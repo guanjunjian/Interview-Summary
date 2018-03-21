@@ -28,7 +28,7 @@
 | 链表 | 23 | 链表中的入口节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/23-%E9%93%BE%E8%A1%A8%E4%B8%AD%E7%9A%84%E5%85%A5%E5%8F%A3%E8%8A%82%E7%82%B9.md) |
 | 链表 | 24 | 反转链表 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/24-%E5%8F%8D%E8%BD%AC%E9%93%BE%E8%A1%A8.md) |
 | 链表 | 25 | 合并两个排序的链表 | X |
-| 链表 | 35 | 复杂链表的赋值 | X |
+| 链表 | 35 | 复杂链表的复制 | X |
 | 链表、树、查找算法、分治法 | 36 | 二叉搜索树与双向链表 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/36-%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91%E4%B8%8E%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8.md) |
 | 树 | 7 | 重建二叉树 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/7-%E9%87%8D%E5%BB%BA%E4%BA%8C%E5%8F%89%E6%A0%91.md) |
 | 树 | 8 | 二叉树的下一个节点 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/8-%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E4%B8%8B%E4%B8%80%E4%B8%AA%E8%8A%82%E7%82%B9.md) |
