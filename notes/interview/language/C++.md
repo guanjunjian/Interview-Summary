@@ -1,49 +1,59 @@
 C++
 
-# å…³é”®å­—
-
-## 1. externå…³é”®å­—ä½œç”¨
-
--	1).externå£°æ˜Žå˜é‡åœ¨æ–‡ä»¶å¤–éƒ¨å®šä¹‰ï¼Ÿ
--	2).externä¿®é¥°å‡½æ•°ï¼Ÿ
--	3).extern Cçš„ä½œç”¨ï¼Ÿç”¨æ³•ï¼Ÿ
-
-ç­”ï¼š
-
-å‚è€ƒ:
--	[C/C++ä¸­externå…³é”®å­—è¯¦è§£](http://blog.csdn.net/big_bit/article/details/51595714)
+<!-- GFM-TOC -->
+* [¹Ø¼ü×Ö](#¹Ø¼ü×Ö)
+    * [1. extern¹Ø¼ü×Ö×÷ÓÃ](#1-extern¹Ø¼ü×Ö×÷ÓÃ)
+    * [2. static¹Ø¼ü×Ö×÷ÓÃ](#2-static¹Ø¼ü×Ö×÷ÓÃ)
+* [Àà](#Àà)
+<!-- GFM-TOC -->
 
 
-1)ã€2):
+# ¹Ø¼ü×Ö
 
-å‚è€ƒ:
+## 1. extern¹Ø¼ü×Ö×÷ÓÃ
 
--	[ã€ŠCå’ŒæŒ‡é’ˆã€‹ç¬”è®° 3.10](https://guanjunjian.github.io/2017/01/09/study-19-pointers-on-c-summary/)
+-	1).externÉùÃ÷±äÁ¿ÔÚÎÄ¼þÍâ²¿¶¨Òå£¿
+-	2).externÐÞÊÎº¯Êý£¿
+-	3).extern CµÄ×÷ÓÃ£¿ÓÃ·¨£¿
 
-åœ¨Cè¯­è¨€ä¸­ï¼Œä¿®é¥°ç¬¦externç”¨åœ¨å˜é‡æˆ–è€…å‡½æ•°çš„å£°æ˜Žå‰ï¼Œç”¨æ¥è¯´æ˜Žâ€œæ­¤å˜é‡/å‡½æ•°æ˜¯åœ¨åˆ«å¤„å®šä¹‰çš„ï¼Œè¦åœ¨æ­¤å¤„å¼•ç”¨â€ã€‚externå£°æ˜Žä¸æ˜¯å®šä¹‰ï¼Œå³ä¸åˆ†é…å­˜å‚¨ç©ºé—´ã€‚
+´ð£º
 
-ä¹Ÿå°±æ˜¯è¯´ï¼Œåœ¨ä¸€ä¸ªæ–‡ä»¶ä¸­å®šä¹‰äº†å˜é‡å’Œå‡½æ•°ï¼Œ åœ¨å…¶ä»–æ–‡ä»¶ä¸­è¦ä½¿ç”¨å®ƒä»¬ï¼Œ å¯ä»¥æœ‰ä¸¤ç§æ–¹å¼ï¼š
+²Î¿¼:
+-	[C/C++ÖÐextern¹Ø¼ü×ÖÏê½â](http://blog.csdn.net/big_bit/article/details/51595714)
 
--	ä½¿ç”¨å¤´æ–‡ä»¶ï¼Œç„¶åŽå£°æ˜Žå®ƒä»¬ï¼Œç„¶åŽå…¶ä»–æ–‡ä»¶åŽ»åŒ…å«å¤´æ–‡ä»¶
--	åœ¨å…¶ä»–æ–‡ä»¶ä¸­ç›´æŽ¥extern
 
-3):
+**1)¡¢2):** 
 
-å‚è€ƒï¼š
+²Î¿¼:
 
--	[ã€ŒäºŒåä¸‰ã€ã€ŠC++Primberã€‹ç¬”è®° ç¬¬IVéƒ¨åˆ† 19.8.3](https://guanjunjian.github.io/2017/02/09/study-23-cpp-primer-summary_4/)
+-	[¡¶CºÍÖ¸Õë¡·±Ê¼Ç 3.10](https://guanjunjian.github.io/2017/01/09/study-19-pointers-on-c-summary/)
 
-ä¸ºäº†åœ¨C++ä¸­ä½¿ç”¨C
+ÔÚCÓïÑÔÖÐ£¬ÐÞÊÎ·ûexternÓÃÔÚ±äÁ¿»òÕßº¯ÊýµÄÉùÃ÷Ç°£¬ÓÃÀ´ËµÃ÷¡°´Ë±äÁ¿/º¯ÊýÊÇÔÚ±ð´¦¶¨ÒåµÄ£¬ÒªÔÚ´Ë´¦ÒýÓÃ¡±¡£externÉùÃ÷²»ÊÇ¶¨Òå£¬¼´²»·ÖÅä´æ´¢¿Õ¼ä¡£
+
+Ò²¾ÍÊÇËµ£¬ÔÚÒ»¸öÎÄ¼þÖÐ¶¨ÒåÁË±äÁ¿ºÍº¯Êý£¬ ÔÚÆäËûÎÄ¼þÖÐÒªÊ¹ÓÃËüÃÇ£¬ ¿ÉÒÔÓÐÁ½ÖÖ·½Ê½£º
+
+-	Ê¹ÓÃÍ·ÎÄ¼þ£¬È»ºóÉùÃ÷ËüÃÇ£¬È»ºóÆäËûÎÄ¼þÈ¥°üº¬Í·ÎÄ¼þ
+-	ÔÚÆäËûÎÄ¼þÖÐÖ±½Óextern
+
+**3):** 
+
+²Î¿¼£º
+
+-	[¡¸¶þÊ®Èý¡¹¡¶C++Primber¡·±Ê¼Ç µÚIV²¿·Ö 19.8.3](https://guanjunjian.github.io/2017/02/09/study-23-cpp-primer-summary_4/)
+
+ÎªÁËÔÚC++ÖÐÊ¹ÓÃC
 
 ---
 
-## 2. staticå…³é”®å­—ä½œç”¨
+## 2. static¹Ø¼ü×Ö×÷ÓÃ
 
--	1).staticä¿®é¥°å±€éƒ¨å˜é‡ï¼Ÿ
--	2).staticå…¨å±€å˜é‡ï¼Ÿ(é™å®šå˜é‡åœ¨ä¸€ä¸ªç¼–è¯‘å•å…ƒå†…ï¼Œä¸€ä¸ªç¼–è¯‘å•å…ƒå°±æ˜¯æŒ‡ä¸€ä¸ªcppå’Œå®ƒåŒ…å«çš„å¤´æ–‡ä»¶ï¼Œè¿™ä¸ªå›žç­”å¯ä»¥ç»“åˆç¼–è¯‘éœ€è¦ç»åŽ†çš„å‡ ä¸ªè¿‡ç¨‹æ¥ç­”)
--	3).staticä¿®é¥°æ™®é€šå‡½æ•°ï¼Ÿ
--	4).staticä¿®é¥°æˆå‘˜å˜é‡?
--	5).staticä¿®é¥°æˆå‘˜å‡½æ•°ï¼Ÿ
+-	1).staticÐÞÊÎ¾Ö²¿±äÁ¿£¿
+-	2).staticÈ«¾Ö±äÁ¿£¿(ÏÞ¶¨±äÁ¿ÔÚÒ»¸ö±àÒëµ¥ÔªÄÚ£¬Ò»¸ö±àÒëµ¥Ôª¾ÍÊÇÖ¸Ò»¸öcppºÍËü°üº¬µÄÍ·ÎÄ¼þ£¬Õâ¸ö»Ø´ð¿ÉÒÔ½áºÏ±àÒëÐèÒª¾­ÀúµÄ¼¸¸ö¹ý³ÌÀ´´ð)
+-	3).staticÐÞÊÎÆÕÍ¨º¯Êý£¿
+-	4).staticÐÞÊÎ³ÉÔ±±äÁ¿?
+-	5).staticÐÞÊÎ³ÉÔ±º¯Êý£¿
+
+# Àà
 
 
 
