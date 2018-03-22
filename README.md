@@ -2,19 +2,19 @@
 
 ## 数据结构与算法
 
-> [剑指 offer](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer.md)
+> [剑指offer](notes/algorithms/剑指offer.md)
 
 整理自《剑指 Offer 第二版》
 
-> [排序算法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%8E%92%E5%BA%8F%E7%AE%97%E6%B3%95.md)
+> [排序算法](notes/algorithms/排序算法.md)
 
 八大排序算法
 
-> [查找算法](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%9F%A5%E6%89%BE%E7%AE%97%E6%B3%95.md)
+> [查找算法](notes/algorithms/查找算法.md)
 
 二分查找等
 
-> [数据结构](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.md)
+> [数据结构](notes/algorithms/数据结构.md)
 
 树、堆、哈希的相关知识和算法
 
@@ -35,11 +35,13 @@
 
 ## 网络
 
-> [计算机网络-自顶向下](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/network/Computer-Networking-Top-Down.md)
+> [计算机网络-自顶向下](notes/network/Computer-Networking-Top-Down.md)
 
 根据《计算机网络 自顶向下方法》整理的一些关键知识点
 
----
+## 面经
+
+> [面经](notes/interview/面经.md)
 
 ## 他人总结
 

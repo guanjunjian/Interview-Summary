@@ -206,3 +206,4 @@ C++标准指明析构函数不能、也不应该抛出异常。C++异常处理�
 不能
 
 [构造函数与析构函数中不调用虚函数](http://blog.csdn.net/linpengbin/article/details/51560276)
+
