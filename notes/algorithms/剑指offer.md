@@ -35,7 +35,7 @@
 | 树 | 26 | 树的子结构 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/26-%E6%A0%91%E7%9A%84%E5%AD%90%E7%BB%93%E6%9E%84.md) |
 | 树 | 27 | 二叉树的镜像 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/27-%E4%BA%8C%E5%8F%89%E6%A0%91%E7%9A%84%E9%95%9C%E5%83%8F.md) |
 | 树 | 28 | 对称的二叉树 | X |
-| 树 | 32 | 从上到下打印二叉树 | X |
+| 树 | 32 | 从上到下打印二叉树 | [O](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/algorithms/%E5%89%91%E6%8C%87offer/32-%E4%BB%8E%E4%B8%8A%E5%88%B0%E4%B8%8B%E6%89%93%E5%8D%B0%E4%BA%8C%E5%8F%89%E6%A0%91.md) |
 | 树、查找算法 | 33 | 二叉搜索树的后序遍历序列 | X |
 | 树 | 34 | 二叉树中和为某一值的路径 | X |
 | 树 | 37 | 序列化二叉树 | X |
