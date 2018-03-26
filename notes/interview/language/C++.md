@@ -181,8 +181,11 @@ int main()
 
 [5分钟搞定内存字节对齐](https://blog.csdn.net/hairetz/article/details/4084088)
 
-
 ## 3.C++内存管理
+
+[C/C++内存管理详解-与1) 2)5)相关](https://chenqx.github.io/2014/09/25/Cpp-Memory-Management/)
+
+[C/C++内存管理详解---与3)相关](http://zheming.wang/blog/2012/03/23/36E28580-280D-4708-BEAF-B3A3E5107377/)
 
 > 1).C++内存分为那几块,每块存储哪些变量
 
@@ -218,10 +221,16 @@ int main()
 
 ![](../../../pics/interview/language/C++/内存分布.png)
 
+> 5).堆和栈区别
 
-[C/C++内存管理详解-与1) 2)相关](https://chenqx.github.io/2014/09/25/Cpp-Memory-Management/)
+- (1). 管理方式不同:栈，由编译器自动管理；堆，程序员控制，容易产生内存泄露
+- (2). 空间大小不同:32位，堆，内存4G；栈，内存由限制，VC6大约1M，可设置
+- (3). 能否产生碎片不同：堆，频繁的`new/delete，造成大量的碎片；栈，不会产生碎片
+- (4). 生长方向不同：堆：内存地址增加的方向；栈，内存地址减小的方向
+- (5). 分配方式不同：堆，动态分配（malloc、new）；栈，动态分配（alloca），静态分配（局部变量）
+- (6). 分配效率不同：堆，机制复杂，效率低；栈，效率高
 
-[C/C++内存管理详解---与3)相关](http://zheming.wang/blog/2012/03/23/36E28580-280D-4708-BEAF-B3A3E5107377/)
+
 
 ## 4.定位内存泄露 
 
@@ -232,6 +241,10 @@ int main()
 		3).Linux下通过工具valgrind检测
 
 [C/C++内存泄漏及检测](http://www.cnblogs.com/skynet/archive/2011/02/20/1959162.html)
+
+
+
+
 
 ---
 
@@ -597,8 +610,15 @@ template <class T2>
 void f(){}
 ```
 
-
 [C++模板的偏特化与全特化](http://harttle.land/2015/10/03/cpp-template.html)
+
+# 其他
+
+## 1.C++与JAVA的对比
+
+> 1).C/C++与JAVA的区别
+
+> 2).C/C++较Java有性能优势，为什么
 
 
 
