@@ -370,6 +370,7 @@ class A{
     //sizeof(A)输出1
     //空类的大小为1，当类不包含虚函数和非静态数据成员时，其对象大小也为1
     //为了空类实例的identity
+    //它有一个隐晦的1字节，是编译器安插的，使用class A的对象得以在内存中配置独一无二的地址
 };
 //函数
 class B{
@@ -428,7 +429,7 @@ int main()
 - 4.与类中的构造函数，析构函数以及其他的成员函数无关．
 - [sizeof() 类大小，空类大小](https://blog.csdn.net/liu_qiqi/article/details/9344627)
 
-#### 5. sizeof派生类 //TODO
+## 5. sizeof派生类 //TODO
 
 ---
 
