@@ -348,3 +348,39 @@ func (daemon *Daemon) CmdBuild(job *engine.Job)
 	---> daemon.Repositories().Set(repoName, tag, id, false) //将镜像ID注册到Repository中
 ```
 
+
+
+## Docker命令解析流程
+
+- 执行流程如下：
+
+![](../../pics/Docker/11_5_build函数执行流程.png)
+
+- Dockerfile例子：
+
+```
+FROM ubuntu:14.04
+MAINTAINER Allen Sun allen.sun@daocloud.com
+RUN apt-get update
+CMD ["/bin/bsh"]
+```
+
+
+
+```
+源码：docker/daemon/build.go
+
+func (b *buildFile) Build(context io.Reader)
+	---> tmpdirPath, err := ioutil.TempDir("", "docker-build") //创建临时文件
+	---> decompressedStream, err := archive.DecompressStream(context) //解压context
+	---> dockerfile = lineContinuation.ReplaceAllString() //读取Dockerfile
+	---> for _, line := range strings.Split(dockerfile, "\n") //逐行解析Dockerfile
+		---> line = strings.Trim() //对每一行进行预处理
+		---> b.BuildStep(fmt.Sprintf("%d", stepN), line) //从line中解析相应的Dockerfile命令，完成构建一个镜像layer的任务
+			---> tmp := strings.SplitN(expression, " ", 2) //如，将"FROM"和 "ubuntu:14.04"分离
+			---> instruction := //获得命令类型，如FROM
+			---> arguments := //获得命令参数，如ubuntu:14.04
+			---> method, exists := reflect.TypeOf(b).MethodByName(instruction...) //利用golang的反射机制获取具体的执行方法
+			---> ret := method.Func.Call(reflect.ValueOf(arguments)...) //根据获取的方法，传入参数，完成一条Dockerfile执行的指令
+```
+
