@@ -32,6 +32,14 @@ Docker源码分析
 
 
 
+## Graph架构示意图
+
+
+
+![](../../pics/Docker/1_4_Graph架构示意图.jpg)
+
+
+
 # 第9章 Docker镜像下载
 
 ## Docker镜像下载流程
@@ -58,14 +66,14 @@ Docker源码分析
   源码：docker/api/client/command.go
 
   func (cli *DockerCli) CmdPull(args ...string)
-  	---> tag := cmd.String()	(1)
-  	---> v      = url.Values{}	(1)
-  	---> remote = cmd.Arg(0)	(1)
-  	---> hostname, _, err := registry.ResolveRepositoryName(remote)	(1)
-  	---> authConfig := cli.configFile.ResolveAuthConfig(hostname)	(2)
-  	---> pull := func(authConfig registry.AuthConfig) error {}	(3)
+  	---> tag := cmd.String()	//(1)
+  	---> v      = url.Values{}	//(1)
+  	---> remote = cmd.Arg(0)	//(1)
+  	---> hostname, _, err := registry.ResolveRepositoryName(remote)	//(1)
+  	---> authConfig := cli.configFile.ResolveAuthConfig(hostname)	//(2)
+  	---> pull := func(authConfig registry.AuthConfig) error {}	//(3)
   		---> return cli.stream("POST", "/images/create?"+v.Encode()...}
-  	---> if err := pull(authConfig);	(3)
+  	---> if err := pull(authConfig);	//(3)
   ```
 
 
@@ -82,10 +90,10 @@ Docker源码分析
 总过程：DockerCli.CmdPull() ---> postImagesCreate()
 
 func postImagesCreate(...) error
-	---> image、repo、tag、job	(1)
-	---> authConfig :=	(1)
-	---> job = eng.Job("pull", image, tag)	(2)
-	--- >if err := job.Run();	(3)
+	---> image、repo、tag、job	//(1)
+	---> authConfig :=	//(1)
+	---> job = eng.Job("pull", image, tag)	//(2)
+	--- >if err := job.Run();	//(3)
 	
 ```
 ## Docker Daemon
@@ -122,17 +130,71 @@ func postImagesCreate(...) error
 总流程：DockerCli.CmdPull() ---> postImagesCreate()--->TagStore.CmdPull()
 
 func (s *TagStore) CmdPull() engine.Status
-	---> localName、tag、authConfig	(1)
+	---> localName、tag、authConfig	//(1)
 	---> s.poolAdd	(1)：禁止下载中被的DockerClient发出相同的请求
-	---> registry.NewSession()	(2):创建session对象，与registry建立数据连接，用r进行数据传输
-	---> s.pullRepository()	(3):执行镜像下载
-		---> r.GetRepositoryData() 获取指定repository中所有镜像的ID信息，存入RepositoryData的ImgList中
-		---> r.GetRemoteTags() 获取指定repository的所有Tag信息
-		---> s.pullImage()	(4):从Docker Register下载Docker镜像
-			---> r.GetRemoteHistory()	获取指定image所有祖先镜像的ID信息
-			---> r.GetRemoteImageJSON()	获取指定image的json信息
-			---> r.GetRemoteImageLayer() 获取指定image的layer信息
-			---> s.graph.Register()	将下载的镜像在TagStore的Graph中注册
-		---> s.Set()	(5):配置TagStore
+	---> registry.NewSession()	//(2):创建session对象，与registry建立数据连接，用r进行数据传输
+	---> s.pullRepository()	//(3):执行镜像下载
+		---> r.GetRepositoryData() //获取指定repository中所有镜像的ID信息，存入RepositoryData的ImgList中
+		---> r.GetRemoteTags() //获取指定repository的所有Tag信息
+		---> s.pullImage()	//(4):从Docker Register下载Docker镜像
+			---> r.GetRemoteHistory()	//获取指定image所有祖先镜像的ID信息
+			---> r.GetRemoteImageJSON()	//获取指定image的json信息
+			---> r.GetRemoteImageLayer() //获取指定image的layer信息
+			---> s.graph.Register()	//将下载的镜像在TagStore的Graph中注册
+		---> s.Set()	//(5):配置TagStore
+			---> store.LookupImage(imageName) //查看Graph中是否确定存在指定image
+			---> validateRepoName() //验证repository的名称是否合法
+			---> validateTagName() //验证tag的名称是否合法
+			---> store.reload() //加载本地的repository文件
+			---> repo[tag] = img.ID //在repository对象中添加新镜像的tag信息以及image id
+			---> return store.save() //保存repository信息，持久化到Docker Daemon本地
+			
+```
+
+
+
+# 第10章 Docker镜像存储
+
+## 镜像注册
+
+- **镜像注册**主要分为4个步骤
+
+  - 验证镜像ID的有效性
+  - 创建镜像存储路径
+  - 存储镜像内容
+  - 在Graph中注册镜像ID
+
+  ​
+
+  ![](../../pics/Docker/10_1_Register函数执行流程.png)
+
+
+## 验证镜像ID
+
+- 步骤：
+  - 验证镜像合法性
+  - 验证镜像是否已存在
+  - 初始化镜像目录
+    - 作法：删除 一些冲突目录
+    - 目的：使得后续Docker镜像存储时存储路径不会冲突
+
+## 创建镜像路径
+
+- 步骤（以aufs为例）
+  - 创建mnt、diff、layers子目录
+  - 挂载祖先镜像并返回根目录
+
+
+
+```
+源码：docker/graph/pull.go
+
+其实是接上一章的s.graph.Register()
+
+s.graph.Register(jsonData,layerData,img) 
+	---> utils.ValidateID(img.ID) //验证镜像合法性
+	---> graph.Exists(img.ID) //验证镜像是否已存在
+	---> os.RemoveAll() //初始化镜像目录
+	---> graph.driver.Create(img.ID, img.Parent) //调用aufs的Create
 ```
 
