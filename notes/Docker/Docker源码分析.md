@@ -175,7 +175,7 @@ func (s *TagStore) CmdPull() engine.Status
   - 验证镜像合法性
   - 验证镜像是否已存在
   - 初始化镜像目录
-    - 作法：删除 一些冲突目录
+    - 做法：删除一些冲突目录
     - 目的：使得后续Docker镜像存储时存储路径不会冲突
 
 ## 创建镜像路径
@@ -183,7 +183,44 @@ func (s *TagStore) CmdPull() engine.Status
 - 步骤（以aufs为例）
   - 创建mnt、diff、layers子目录
   - 挂载祖先镜像并返回根目录
+- aufs目录地址
+  - 镜像存放目录：`/var/lib/docker/aufs/diff`
+  - 镜像挂载目录：`/var/lib/docker/aufs/mnt`
+- 目录说明：
+  - layers：每个镜像的元数据，这些元数据是这个镜像的祖先镜像ID列表
+  - diff：每个镜像所在的layer，具体包含的文件系统内容，下载的镜像中与文件系统相关的内容，都会存在diff下的某个镜像ID目录下
+  - mnt：目录下的每个文件都是一个镜像ID，代表该层镜像之上挂载的可读写layer
 
+
+![](../../pics/Docker/10_2_aufs目录结构图.png)
+
+## 挂载祖先镜像并返回根目录
+
+- 步骤：
+  - 获取aufs/mnt/image_ID目录（RW层所在路径）
+  - 如果不是基础镜像，挂载父类镜像
+
+
+
+## 存储镜像内容
+
+- 主要函数`image.StoreImage(img, jsonData, layerData, tmp, rootfs);`
+- 参数分析：
+
+![](../../pics/Docker/10_1_StoreImage函数的传入参数.png)
+
+- 步骤：
+
+  - 1.解压镜像内容layerData至diff目录（StoreImage传入的镜像内容layerData是一个压缩包），解压的diff目录如下图所示。
+    - 将其解压至aufs/diff/image_ID目录下
+    - 开启镜像磁盘空间统计任务
+
+  ![](../../pics/Docker/10_4_镜像解压后示意图.png)
+
+  - 2.收集镜像所占空间大小，并记录
+    - 将镜像大小收集，更新img的Size属性
+    - 将镜像大小写入root，由于传入的是`_temp`，因此存入`_temp`。具体的做法为：在临时目录`/var/lib/docker/graph/_temp`下创建layersize文件，并写入`img.Size`
+  - 3.将jsonData写入临时文件
 
 
 ```
@@ -195,6 +232,17 @@ s.graph.Register(jsonData,layerData,img)
 	---> utils.ValidateID(img.ID) //验证镜像合法性
 	---> graph.Exists(img.ID) //验证镜像是否已存在
 	---> os.RemoveAll() //初始化镜像目录
-	---> graph.driver.Create(img.ID, img.Parent) //调用aufs的Create
+	---> graph.driver.Create(img.ID, img.Parent) //调用aufs的Create,在aufs.go
+		---> a.createDirsFor(id); //创建mnt、diff,再根据镜像ID创建镜像文件夹，aufs/mnt/image_ID,aufs/diff/image_ID
+		---> os.Create(path.Join(a.rootPath(), "layers", id)) //写入层元数据,即写入到aufs/layers/image_ID下，将祖先镜像的镜像ID写入该镜像ID文件中
+	---> rootfs, err := graph.driver.Get(img.ID, "") //挂载祖先镜像并返回根目录aufs/mnt/image_ID，调用aufs的Get，在aufs.go
+		---> count := a.active[id] //获取镜像的引用数（有可能多个容器在用）
+		---> out := path.Join(a.rootPath(), "diff", id) //如果不是基础镜像，挂载父镜像
+	---> image.StoreImage() 
+		---> differ.ApplyDiff(img.ID, layerData) //将layerData解压至aufs/diff/image_ID
+		---> differ.DiffSize(img.ID) //开启镜像磁盘空间统计任务
+		---> img.Size = size //更新img的Size属性
+		---> img.SaveSize(root) //将镜像大小写入root
+	
 ```
 
