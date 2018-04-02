@@ -406,3 +406,77 @@ func (b *buildFile) Build(context io.Reader)
 
 
 ![](../../pics/Docker/11_6_FROM命令执行流程图.png)
+
+```
+源码：docker/daemon/build.go
+
+func (b *buildFile) CmdFrom(name string)
+	---> image, err := b.daemon.Repositories().LookupImage(name) //在Repo中查找镜像
+	---> if b.daemon.Graph().IsNotExist(err) //如果本地查找不到，则pull
+		---> job := b.eng.Job("pull", remote, tag)
+		---> job.Run()
+	---> b.image = image.ID //获得镜像后，将ID值传给buildFile的image属性，第二条命令可以在此基础镜像上来完成，image会随着build的流程的变化而变化
+	---> b.config = image.Config //如果image.Config不为空，也赋给buildFile
+	---> b.config.OnBuild = //配置buildFile的OnBuild属性
+```
+
+### RUN命令
+
+- 与其他修改镜像config信息的命令的区别：
+  - 需要在镜像基础上执行动态的命令，执行命令时存在“容器”的概念
+- 步骤如图：
+
+![](../../pics/Docker/11_7_CmdRun函数的执行流程图.png)
+
+#### 1.镜像cahe机制（probeCache）
+
+- 原理：根据buildFile的属性image（基础镜像的ID或后续覆盖基础镜像的镜像ID）和buildFile的config属性，遍历本地所有镜像，只要存在一个镜像，此镜像的父镜像ID与当前buildFile的image值相等（父类比较，累积比较），且此镜像的config内容与正在构建的RUN命令的buildFile.config相同，则认为正在构建的RUN命令产生的结果与此镜像的结果一致，可以直接使用本地存储的镜像。若不存在，则完整地执行RUN
+
+#### 2.创建Container对象
+
+- 创建Container对象，为运行容器做准备
+- 需要的信息：
+  - 基础镜像的ID
+  - 运行容器所需的runconfig
+
+#### 3.挂载文件系统
+
+- 为何需要挂载？
+  - RUN命令需要在容器中运行指定的程序，仅仅创建Container类型实例c还不够，需要为容器的运行挂载文件系统
+- 怎么做？
+  - 根据Container实例中的镜像ID，获得所有祖先镜像，通过指定的graphdriver完全联合起来，挂载到一个目录下
+  - 而后容器运行将用该挂载点作为容器的根目录
+
+#### 4.运行容器
+
+- 效果：利用c中众多的容器配置信息，将Docker容器运行起来
+- 需要做的工作：
+  - 创建容器的文件系统
+  - 创建容器的命名空间进行资源隔离
+  - 为容器配置cgroups参数进行资源控制
+  - 运行用户指定的程序
+
+#### 5.提交新镜像
+
+- 效果：将更改后的top layer制作成一个新镜像，并有效存储。RUN命令的commit操作是从一个运行完毕的容器中保存文件系统的Read-Write层，以一个镜像的形式存入本地graph中
+- `b.daemon.Commit`的工作：
+  - 暂停Docker Container的运行（对RUN不起作用，因为RUN命令的容器已经运行完毕并终止）
+  - 把容器文件系统的Read-Write层打包tar
+  - 创建image对象，并在Graph中注册，需要的信息
+    - tar包
+    - 众多配置信息
+  - 在repositories中注册新创建的镜像，repositories实则为TagStore，TagStore的repositories属性存储了image的信息，方便用户快速查找
+
+```
+源码： docker/daemon/build.go
+
+func (b *buildFile) CmdRun(args string)
+	---> hit, err := b.probeCache() //查找本地镜像，如果找到了直接返回；没找到才执行下面步骤
+	---> c, err := b.create() //创建Container
+	---> c.Mount() //挂载文件系统
+	---> b.run(c) //运行容器
+	---> b.commit(c.ID, cmd, "run") //提交新镜像
+		---> image, err := b.daemon.Commit(container,...)
+		---> b.image = image.ID //将新构建的镜像的ID作为下一个Dockerfile命令执行的基础镜像
+```
+
