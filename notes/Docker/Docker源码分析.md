@@ -384,3 +384,25 @@ func (b *buildFile) Build(context io.Reader)
 			---> ret := method.Func.Call(reflect.ValueOf(arguments)...) //根据获取的方法，传入参数，完成一条Dockerfile执行的指令
 ```
 
+## Dockerfile命令分析
+
+- Dockerfile每一条命令（FROM命令除外）都会构建一个新的image
+- Dockerfile分为两类
+  - 1.修改镜像：
+    - RUN：基于上一层image的容器中运行一条命令，可能修改镜像
+    - ADD：在Dockerfile所在目录的context中复制内容至上亿层image，可能修改镜像
+    - COPY
+  - 2.修改Config
+    - ENV：作为进程的环境变量加载
+    - EXPOSE：进程会监听EXPOSE的端口号
+    - CMD
+    - ENTRYPOINT
+    - MAINTAINER
+
+### FROM命令
+
+- 步骤如图：
+
+
+
+![](../../pics/Docker/11_6_FROM命令执行流程图.png)
