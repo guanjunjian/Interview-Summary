@@ -303,8 +303,6 @@ func (cli *DockerCli) CmdBuild(args) error
 
 ### Docker Server与docker build
 
-### Docker Daemon与docker build
-
 ```
 源码：docker/api/server/server.go
 
@@ -317,5 +315,28 @@ createRouter
 			---> job.Run() //执行job.Run
 ```
 
+### Docker Daemon与docker build
 
+- Docker Daemon获取context的流程图（有三种方式）：
+
+![](../../pics/Docker/11_4_Docker Daemon获取context的流程图.png)
+
+- buildFile：相当于一个生产镜像车间，只要有原料（Dockerfile）输入，它就可以按照要求为用户生产Docker镜像，build结构体相关属性如下：
+
+![](../../pics/Docker/11_2_buildFile属性说明.png)
+
+- b.Build之后的事情：
+  - Docker Daemon响应Docker Server
+  - Docker Server响应Docker Client 
+
+```
+源码：docker/daemon/build.go
+
+func (daemon *Daemon) CmdBuild(job *engine.Job)
+	---> noCache、rm、authConfig、context //解析job环境变量
+	---> context //根据三种方式之一获取context
+	---> b := NewBuildFile(daemon,...) //根据noCache等参数创建buildFile对象
+	---> id, err := b.Build(context) //buildFile根据context创建镜像并返回镜像ID
+	---> daemon.Repositories().Set(repoName, tag, id, false) //将镜像ID注册到Repository中
+```
 
