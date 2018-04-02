@@ -18,19 +18,7 @@ Docker源码分析
 
 ## Docker Daemon架构示意图
 
-
-
-
-
 ![](../../pics/Docker/1_2_Docker Daemon架构示意图.jpg)
-
-
-
-![](/test)
-
-546464878
-
-
 
 ## Docker Server架构示意图
 
