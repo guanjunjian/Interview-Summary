@@ -252,10 +252,67 @@ s.graph.Register(jsonData,layerData,img)
 		---> differ.ApplyDiff(img.ID, layerData) //将layerData解压至aufs/diff/image_ID
 		---> differ.DiffSize(img.ID) //开启镜像磁盘空间统计任务
 		---> img.Size = size //更新img的Size属性
-		---> img.SaveSize(root) //将镜像大小写入root
+		---> img.SaveSize(root) //将镜像大小写入临时目录
 		---> ioutil.WriteFile(jsonPath(root), jsonData, 0600) //将json写入临时目录
 		---> os.Rename(tmp, graph.ImageRoot(img.ID)) //commit，重命名临时目录
 		---> graph.idIndex.Add(img.ID) //将镜像ID添加至TruncIndex
 	
+```
+
+
+
+# 第11章 Docker build实现
+
+- docker build：通过一个Dockerfile文件以及相关内容，从一个基础镜像起步，对Dockerfile中的每一条命令，都在原先的镜像layer之上再额外构建一个新的镜像layer，直至构建出用户所需的镜像
+
+## docker build执行流程
+
+![](../../pics/Docker/11_1_docker_build的流程图.png)
+
+### Docker client与docker build
+
+![](../../pics/Docker/11_2_Docker Client处理docker build命令的流程图.png)
+
+#### 1.定义并解析flag参数
+
+#### 2.获取Dockerfile相关内容
+
+- 获取Dockerfile的方式
+  - 本地
+  - STDIN
+  - 远程：URL
+  - git
+- 解析Dockerfile源并构建context信息的流程图
+
+![](../../pics/Docker/11_3_解析Dockerfile源并构建context信息的流程图.png)
+
+#### 3.构建REST请求参数
+
+#### 4.发送POST请求
+
+```
+源码：docker/api/client/command.go
+
+func (cli *DockerCli) CmdBuild(args) error
+	---> tag、suppressOutput、noCache、rm、forceRm //定义并解析flag参数
+	---> context //根据Dockerfile构造的context信息
+	---> body = utils.ProgressReader(context,...) //根据context生成请求体
+	---> v.Set("t", *tag) //设置flag参数
+	---> cli.stream("POST", fmt.Sprintf("/build?%s", v.Encode()), body,...) //发送POST请求至Docker Server
+```
+
+### Docker Server与docker build
+
+```
+源码：docker/api/server/server.go
+
+createRouter
+	--->"POST":"/build": 
+		---> postBuild
+			---> 解析请求参数
+			---> eng.Job("build") //创建Job
+			---> job.Stdin.Add(r.Body) //以job自身标准输入的形式将Dockerfile添加到job内部
+			---> job.Run() //执行job.Run
+
 ```
 
