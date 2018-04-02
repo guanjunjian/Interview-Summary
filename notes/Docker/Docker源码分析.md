@@ -110,8 +110,8 @@ func postImagesCreate(...) error
 
 - image组成：
 
-  - image json：元数据
-  - image layer：实际内容
+  - image json：元数据，比如Dockerfile中的ENV、暴露的端口，用来给容器内部进程配置环境，动态数据
+  - image layer：实际内容，静态数据
 
 - (4)Docker镜像下载至本地并存储与Graph、(5)在TagStore中标记该镜像的具体过程：
 
@@ -219,8 +219,18 @@ func (s *TagStore) CmdPull() engine.Status
 
   - 2.收集镜像所占空间大小，并记录
     - 将镜像大小收集，更新img的Size属性
-    - 将镜像大小写入root，由于传入的是`_temp`，因此存入`_temp`。具体的做法为：在临时目录`/var/lib/docker/graph/_temp`下创建layersize文件，并写入`img.Size`
+    - 将镜像大小写入root，由于传入的是`_temp`，因此存入`_temp`。具体的做法为：在临时文件`/var/lib/docker/graph/_temp/layersize`写入`img.Size`
   - 3.将jsonData写入临时文件
+    - 将json写入`/var/lib/docker/graph/_temp/json`
+
+## 注册镜像ID
+
+- 知识点：`TruncIndex`：Docker用户指定镜像ID的前缀，只要前缀满足在全局所有的镜像ID中唯一，Docker Daemon就可以通过TruncIndex定位到唯一的镜像ID
+- 步骤：
+  - 将`/var/lib/docker/graph/_temp`重命名为`/var/lib/docker/graph/<img.ID>`
+  - 添加镜像ID至graph.idIndex，即添加到TruncIndex
+
+
 
 
 ```
@@ -243,6 +253,9 @@ s.graph.Register(jsonData,layerData,img)
 		---> differ.DiffSize(img.ID) //开启镜像磁盘空间统计任务
 		---> img.Size = size //更新img的Size属性
 		---> img.SaveSize(root) //将镜像大小写入root
+		---> ioutil.WriteFile(jsonPath(root), jsonData, 0600) //将json写入临时目录
+		---> os.Rename(tmp, graph.ImageRoot(img.ID)) //commit，重命名临时目录
+		---> graph.idIndex.Add(img.ID) //将镜像ID添加至TruncIndex
 	
 ```
 
