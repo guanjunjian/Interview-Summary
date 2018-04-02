@@ -480,3 +480,18 @@ func (b *buildFile) CmdRun(args string)
 		---> b.image = image.ID //将新构建的镜像的ID作为下一个Dockerfile命令执行的基础镜像
 ```
 
+### ENV命令
+
+- 含义：构建镜像时，为镜像添加一个环境变量
+- 作用：在buildFile.image的基础上，配置指定buildFile.config中的Env参数，随后执行commit。
+- 是否创建镜像
+  - 也会创建一个新的镜像，并运行完daemon包中Commit函数
+  - 虽然创建镜像过程中不会有新的文件系统变化，但对于镜像而言，镜像的json信息已经发生明显的变化，即镜像的json信息中ENV部分被修改
+
+```
+源码： docker/daemon/build.go
+
+func (b *buildFile) CmdEnv(args string)
+	---> b.commit("", b.config.Cmd, fmt.Sprintf("ENV %s", replacedVar)) //创建新镜像
+```
+
