@@ -215,7 +215,11 @@ func (s *TagStore) CmdPull() engine.Status
     - 将其解压至aufs/diff/image_ID目录下
     - 开启镜像磁盘空间统计任务
 
+  ​
+
   ![](../../pics/Docker/10_4_镜像解压后示意图.png)
+
+  ​
 
   - 2.收集镜像所占空间大小，并记录
     - 将镜像大小收集，更新img的Size属性
@@ -271,7 +275,11 @@ s.graph.Register(jsonData,layerData,img)
 
 ### Docker client与docker build
 
+
+
 ![](../../pics/Docker/11_2_Docker Client处理docker build命令的流程图.png)
+
+
 
 #### 1.定义并解析flag参数
 
