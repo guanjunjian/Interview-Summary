@@ -303,6 +303,8 @@ func (cli *DockerCli) CmdBuild(args) error
 
 ### Docker Server与docker build
 
+### Docker Daemon与docker build
+
 ```
 源码：docker/api/server/server.go
 
@@ -313,6 +315,7 @@ createRouter
 			---> eng.Job("build") //创建Job
 			---> job.Stdin.Add(r.Body) //以job自身标准输入的形式将Dockerfile添加到job内部
 			---> job.Run() //执行job.Run
-
 ```
+
+
 
