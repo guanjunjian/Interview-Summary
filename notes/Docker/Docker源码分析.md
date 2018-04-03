@@ -59,7 +59,7 @@ Docker源码分析
   - (3).发送RESTful请求至Docker Daemon（`job.Run()`、`"POST","/images/create?"+v.Encode()`）
 
   ```
-  源码：docker/api/client/command.go
+  源码：docker/api/client/commands.go
 
   func (cli *DockerCli) CmdPull(args ...string)
   	---> tag := cmd.String()	//(1)
@@ -483,11 +483,16 @@ func (b *buildFile) CmdRun(args string)
 - 是否创建镜像
   - 也会创建一个新的镜像，并运行完daemon包中Commit函数
   - 虽然创建镜像过程中不会有新的文件系统变化，但对于镜像而言，镜像的json信息已经发生明显的变化，即镜像的json信息中ENV部分被修改
+- 是否创建容器
+  - 创建容器，在commit中创建，但不启动，只是在静态时修改它的config，然后commit
 
 ```
 源码： docker/daemon/build.go
 
 func (b *buildFile) CmdEnv(args string)
 	---> b.commit("", b.config.Cmd, fmt.Sprintf("ENV %s", replacedVar)) //创建新镜像
+		---> if id == ""
+			---> container, warnings, err := b.daemon.Create(b.config, "") //创建容器
+			---> image, err := b.daemon.Commit(container,...) //提交镜像
 ```
 
