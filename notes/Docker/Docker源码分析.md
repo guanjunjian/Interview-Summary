@@ -24,7 +24,7 @@ Docker源码分析
 
 
 
-![](../../pics/Docker/1_3_Docker Server架构示意图.jpg)
+![](../../pics/Docker/1_3_Server架构示意图.jpg)
 
 
 
@@ -273,7 +273,7 @@ s.graph.Register(jsonData,layerData,img)
 
 
 
-![](../../pics/Docker/11_2_Docker Client处理docker build命令的流程图.png)
+![](../../pics/Docker/11_2_Client处理docker build流程图.png)
 
 
 
@@ -323,7 +323,7 @@ createRouter
 
 - Docker Daemon获取context的流程图（有三种方式）：
 
-![](../../pics/Docker/11_4_Docker Daemon获取context的流程图.png)
+![](../../pics/Docker/11_4_Daemon获取context的流程图.png)
 
 - buildFile：相当于一个生产镜像车间，只要有原料（Dockerfile）输入，它就可以按照要求为用户生产Docker镜像，build结构体相关属性如下：
 
