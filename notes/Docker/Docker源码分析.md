@@ -476,6 +476,16 @@ func (b *buildFile) CmdRun(args string)
 		---> b.image = image.ID //将新构建的镜像的ID作为下一个Dockerfile命令执行的基础镜像
 ```
 
+```
+hit, err := b.probeCache()
+	---> cache, err := b.daemon.ImageGetCached(b.image, b.config)
+		---> images, err := daemon.Graph().Map() //找到父节点配的镜像
+			---> graph.walkAll() //遍历森林中的树
+		---> runconfig.Compare() //遍历匹配的父节点的镜像中，是否有config与自己匹配
+```
+
+
+
 ### ENV命令
 
 - 含义：构建镜像时，为镜像添加一个环境变量
