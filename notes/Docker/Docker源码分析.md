@@ -273,7 +273,7 @@ s.graph.Register(jsonData,layerData,img)
 
 
 
-![](../../pics/Docker/11_2_Client处理docker build流程图.png)
+![](../../pics/Docker/11_2_Client处理docker_build流程图.png)
 
 
 
