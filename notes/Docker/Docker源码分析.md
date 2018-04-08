@@ -101,7 +101,7 @@ func postImagesCreate(...) error
   - (1).解析Job参数（repository、tag、Docker Registry）
   - (2).Docker Daemon与Docker Registry建立会话（session）
   - (3).通过会话下载镜像
-  - (4).Docker镜像下载至本地并存储与Graph（`s.pullRepository`）
+  - (4).Docker镜像下载至本地并存储于Graph（`s.pullRepository`）
   - (5).在TagStore中标记该镜像`s.Set()`
 
 - image组成：
@@ -150,6 +150,17 @@ func (s *TagStore) CmdPull() engine.Status
 
 
 # 第10章 Docker镜像存储
+
+先了解一个目录下分别有什么内容：
+
+```
+/var/lib/docker/graph/<img.ID> --> json、镜像大小
+/var/lib/docker/aufs/layers ---> 每个镜像的元数据，这些元数据是这个镜像的祖先镜像ID列表
+/var/lib/docker/aufs/diff ---> 每个镜像所在的layer，具体包含的文件系统内容，下载的镜像中与文件系统相关的内容，都会存在diff下的某个镜像ID目录下
+/var/lib/docker/aufs/mnt ---> mnt：目录下的每个文件都是一个镜像ID，代表该层镜像之上挂载的可读写layer
+```
+
+
 
 ## 镜像注册
 
@@ -386,7 +397,7 @@ func (b *buildFile) Build(context io.Reader)
 - Dockerfile分为两类
   - 1.修改镜像：
     - RUN：基于上一层image的容器中运行一条命令，可能修改镜像
-    - ADD：在Dockerfile所在目录的context中复制内容至上亿层image，可能修改镜像
+    - ADD：在Dockerfile所在目录的context中复制内容至上一层image，可能修改镜像
     - COPY
   - 2.修改Config
     - ENV：作为进程的环境变量加载
