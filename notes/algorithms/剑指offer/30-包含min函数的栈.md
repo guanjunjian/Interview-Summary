@@ -20,8 +20,8 @@
 class Solution {
 public:
 	void push(int value) {
-		st.push(value);
-		if (minSt.size() == 0 || value <= minSt.top())
+        st.push(value);
+        if (minSt.size() == 0 || value <= minSt.top())
 			minSt.push(value);
         else
 		    minSt.push(minSt.top());
