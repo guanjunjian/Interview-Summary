@@ -614,7 +614,7 @@ container := &Container{
   - setupWorkingDirectory设置Command的进程工作目录
 - 10.setupMountsForContainer：将Daemon所需要从容器外挂载到容器内的目录，转换为exedriver可识别的Mount类型，最终mounts对象将赋予container.command的Mounts属性
 - 11.waitForStart：启动容器进程，并根据用户指定的重启策略应对容器启动失败的情况（monitor）
-  - container.monitor.Start：通过启动populateCommand函数创建的Command对象，完成容器的创建
+  - container.monitor.Start：通过启动populateCommand函数创建的Command对象，完成容器的创建（从Daemon转移至execdriver，最终进入libcontainer）
     - 进入execdriver(native)，根据container中的Command对象创建libcontainer的Config对象，最终通过libcontainer中的namespace包来实现容器的启动
     - libcontainer两个工作：
       - 为容器初始化具体的物理资源并提供相应的容器能力
@@ -635,7 +635,48 @@ func (container *Container) Start()
 	---> setupMountsForContainer(container)
 	---> container.waitForStart()
 		---> container.monitor.Start
+			--->  m.container.daemon.Run(m.container, pipes, m.callback)
+				---> return daemon.execDriver.Run(c.command, pipes, startCallback)
+					---> return namespaces.Exec(...)
 ```
 
 # 第13章 dockerinit启动
+
+Daemon启动Docker容器时，运行的第一个进程并不是用户的应用进程，而是一个称为dockerinit的进程
+
+dockerinit是Docker中的init进程，与Linux的init进程相似，负责初始化容器，并且是所有容器进程的祖先进程。
+
+dockerinit的能力：
+
+- 网络资源：bridge模式下，为容器创建命名空间、配置独立的网络栈
+- 挂载资源：mount namespace，初始化挂载资源包括设置容器内部的设备、挂载点以及文件系统等
+- 用户设置：为容器设置组（group）、组ID（GID）、用户ID（UID）
+- 环境变量：容器中的环境变量使得容器内进程拥有更多的运行参数
+- 容器Capability：Capability机制确保容器内进程以及文件的Capability得到限制
+
+dockerinit是Docker Daemon的子进程。
+
+Daemon与dockerinit通信方式：
+
+- Docker Daemon通过将Config配置json后存入本地文件系统，dockerinit在初始化Mount空间前，提取这部分信息
+- Daemon为dockerinit传递命令参数
+
+**namespace.Exec的工作：**
+
+- 1.创建syncPipe：使用Docker Daemon与dockerinit通过管道形式同步资源（如网络设备的信息），因为dockerinit启动后在一个全新的namespace内
+- 2.创建容器命令command，与dockerinit相关，创建了静态的执行入口
+- 3.容器命令的启动，启动/var/lib/docker/init/dockerinit-1.2.0，dockerinit触发
+
+启动dockerinit后，Daemon与init并发执行，两者通过管道的形式同步，同步完成后两者各自运行，除父子关系外，无更多逻辑关系
+
+```
+源码： docker/vendor/src/github.com/docker/libcontainer/namespaces/exec.go
+
+func Exec(container,...,rootfs, dataPath string, args []string, createCommand CreateCommand, startCallback func()) 
+	---> syncPipe, err := syncpipe.NewSyncPipe() //创建syncPipe
+	---> command := createCommand(container, console, rootfs, dataPath, os.Args[0], syncPipe.Child(), args) //创建容器命令（exec.Cmd实例），与dockerinit相关
+		---> c.path = d.initpath // /var/lib/docker/init/dockerinit-1.2.0,因此Daemon启动容器时会执行该dockerinit-1.2.0
+		---> c.Args = // dockerinit的执行参数
+	---> command.Start() //容器命令的启动
+```
 
