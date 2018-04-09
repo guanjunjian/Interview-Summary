@@ -517,3 +517,125 @@ func (b *buildFile) CmdEnv(args string)
 			---> image, err := b.daemon.Commit(container,...) //提交镜像
 ```
 
+# 第12章 Docker容器创建
+
+主要工作分为两部分：
+
+- 1.创建Docker容器对象，并为容器准备所需的rootfs（create请求）
+- 2.创建容器的运行环境，如网络环境、资源限制等，最终真正地运行用户指令（start请求）
+
+![](../../pics/Docker/12_1_docker_run命令执行流程图.png)
+
+## 12.3 Docker Daemon创建容器对象
+
+主要分为以下几步：
+
+![](../../pics/Docker/tb_12_2_Create函数执行步骤解析.png)
+
+```
+源码： docker/daemon/create.go
+
+func (daemon *Daemon) Create(config, name) (*Container)
+	---> container *Container
+	---> img := daemon.repositories.LookupImage(config.Image)
+	---> img.CheckDepth()
+	---> daemon.mergeAndVerifyConfig(config, img)
+	---> container = daemon.newContainer(name, config, img)
+	---> daemon.createRootfs(container, img) //在联合挂载所有镜像layer的基础上，再挂载init layer和read write layer
+		---> graph.SetupInitLayer(initPath) //init layer，与容器运行环境相关的目录和文件，如/dev/pts、proc、.dockerinit（二进制文件挂载点，是容器中一个运行的内容）、/etc/hosts、etc/hostname以及/etc/resolv.conf
+	---> container.ToDisk() //json、hostConfig持久化到/var/lib/docker/container/containers/<container_id>
+	---> daemon.Register(container) //将container注册到daemon的containers属性，让Daemon方便管理
+```
+
+### 12.3.1 LookupImage
+
+- 功能：通过用户指定的镜像名称，从daemon的repositpries对象中查找镜像
+
+![](../../pics/Docker/12_2_TagStore_Graph_Driver之间的关系.png)
+
+- Daemon每次成功下载含有tag的镜像或构建成功一个镜像，最后的步骤都是将这个镜像在Daemon.Repositories中注册，若为aufs，则镜像会注册写入`/var/lib/docker/repositories-aufs`文件中。repositories的存在使得LookImage变得简单。
+
+```
+源码： docker/graph/tags.go
+
+func (store *TagStore) LookupImage(name string) (*image.Image)
+	---> repos, tag := parsers.ParseRepositoryTag(name) //如果tag为空，默认为latest
+	---> img, err := store.GetImage(repos, tag)
+		---> repo, err := store.Get(repoName)
+		---> revision, exists := repo[tagOrID]
+		---> return store.graph.Get(revision) //获取镜像的diff目录
+			---> ids, err := getParentIds(a.rootPath(), id)
+			---> out := path.Join(a.rootPath(), "diff", id)
+			---> out = path.Join(a.rootPath(), "mnt", id) //挂载父镜像
+			---> return out, nil
+```
+
+### 12.3.4 NewContainer
+
+```go
+container := &Container{
+		// FIXME: we should generate the ID here instead of receiving it as an argument
+		ID:              id,
+		Created:         time.Now().UTC(),
+		Path:            entrypoint,
+		Args:            args, //FIXME: de-duplicate from config
+		Config:          config,
+		hostConfig:      &runconfig.HostConfig{},
+		Image:           img.ID, // Always use the resolved image id
+		NetworkSettings: &NetworkSettings{},
+		Name:            name,
+		Driver:          daemon.driver.String(),
+		ExecDriver:      daemon.execDriver.Name(),
+		State:           NewState(),
+	}
+```
+
+## 12.4 Docker Daemon启动容器
+
+包含11个步骤
+
+- 1.setupContainerDns：配置容器DNS服务（host模式与主机公用，无需配置）
+- 2.Mount：获取容器根目录，并赋予container.basefs
+- 3.initializeNetworking：处理用户指定网络模式（bridge、host、container、none等），进行相应的网络配置与初始化，最终将初始化信息存入container
+- 4.verifyDaemonSetting：
+  - 系统内核是否支持cgroup的内存限制
+  - 系统内核是否支持cgroup的swap内存限制
+  - 系统内核是否支持网络接口间IPv4数据包的转发
+- 5.prepareVolumesForContainer：通过用户指定的volume参数以及镜像中的data volume参数，为容器准备更为具体的Volumes信息。将用户在volume接口配置的volume转换为Daemon能识别的Volume类型
+- 6.setupLinkedContainers：为启动容器配置link的环境，link允许容器通过环境变量的形式发现另一个容器，并在这两个容器间安全传输信息
+- 7.setupWorkingDirectory：根据用户传入的`--workdir`参数设置容器运行时的当前工作目录（如没有，则创建）
+- 8.createDaemonEnvironment
+  - 通过命名空间（namespace）实现隔离环境
+  - 通过控制组（cgroup）实现资源空间环境
+  - 用户配置环境变量的运行环境 
+- 9.populateCommand：Daemon以Command的形式提供容器的运行入口，并通过populateCommand填充Command的内容，填充完毕后，就可以启动容器
+  - initializeNetworking完成的网络配置将修改Command的网络部分
+  - prepareVolumesForContainer完成的volume配置会在setupMountsForContainer中配置进Command（volume转换为mount对象）
+  - setupWorkingDirectory设置Command的进程工作目录
+- 10.setupMountsForContainer：将Daemon所需要从容器外挂载到容器内的目录，转换为exedriver可识别的Mount类型，最终mounts对象将赋予container.command的Mounts属性
+- 11.waitForStart：启动容器进程，并根据用户指定的重启策略应对容器启动失败的情况（monitor）
+  - container.monitor.Start：通过启动populateCommand函数创建的Command对象，完成容器的创建
+    - 进入execdriver(native)，根据container中的Command对象创建libcontainer的Config对象，最终通过libcontainer中的namespace包来实现容器的启动
+    - libcontainer两个工作：
+      - 为容器初始化具体的物理资源并提供相应的容器能力
+      - 启动容器的主进程
+
+```
+源码： docker/daemon/container.go
+func (container *Container) Start()
+	---> container.setupContainerDns()
+	---> container.Mount()
+	---> container.initializeNetworking()
+	---> container.verifyDaemonSettings()
+	---> prepareVolumesForContainer(container)
+	---> container.setupLinkedContainers()
+	---> container.setupWorkingDirectory()
+	---> container.createDaemonEnvironment(linkedEnv)
+	---> populateCommand(container, env)
+	---> setupMountsForContainer(container)
+	---> container.waitForStart()
+		---> container.monitor.Start
+```
+
+# 第13章 dockerinit启动
+
