@@ -604,10 +604,8 @@ container := &Container{
 - 5.prepareVolumesForContainer：通过用户指定的volume参数以及镜像中的data volume参数，为容器准备更为具体的Volumes信息。将用户在volume接口配置的volume转换为Daemon能识别的Volume类型
 - 6.setupLinkedContainers：为启动容器配置link的环境，link允许容器通过环境变量的形式发现另一个容器，并在这两个容器间安全传输信息
 - 7.setupWorkingDirectory：根据用户传入的`--workdir`参数设置容器运行时的当前工作目录（如没有，则创建）
-- 8.createDaemonEnvironment
-  - 通过命名空间（namespace）实现隔离环境
-  - 通过控制组（cgroup）实现资源空间环境
-  - 用户配置环境变量的运行环境 
+- 8.createDaemonEnvironment：为容器的运行创建相应的环境变量
+  - 系统为容器添加的、
 - 9.populateCommand：Daemon以Command的形式提供容器的运行入口，并通过populateCommand填充Command的内容，填充完毕后，就可以启动容器
   - initializeNetworking完成的网络配置将修改Command的网络部分
   - prepareVolumesForContainer完成的volume配置会在setupMountsForContainer中配置进Command（volume转换为mount对象）
