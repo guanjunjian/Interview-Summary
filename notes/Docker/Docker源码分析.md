@@ -605,7 +605,7 @@ container := &Container{
 - 6.setupLinkedContainers：为启动容器配置link的环境，link允许容器通过环境变量的形式发现另一个容器，并在这两个容器间安全传输信息
 - 7.setupWorkingDirectory：根据用户传入的`--workdir`参数设置容器运行时的当前工作目录（如没有，则创建）
 - 8.createDaemonEnvironment：为容器的运行创建相应的环境变量
-  - 系统为容器添加的、
+  - 系统为容器添加的、用户为容器指定或生产的
 - 9.populateCommand：Daemon以Command的形式提供容器的运行入口，并通过populateCommand填充Command的内容，填充完毕后，就可以启动容器
   - initializeNetworking完成的网络配置将修改Command的网络部分
   - prepareVolumesForContainer完成的volume配置会在setupMountsForContainer中配置进Command（volume转换为mount对象）
@@ -769,7 +769,7 @@ namespaces.Init完成的工作不仅仅只有与Linux namespace相关的内容�
 
 完成上面的步骤，容器的隔离、资源工作、权限管理工作都完成了。下面是在容器内运行容器指定的应用程序，即dockerinit将容器主进程的执行权交给用户程序
 
-- .system.Execv(args[0], args[0:], os.Environ())
+- system.Execv(args[0], args[0:], os.Environ())
   - args[0]：从args参数中提取第一个参数作为执行命令
   - args[0:]：第二个参数开始所有的参数作为第一个参数的运行参数
   - os.Environ()：代表整个进程运行时的环境变量
