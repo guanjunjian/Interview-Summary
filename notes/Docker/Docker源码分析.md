@@ -688,7 +688,7 @@ func Exec(container,...,rootfs, dataPath string, args []string, createCommand Cr
 		---> c.Args = // dockerinit的执行参数
 	---> command.Start() //容器命令的启动
 		---> c.Start() //run.go,进入dockerinit	
-	---> SetupCgroups()   //后面的三步是与dockerinit同步执行的
+	---> SetupCgroups()   //后面的四步是与dockerinit同步执行的
 	---> InitializeNetworking()
 	---> syncPipe.ReadFromChild() //Sync with child
 	---> command.Wait()
@@ -753,7 +753,7 @@ namespaces.Init完成的工作不仅仅只有与Linux namespace相关的内容�
 - 前半部分：进程的配置
 - 后半部分：初始化容器的资源
 
-![](../../pics/Docker/13_1_Docker Daemon与dockerinit的同步流程.png)
+![](../../pics/Docker/13_1_Docker_Daemon与dockerinit的同步流程.png)
 
 **dockerinit在namespace中的工作：**
 
