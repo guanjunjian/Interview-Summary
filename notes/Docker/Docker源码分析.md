@@ -694,7 +694,7 @@ func Exec(container,...,rootfs, dataPath string, args []string, createCommand Cr
 	---> command.Wait()
 ```
 
-![](../../pics/Docker/13_1_Docker Daemon与dockerinit的同步流程.png)
+![](../../pics/Docker/13_1_Docker_Daemon与dockerinit的同步流程.png)
 
 ## 13.4 dockerinit运行
 
