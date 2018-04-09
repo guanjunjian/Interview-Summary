@@ -667,6 +667,15 @@ Daemon与dockerinit通信方式：
 - 2.创建容器命令command，与dockerinit相关，创建了静态的执行入口
 - 3.容器命令的启动，启动/var/lib/docker/init/dockerinit-1.2.0，dockerinit触发
 
+下面的四个步骤，是与dockerinit同步执行的
+
+- 4.SetCgroups，设置dockerinit进程的cgroups，完成dockerinit进程的资源限制
+  - 通过类型container对象和dockerinit在宿主机上的PID号，为dockerinit设置cgroup参数
+- 5.InitializeNetworking，创建dockerinit所在容器的网络栈资源
+  - 在init命名空间（主机上的命名空间）上创建dockerinit所在容器需要的网络资源（即跨网络命名空间创建相应的网络栈），通过syncPipe的形式将网络栈资源传递给新建的namespace下dockerinit
+- 6.syncPipe.ReadFromChild，与子进程dockerinit同步
+- 7.command.Wait() ，等待dockerinit返回
+
 启动dockerinit后，Daemon与init并发执行，两者通过管道的形式同步，同步完成后两者各自运行，除父子关系外，无更多逻辑关系
 
 ```
@@ -678,5 +687,120 @@ func Exec(container,...,rootfs, dataPath string, args []string, createCommand Cr
 		---> c.path = d.initpath // /var/lib/docker/init/dockerinit-1.2.0,因此Daemon启动容器时会执行该dockerinit-1.2.0
 		---> c.Args = // dockerinit的执行参数
 	---> command.Start() //容器命令的启动
+		---> c.Start() //run.go,进入dockerinit	
+	---> SetupCgroups()   //后面的三步是与dockerinit同步执行的
+	---> InitializeNetworking()
+	---> syncPipe.ReadFromChild() //Sync with child
+	---> command.Wait()
+```
+
+![](../../pics/Docker/13_1_Docker Daemon与dockerinit的同步流程.png)
+
+## 13.4 dockerinit运行
+
+```
+源码： docker/dockerinit/dockerinit.go
+
+func main() 
+	---> reexec.Init() //reexec使得dockerinit二进制文件可以运行多种任务，dockerinit运行的处理方法都通过一个注册的execdriver名称获得，并最终运行此方法
+		---> initializer, exists := registeredInitializers[os.Args[0]] //获得注册的initializer
+		---> initializer() //执行注册的initializer
+```
+
+**initializer的注册**
+
+```
+以native的execdriver为例
+源码： docker/daemon/execdriver/native/init.go
+
+func init()
+	---> reexec.Register(DriverName, initializer) //实现了DriveName的注册，名为“native”，注册的方法为init.go文件下的initializer
+```
+
+### 13.4.2 dockerinit的执行流程
+
+即init.go文件下的initializer下的执行流程
+
+initializer完成部分工作，剩下的交给libcontainer的namespace
+
+**initializer完成的工作为：**
+
+- 1.定义flag参数并解析
+- 2.声明libcontainer.Config实例，并通过解析container.json文件，获取实例内容。（execdriver中run函数执行namespace.exec函数之前，将libcontainer.Config持久化至本地目录/var/lib/docker/execdriver/native/<c.ID>/container.json）
+- 3.获取root的路径
+- 4.通过同步管道所在的文件描述符索引值（值为3）获取对应的管道对象
+- 5.通过libcontainer中的namespace包的Init函数，最终完成容器初始化工作
+
+```
+源码： docker/daemon/execdriver/native/init.go
+
+func initializer()
+	---> flag.Parse()
+	---> json.NewDecoder(f).Decode(&container)
+	---> rootfs, err := os.Getwd()
+	---> syncPipe := syncpipe.NewSyncPipeFromFd(0, uintptr(*pipe))
+	---> namespaces.Init(container, rootfs, *console, syncPipe, flag.Args())
+```
+
+## 13.5 libcontainer的运行
+
+libcontainer是一套容器技术的实现方案，借助于libcontainer的调用，可以完成容器的创建与管理。dockerinit就是通过libcontainer来完成容器的创建与初始化
+
+namespaces.Init完成的工作不仅仅只有与Linux namespace相关的内容，它会完成namespace、mount、容器用户、网络等方面的配置
+
+将父子进程的管道同步作为一个分水岭：
+
+- 前半部分：进程的配置
+- 后半部分：初始化容器的资源
+
+![](../../pics/Docker/13_1_Docker Daemon与dockerinit的同步流程.png)
+
+**dockerinit在namespace中的工作：**
+
+- 1.ReadFromParent(&networkState)：如上图所示，这里会阻塞，直到daemon将创建的网络栈资源通过管道传给dockerinit，dockerinit最重要的工作就是配置网络栈
+- 2.setupNetwork(container, networkState)：利用networkState中的网络配置信息，在容器的网络命名空间下初始化内部借款，将其改名为eth0，并对接口的MTU、IP地址及默认网关进行配置，从而构建容器完成的网络栈
+- 3.mount.InitializeMountNamespace()：挂载rootfs、proc、volume
+- 4.FinalizeNamespace(container)：完成容器namespace下所需的所有工作
+  - 1.关闭标准输入、输出、错误之外的所有打开的文件描述符
+  - 2.容器切换用户之前，为容器取消某些Linux Capability
+  - 3.容器切换用户之前，为容器保留某些Linux Capability
+  - 4.为容器创建新的用户ID、组ID
+  - 5.清除所有保留的Linux Capability
+  - 6.禁用其他所有的Linux Capability
+  - 7.为容器进程切换至工作目录workdir，即在用户态docker run命令指定的参数workdir
+
+完成上面的步骤，容器的隔离、资源工作、权限管理工作都完成了。下面是在容器内运行容器指定的应用程序，即dockerinit将容器主进程的执行权交给用户程序
+
+- .system.Execv(args[0], args[0:], os.Environ())
+  - args[0]：从args参数中提取第一个参数作为执行命令
+  - args[0:]：第二个参数开始所有的参数作为第一个参数的运行参数
+  - os.Environ()：代表整个进程运行时的环境变量
+  - Execv只是在原进程的基础上重新执行一段程序，并不会改变原有程序的PID，也不会创建一个新进程
+
+args相关的即是Entrypoint与Cmd（若两者都有，Entrypoint在前面一起作为最终的args，如果只有Cmd则其作为最红的args）
+
+- Entrypoint：偏向容器应用层的初始化工作，它的最后一步会使用exec调用，将主进程的执行权交给Cmd
+- Cmd：用户指定运行的应用程序
+
+**注意：**
+
+- dockerinit、Entrypoint、Cmd都基于同一个PID
+- Cmd创建的其他子进程都会受到相同namespace和cgroup的作用
+- Cmd进程及其所有子进程共同构成一个用户眼中的“容器”
+
+![](../../pics/Docker/13_2_Daemon_dockerinit_Entrypoint_Cmd之间的关系.png)
+
+```
+源码： docker/vendor/src/github.com/docker/libcontainer/namespace/init.go
+
+func Init()
+	---> syncPipe.ReadFromParent(&networkState) 
+	---> setupNetwork(container, networkState)
+		--->strategy.Initialize() 
+	---> mount.InitializeMountNamespace() 
+	---> FinalizeNamespace(container) 
+	---> return system.Execv(args[0], args[0:], os.Environ())
+		---> name, err := exec.LookPath(cmd)
+		---> return syscall.Exec(name, args, env)
 ```
 
