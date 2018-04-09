@@ -258,7 +258,7 @@ s.graph.Register(jsonData,layerData,img)
 		---> os.Create(path.Join(a.rootPath(), "layers", id)) //写入层元数据,即写入到aufs/layers/image_ID下，将祖先镜像的镜像ID写入该镜像ID文件中
 	---> rootfs, err := graph.driver.Get(img.ID, "") //挂载祖先镜像并返回根目录aufs/mnt/image_ID，调用aufs的Get，在aufs.go
 		---> count := a.active[id] //获取镜像的引用数（有可能多个容器在用）
-		---> out := path.Join(a.rootPath(), "diff", id) //如果不是基础镜像，挂载父镜像
+		---> out := path.Join(a.rootPath(), "diff", id) //如果不是基础镜像，挂载父镜像，返回为/var/lib/docker/aufs/mnt/image_ID
 	---> image.StoreImage() 
 		---> differ.ApplyDiff(img.ID, layerData) //将layerData解压至aufs/diff/image_ID
 		---> differ.DiffSize(img.ID) //开启镜像磁盘空间统计任务
