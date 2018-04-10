@@ -106,20 +106,42 @@ C++的static有两种用法：面向过程程序设计中的static和面向对�
 
 **初始化类内部的常量** 
 
--	1).static与const并用，在外部初始化（`const int A::a = 10;`）
-		2).初始化列表
+- 1).static与const并用，在外部初始化（const int A::a = 10;）
+- 2).初始化列表
 
 **将Const类型转化为非Const类型的方法** 
 
 `const_cast <type_id> (expression) `
 
--	常量指针被转化成非常量指针，并且仍然指向原来的对象
-		常量引用被转换成非常量引用，并且仍然指向原来的对象
-		常量对象被转换成非常量对象
+- 常量指针被转化成非常量指针，并且仍然指向原来的对象
+- 常量引用被转换成非常量引用，并且仍然指向原来的对象
+- 常量对象被转换成非常量对象
 
 **参考** 
 
 -	[关于C++ const 的全面总结](http://blog.csdn.net/Eric_Jo/article/details/4138548)
+
+## 5.final关键字的作用
+
+- 1.禁用继承
+
+```c++
+class Super final  
+{  
+  //......  
+}; 
+```
+
+- 2.禁用重写，C++中还允许将方法标记为fianal，这意味着无法再子类中重写该方法。这时final关键字至于方法参数列表后面。只能对虚函数使用
+
+```c++
+class Super  
+{  
+public:  
+	Supe();  
+    virtual void SomeMethod() final;  
+};  
+```
 
 ---
 
@@ -428,6 +450,65 @@ int main()
 - [sizeof() 类大小，空类大小](https://blog.csdn.net/liu_qiqi/article/details/9344627)
 
 ## 5. sizeof派生类 //TODO
+
+## 6.如何防止类被继承
+
+- 1.对类声明final
+
+```c++
+    class Super final  
+    {  
+      //......  
+    };  
+```
+
+- 2.该类的构造函数声明为私有方法
+
+存在的问题：该类本身不能生成对象了
+
+解决方法：
+
+- 静态函数
+- 友元函数
+
+```c++
+class A  {
+public:
+	static A makeA() {
+		A a;
+		return a;
+	}
+private:
+	A() { 
+		i = 10;
+		cout << i; 
+	};
+	int i;
+};
+```
+
+## 7.声明为protected的基类构造函数
+
+- 在派生类的构造函数的初始化列表中可以调用
+- 派生类构造函数可以默认调用
+- 其他地方不能调用
+
+```c++
+class A  {
+protected:
+	A(int)
+	{
+		cout << "A2";
+	}
+};
+
+class B : public A {
+public:
+	B():A(2){}
+};
+```
+
+
 
 ---
 
