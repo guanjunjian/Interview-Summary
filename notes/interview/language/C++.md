@@ -248,7 +248,7 @@ noexcept(e)
 
 ## 12.类成员函数的default、delete
 
-
+[C++中的默认函数与default和delete用法](https://blog.csdn.net/u012333003/article/details/25299939)
 
 ---
 
