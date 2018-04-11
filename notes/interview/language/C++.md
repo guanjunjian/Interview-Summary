@@ -457,7 +457,13 @@ C++标准指明析构函数不能、也不应该抛出异常。C++异常处理�
 
 [入解释直接初始化与复制初始化的区别](https://blog.csdn.net/ljianhui/article/details/9245661)
 
-## 4.sizeof类
+## 4.拷贝赋值运算符
+
+//TODO
+
+（合成版的行为？、与delete？、自定义时要注意自赋值，参数与返回类型、大部分组合了拷贝构造函数与析构函数的工作）
+
+## 5.sizeof类
 
 ```c++
 class A{
@@ -523,9 +529,9 @@ int main()
 - 4.与类中的构造函数，析构函数以及其他的成员函数无关．
 - [sizeof() 类大小，空类大小](https://blog.csdn.net/liu_qiqi/article/details/9344627)
 
-## 5. sizeof派生类 //TODO
+## 6. sizeof派生类 //TODO
 
-## 6.如何防止类被继承
+## 7.如何防止类被继承
 
 - 1.对类声明final
 
@@ -561,7 +567,49 @@ private:
 };
 ```
 
-## 7.声明为protected的基类构造函数
+- 3.使用 虚继承 + 私有基类构造函数（？）
+- 4.使用 虚继承 + 受保护的基类构造函数（？）
+
+```c++
+#include <iostream>
+using namespace std;
+
+template <class T>
+class Assistant
+{
+ private:
+    friend  T;  //注意这里的友元，注意：不是 friend class T
+    Assistant(){};
+    ~Assistant(){};
+};
+
+class A : public virtual Assistant <A>
+{
+ public:
+    A(){};
+    ~A(){};
+};
+
+class B : public A
+{
+ public:
+    B(){}; //B的构造函数需要直接调用A的构造函数，但其不是A的友元
+    ~B(){};
+};
+
+int main(int argc, char* argv[])
+{
+    A a;       // 可以构造
+    B b;       // 不能构造
+    return 0;
+}
+```
+
+[阻止类被继承（继承类被实例化）的几种常用办法](https://blog.twofei.com/672/)
+
+[C++中如何防止类被继承](http://www.cnblogs.com/kingstarspe/archive/2013/06/06/virtualpublic.html)
+
+## 8.声明为protected的基类构造函数
 
 可以调用的地方：
 
@@ -596,13 +644,125 @@ public:
 };
 ```
 
-## 8.面向对象的三大特征
+## 9.面向对象的三大特征
 
 封装、继承、多态
 
-## 9.移动构造函数
+## 10.移动构造函数
 
-[移动构造函数](https://blog.csdn.net/jofranks/article/details/17438955)
+//TODO
+
+[移动构造-C++11](https://blog.csdn.net/zyq11223/article/details/48766515)
+
+## 11.移动赋值运算符
+
+//TODO
+
+（与noexcept？何时合成）
+
+## 12.阻止拷贝
+
+- 1.新方案：可以通过将拷贝构造函数和拷贝赋值运算符定义为删除的函数（deleted function）来阻止拷贝。虽然声明了他们，但是不能以任何形式使用他们
+  - 注意：析构函数不能定义为删除
+
+```c++
+struct NoCopy
+{
+    NoCopy() = default;    //使用合成的默认构造函数
+    NoCopy(const NoCopy&) = delete;  //阻止拷贝
+    NoCopy & operator = (const NoCopy&) = delete; //阻止赋值
+    ~NoCopy() = default; //使用合成的析构函数
+    //其他成员
+};
+```
+
+- 2.在private区域声明但不实现
+  - 好处：禁止友元函数和类成员函数也禁止了复制
+
+```c++
+class CPeople  
+{  
+private:  
+    // 将复制相关的操作定义为私有  
+     CPeople(CPeople&); // 只声明不实现  
+    const CPeople& operator=(const CPeople& rhis); // 只声明不实现  
+}; 
+```
+
+## 13.对象或对象的引用（指针）调用构造函数和析构函数
+
+- 构造函数：不能通过对象或引用调用构造函数
+- 析构函数：可以通过对象或引用调用析构函数
+
+```c++
+class A {
+public:
+	A() { cout << "A()"; }
+	A(int) { cout << "A(int)"; }
+	~A() { cout << "~A()"; }
+};
+int main(int argc, char* argv[])
+{
+	//正确
+	A* a1 = new A();
+	a1->~A();
+	//正确
+	A a2;
+	a2.~A();
+	//错误
+	A a3;
+	a3.A();
+	//错误
+	A* a4 = new A();
+	a4->A();
+	return 0;
+}
+```
+
+## 14.删除的合成函数
+
+//TODO
+
+[删除的合成函数](https://github.com/arkingc/llc/blob/master/cpp/class/delete/README.md)（一般函数而言不想调用的话不定义就好）
+
+## 15.派生类中的复制控制
+
+[C++派生类的构造函数和复制控制](https://blog.csdn.net/zhy_cheng/article/details/8201250)
+
+- 1.复制构造函数
+  - 先调用基类的复制构造函数，初始化基类的成员，然后初始化本类的成员
+
+```c++
+Son::Son(const Son& ss):Father(ss)
+{
+	this->pcname=ss.pcname;
+	this->phonename=ss.phonename;
+}
+```
+
+- 2.赋值操作符
+
+```c++
+Son& Son::operator =(Son& ss)
+{
+	Father::operator=(ss);
+	this->pcname=ss.pcname;
+	this->phonename=ss.phonename;
+	return *this;
+}
+```
+
+- 需要显式调用基类的赋值操作符
+
+## 16.类内定义常量
+
+[在类中定义常量的几个做法](http://www.cnblogs.com/huhu0013/archive/2010/09/13/1824989.html)]
+
+- 1.const：注意，必须在构造函数的初始化列表中初始化，否则，构造函数会被删除
+- 2.enum：`enum { size = 100};`
+  - 使用enum不会占用对象中的存储空间的，枚举常量在编译的时候被全部求值
+  - 缺点：假如定义一个非整型的常量该如何？enum无法完成此项操作,同时丧失了枚举本来的作用
+- 3.static const，在类外初始化
 
 ---
 
