@@ -43,3 +43,25 @@ STL内存分配分为一级分配器和二级分配器，一级分配器就是�
 
 - 查找、插入、删除的效率都是O(logn)
 
+
+> 6).set和map的区别
+
+- 对于set来说key和value合一，value就是key，map的元素是一个pair，包括key和value
+- set不支持[]，map(不包括multimap)支持[]
+
+> 7).set(map)和multiset(multimap)的区别
+
+- set不允许key重复,其insert操作调用rb_tree的insert_unique函数
+- multiset允许key重复,其insert操作调用rb_tree的insert_equal函数
+
+> 8).set(multiset)和map(multimap)的迭代器
+
+- 由于set(multiset)key和value合一，迭代器不允许修改key
+- map(multimap)除了key有data，迭代器允许修改data不允许修改key
+
+> 9).map与unordered_map的区别？
+
+## 2.vector底层的实现？insert具体做了哪些事？resize()调用的是什么？
+
+## 3.
+

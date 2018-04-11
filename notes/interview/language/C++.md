@@ -190,6 +190,66 @@ public:
 
 [C++  explicit的作用](http://www.cnblogs.com/this-543273659/archive/2011/08/02/2124596.html)
 
+## 10.mutable
+
+[C++关键字mutable](http://www.cnblogs.com/danshui/archive/2012/01/05/2313647.html)
+
+- 1.mutable的意思是“可变的，易变的”，跟C++中的const是反义词
+- 2.在C++中，mutable也是为了突破const的限制而设置的。被mutable修饰的变量，将永远处于可变的状态，即使在一个const函数中
+
+```c++
+class TestMutable
+{
+public:
+    TestMutable(){i=0;}
+    int Output() const
+    {
+        return i++; //合法
+    }
+private:
+    mutable int i;
+};
+```
+
+## 11.noexcept
+
+[《C++Primber》笔记 第IV部分](https://guanjunjian.github.io/2017/02/09/study-23-cpp-primer-summary_4/)
+
+- noexcept说明符和noexcept运算符
+  - 跟在函数参数列表后是异常说明符
+  - 作为noexcept异常说明的bool实参出现时，是一个运算符
+
+> noexcept说明符
+
+noexcept说明指定某个函数不会抛出异常，在说明noexcept的同时又含有throw语句。一旦一个noexcept函数抛出了异常，程序就会调用terminate以确保遵守不在运行时抛出异常的承诺。
+
+noexcept说明符接受一个可选的实参，该实参必须能转换为bool类型。
+
+- 如果实参是true，则函数不会抛出异常
+- 如果实参是false，则函数可能抛出异常
+
+```c++
+void recoup(int) noexcept;  // 不会抛出异常
+void alloc(int);        // 可能抛出异常
+void recoup(int) noexcept(true);    // recoup不会抛出异常
+void alloc(int) noexcept(false);    // alloc可能抛出异常
+```
+
+> noexcept运算符
+
+一个一元运算符，返回值是一个bool类型的右值常量表达式，用于表示给定的表达式是否会抛出异常，运算符不会求其运算对象的值
+
+```c++
+//如果recoup不抛出异常则结果为true；否则结果为false
+noexcept(recoup(i));
+//当e调用的所有函数都做了不抛出说明且e本身不含有throw语句时，返回true，否则false
+noexcept(e)
+```
+
+## 12.类成员函数的default、delete
+
+
+
 ---
 
 # 内存和动态内存
@@ -214,7 +274,9 @@ new和malloc的实现、空闲链表，分配方法(首次适配原则，最佳�
 
 ## 2.内存对齐的原则
 
-对其的好处：对齐节省了时间
+- 对其的好处：对齐节省了时间
+
+比如对于int x;（这里假设sizeof(int)==4），**因为cpu对内存的读取操作是对齐的**，如果x的地址不是4的倍数，那么读取这个x，需要读取两次共8个字节，然后还要将其拼接成一个int，这比存取对齐过的x要麻烦很多
 
 - 1).数据成员对齐规则：结构(struct)(或联合(union))的数据成员，第一个数据成员放在offset为0的地方，以后每个数据成员存储的起始位置要从该成员大小或者成员的子成员大小（只要该成员有子成员，比如说是数组，结构体等）的整数倍开始(比如int在32位机为4字节,则要从４的整数倍地址开始存储。
 - 2).结构体作为成员:如果一个结构里有某些结构体成员,则结构体成员要从其内部最大元素大小的整数倍地址开始存储.(struct a里存有struct b,b里有char,int ,double等元素,那b应该从8的整数倍开始存储.)
@@ -307,6 +369,24 @@ int main()
 - 3).Linux下通过工具valgrind检测
 
 [C/C++内存泄漏及检测](http://www.cnblogs.com/skynet/archive/2011/02/20/1959162.html)
+
+## 5.allocator类
+
+> 1).为什么需要allocator类
+
+- new存在灵活上的局限性：将内存分配和对象构造组合在一起
+- delete存在灵活上的局限性：将对象析构和内存释放组合在一起
+- 将内存分配和对象构造组合在一起可能导致不必要的浪费
+
+> 2).使用方法
+
+![](../../../pics/interview/language/C++/allocator.png)
+
+[《C++Primber》笔记 第Ⅱ部分](https://guanjunjian.github.io/2017/01/26/study-21-cpp-primer-summary_2/)
+
+## 6.对象复用与零拷贝
+
+//TODO
 
 ---
 
@@ -827,6 +907,8 @@ shared_ptr<int> p(new int[10], default_delete<int[]>());
 - 3.析构函数，count--，如果count为0，则释放内存
 - 4.赋值操作符：右操作数的count先加1，左操作数的count再减1（这样的顺序是为了防止自赋值时出错），如果左操作数count为0，则释放左操作数原内存，并指向右操作数的内存空间
 
+![](../../../pics/interview/language/C++/shared_ptr和unique_ptr都支持的操作.png)
+
 **unique_ptr：** 
 
 unique_ptr是一种在异常发生时可帮助避免资源泄露的智能指针。这个智能指针实现了独占式拥有概念，意味着它可确保一个对象和其相应资源同一时间只被一个指针拥有。一旦拥有者被销毁或变成空，或开始拥有另一个对象，先前拥有的那个对象就会被销毁，其任何相应资源也会被释放。
@@ -839,6 +921,8 @@ unique_ptr是一种在异常发生时可帮助避免资源泄露的智能指针�
 unique_ptr<int> ptr(new int(0));
 ```
 
+![](../../../pics/interview/language/C++/unique_ptr操作.png)
+
 **weak_ptr** 
 
 - weak_ptr是一种不控制所指向对象生成期的智能指针
@@ -847,8 +931,11 @@ unique_ptr<int> ptr(new int(0));
 - shared_ptr被销毁，即使weak_ptr指向对象，对象也还是会被释放
 - 由于对象可能不存在，不能使用weak_ptr直接访问对象，必须调用lock
 - lock检查weak_ptr所指向的对象是否存在，如果存在，lock返回一个指向共享对象的shared_ptr
+- 好处：避免循环引用
 
 [C++智能指针及其简单实现](http://www.cnblogs.com/xiehongfeng100/p/4645555.html)
+
+![](../../../pics/interview/language/C++/weak_ptr.png)
 
 > 2).如何改变引用计数
 
