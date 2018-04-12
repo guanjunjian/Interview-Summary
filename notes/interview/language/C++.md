@@ -163,6 +163,26 @@ public:
 - 定义一般类型的别名没区别，都是用来简化代码。如`typedef string::size_type str_sz`，将`string::size_type`类型命名为`str_sz`，类型名在前，别名在后；而using的用法为`using str_sz=string::size_type`，别名在前，类型名在后；
 - 定义模板的别名，只能使用using。如：`using cell = pair<void*, cell*>`
 
+using的其他用途：
+
+- 1.在当前文件中引入命名空间
+
+
+- 2.在子类中使用 using 声明引入基类成员名称
+  - 可用于函数重载：让父类同名函数在子类中以重载方式使用，可以参见下面“函数重载”部分
+  - 可用于基类private的函数
+- 3.继承构造函数
+
+```c++
+class Derived : public Base
+{
+public:
+    using Base::Base;
+};
+```
+
+[C++ using关键字作用总结](http://www.cnblogs.com/ustc11wj/archive/2012/08/11/2637316.html)
+
 ## 7.class与struct的区别
 
 - 1.默认的数据成员访问权限
@@ -246,9 +266,138 @@ noexcept(recoup(i));
 noexcept(e)
 ```
 
-## 12.类成员函数的default、delete
+## 12.default、delete
 
 [C++中的默认函数与default和delete用法](https://blog.csdn.net/u012333003/article/details/25299939)
+
+- default显示地指示编译器生成某函数的默认版本（如构造函数、一些操作符）
+
+```c++
+class MyClass
+{
+  public:
+    MyClass()=default;  //同时提供默认版本和带参版本，类型是POD的
+    MyClass(int i):data(i){}
+  private:
+    int data;
+};
+```
+
+- 使用delete关键字显式指示编译器不生成函数的默认版本（如复制构造函数）
+
+```c++
+class MyClass
+{
+  public:
+     MyClass()=default;
+     MyClass(const MyClass& )=delete;
+  ......
+}
+```
+
+## 13.final、override
+
+[c++11特性之override和final关键字 ](https://blog.csdn.net/wangshubo1989/article/details/49539251)
+
+**final**
+
+- 1.阻止类的进一步派生
+- 2.阻止虚函数的进一步重载
+
+```c++
+class TaskManager {/*..*/} final; 
+class  B: A
+{
+pulic:
+  void func() const override final; //OK
+};
+```
+
+**override**
+
+- 1.确保在派生类中声明的重载函数跟基类的虚函数有相同的签名
+
+```c++
+virtual void func(double) override;
+```
+
+## 14.auto
+
+[auto的使用](https://blog.csdn.net/huang_xw/article/details/8760403)
+
+- 1.自动类型推断
+- 2.返回值占位
+
+```c++
+template <typename T1, typename T2>  
+auto compose(T1 t1, T2 t2) -> decltype(t1 + t2)  
+{  
+   return t1+t2;  
+}  
+```
+
+- 注意事项：
+  - 可以使用valatile，pointer（*），reference（&），rvalue reference（&&） 来修饰auto
+  - 用auto声明的变量必须初始化
+  - auto不能与其他类型组合连用
+  - 函数和模板参数不能被声明为auto
+  - 定义在堆上的变量，使用了auto的表达式必须被初始化
+  - 不能用于类型转换或其他一些操作，如sizeof和typeid
+    - 即不能使用`auto x2 = (auto)value`
+  - 定义在一个auto序列的变量必须始终推导成同一类型
+  - auto不能自动推导成CV-qualifiers（constant & volatile qualifiers），除非被声明为引用类型
+  - auto会退化成指向数组的指针，除非被声明为引用
+
+```c++
+//堆的问题
+auto* y = new auto(9); // Fine. Here y is a int*
+
+//关于数组的指针退化的例子
+int a[9];
+auto j = a;
+cout<<typeid(j).name()<<endl; // This will print int*
+auto& k = a;
+cout<<typeid(k).name()<<endl; // This will print int [9]
+```
+
+## 15.decltype
+
+[auto 和 decltype 区别和联系](https://blog.csdn.net/y1196645376/article/details/51441503)
+
+decltype，它的作用是选择并返回操作数的数据类型，编译器只是分析表达式并得到它的类型，却不进行实际的计算表达式的值
+
+```c++
+decltype(f()) sum = x;// sum的类型就是函数f的返回值类型。 
+```
+
+**decltype与auto的区别**
+
+- decltype在处理顶层const和引用的方式与auto有些许不同，如果decltype使用的表达式是一个变量，则decltype返回该变量的类型(包括顶层const和引用在内)。
+
+```c++
+    const int ci = 42, &cj = ci;  
+      
+    decltype(ci) x = 0;   // x 类型为const int  
+    auto z = ci;          // z 类型为int  
+      
+    decltype(cj) y = x;   // y 类型为const int&  
+    auto h = cj;          // h 类型为int  
+```
+
+- decltype的结果类型与表达形式密切相关，对于decltype 所用表达式来说，如果变量名加上一对括号，则得到的类型与不加上括号的时候可能不同。
+  - 不加括号的变量，那么得到的结果就是这个变量的类型
+  - 这个变量加上一个或多层括号，那么编译器会把这个变量当作一个表达式看待，变量是一个可以作为左值的特殊表达式，所以这样的decltype就会返回引用类型
+
+```c++
+int i = 42;
+
+//decltype(i)   int  类型
+//decltype((i)) int& 类型
+```
+
+## 16.typeid
+
+如果表达式的类型是类类型且至少包含有一个虚函数，则typeid操作符返回表达式的动态类型，需要在运行时计算；否则，typeid操作符返回表达式的静态类型，在编译时就可以计算
 
 ---
 
@@ -1194,6 +1343,40 @@ void fun( int* i) {
 - 1.对于没有使用非静态成员的非静态成员，该类的空指针也可以调用。
 - 2.不能使用作用域运算符（`::`）调用，只能使用`->`（指针时），或`.`（对象时）
 
+## 4.lambda
+
+[C++ 11 Lambda表达式](http://www.cnblogs.com/DswCnblog/p/5629165.html)
+
+好处：可以方便的定义和创建匿名函数
+
+```c++
+[capture list] (params list) mutable exception-> return type { function body }
+
+省略版本：
+//这种类型的表达式不能修改捕获列表中的值
+[capture list] (params list) -> return type {function body}
+//省略了返回值类型，1).有return语句，根据语句判断；2).没有return,返回类型void
+[capture list] (params list) {function body}
+//省略了参数列表
+[capture list] {function body}
+
+1. capture list：捕获外部变量列表
+2. params list：形参列表
+3. mutable指示符：用来说用是否可以修改捕获的变量
+4. exception：异常设定
+5. return type：返回类型
+6. function body：函数体
+
+[c,&d](int a, int b) mutable -> bool 
+{ 
+	c++;
+	d++;
+	return a < b; 
+}
+```
+
+
+
 ---
 
 # 模板
@@ -1298,6 +1481,48 @@ void f(){}
 
 > 2).C/C++较Java有性能优势，为什么
 
+## 2.C++函数调用的压栈过程
 
+[「十九」《C和指针》笔记](https://guanjunjian.github.io/2017/01/09/study-19-pointers-on-c-summary/#第18章-运行时环境)
+
+## 3.sizeof和strlen的区别？（运算符与函数、计算的对象、编译时运行时）
+
+[C++中sizeof与strlen的区别](https://blog.csdn.net/u012441543/article/details/45848913)
+
+[C++ sizeof不完全总结](https://blog.csdn.net/u012441543/article/details/45830575)
+
+- 1.Strlen 是函数,strlen(char*)函数求的是字符串的实际长度，直到遇到第一个'\0'，然后就返回计数值，且不包括'\0'，函数的返回值值在运行时确定。参数是指针或字符数组，当数组名作为参数传入时，实际上数组就退化成指针了
+- 2.Sizeof是操作符，不是函数，返回的是变量声明后所占的内存数，不是实际长度。其值在编译时即计算好了，参数可以是数组、指针、类型、对象、函数等。当计算数组的size时，数组不会退化成指针（数组是形参时，会退化为指针）
+
+```c++
+int main()  
+{  
+    char arr[20]="hello world!";   
+    cout<<"strlen(arr) : "<<strlen(arr)<<endl;  //返回12，一共有12个字符，不包括'\0'  
+    cout<<"sizeof(arr) : "<<sizeof(arr)<<endl;  //返回20，因为系统给数组分配了20个字节  
+  
+  
+    cout<<"strlen(\"hello\") : "<<strlen("hello")<<endl;  //返回字符串长度5  
+    cout<<"sizeof(\"hello\") : "<<sizeof("hello")<<endl;  //返回6,实际的存储空间还包含最后面的'\0'  
+  
+    char *p="hello";  
+    cout<<"strlen(p) : "<<strlen(p)<<endl;  //返回字符串长度5  
+    cout<<"sizeof(p) : "<<sizeof(p)<<endl;  //返回指针p的内存空间大小4个字节   
+}  
+```
+
+## 4.C++是不是类型安全的？
+
+类型安全：类型安全很大程度上可以等价于内存安全，类型安全的代码不会试图访问自己没被授权的内存区域
+
+C++不是类型安全的：
+
+- 两个不同类型指针可以强制转换
+- C/C++可以直接操作硬件
+- 以把0当成bool类型的false，也可以当做int中的数字0
+
+## 5.gcc和g++的区别？
+
+- gcc代表GUN Compiler Collection，是一堆编译器的集合，包括g++？
 
 
