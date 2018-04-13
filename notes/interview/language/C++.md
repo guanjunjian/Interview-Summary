@@ -68,6 +68,7 @@ C++的static有两种用法：面向过程程序设计中的static和面向对�
   - 静态数据成员在程序中也只有一份拷贝，静态数据成员是该类的所有对象所共有的
   - 不能在类声明中定义
   - ＜数据类型＞＜类名＞::＜静态数据成员名＞=＜值＞  `int Myclass::Sum=0;`
+  - 出现在变量定义不能指定关键字static
 
 - 2).静态成员函数
   - 与普通函数相比，静态成员函数由于不是与任何的对象相联系，因此它不具有this指针	
@@ -75,8 +76,7 @@ C++的static有两种用法：面向过程程序设计中的static和面向对�
   - 出现在类体外的函数定义不能指定关键字static
   - 非静态成员函数可以任意地访问静态成员函数和静态数据成员
   - 静态成员函数不能访问非静态成员函数和非静态数据成员（因为没有this指针）
-  - 静态函数可以调用所属类的构造函数（因为调用构造函数的时候不需要使用this指针）
-  - 静态函数可以调用所属类的析构函数
+  - 静态函数可以调用所属类的构造函数（因为调用构造函数的时候不需要使用this指针，构造函数只是新生成了一个对象）
 
 **参考** 
 
@@ -107,7 +107,7 @@ C++的static有两种用法：面向过程程序设计中的static和面向对�
 
 - 4).类相关CONST
 
-  - const修饰成员变量：它只能在初始化列表中赋值
+  - const修饰成员变量：它只能在初始化列表中赋值（与static搭配则在类外初始化）
   - const修饰成员函数：const成员函数不被允许修改它所在对象的任何一个数据成员，即this指针是const的；
 
      - const成员函数能够访问对象的const成员，而其他成员函数不可以；
@@ -145,7 +145,7 @@ class Super final
 }; 
 ```
 
-- 2.禁用重写，C++中还允许将方法标记为fianal，这意味着无法再子类中重写该方法。这时final关键字至于方法参数列表后面。只能对虚函数使用
+- 2.禁用重写，C++中还允许将方法标记为fianal，这意味着无法在子类中重写该方法。这时final关键字至于方法参数列表后面。只能对虚函数使用
 
 ```c++
 class Super  
@@ -170,23 +170,31 @@ using的其他用途：
 
 - 2.在子类中使用 using 声明引入基类成员名称
   - 可用于函数重载：让父类同名函数在子类中以重载方式使用，可以参见下面“函数重载”部分
-  - 可用于基类private的函数
 - 3.继承构造函数
 
 ```c++
-class Derived : public Base
+struct A
 {
-public:
-    using Base::Base;
-};
+  A(int i) {}
+  A(double d,int i){}
+  A(float f,int i,const char* c){}
+  //...等等系列的构造函数版本
+}；
+struct B:A
+{
+  using A::A;
+  int d{0};
+}；
 ```
 
 [C++ using关键字作用总结](http://www.cnblogs.com/ustc11wj/archive/2012/08/11/2637316.html)
 
+[C++11中的继承构造函数](https://blog.csdn.net/u012333003/article/details/32348297)
+
 ## 7.class与struct的区别
 
 - 1.默认的数据成员访问权限
-  - truct是public的
+  - struct是public的
   - class是private的
 - 2.class可用于定义模板参数，就像“typename”。但struct不用于定义模板参数
 
@@ -199,6 +207,8 @@ public:
 ![](../../../pics/WangDao/继承中的访问权限.png)
 
 ## 9.explict
+
+禁止构造函数的隐式转换
 
 在C++中，explicit关键字用来修饰类的构造函数，被修饰的构造函数的类，不能发生相应的隐式类型转换，只能以显示的方式进行类型转换
 
@@ -214,8 +224,12 @@ public:
 
 [C++关键字mutable](http://www.cnblogs.com/danshui/archive/2012/01/05/2313647.html)
 
-- 1.mutable的意思是“可变的，易变的”，跟C++中的const是反义词
-- 2.在C++中，mutable也是为了突破const的限制而设置的。被mutable修饰的变量，将永远处于可变的状态，即使在一个const函数中
+mutable的意思是“可变的，易变的”，跟C++中的const是反义词
+
+用法：
+
+- 1.const成员函数：在C++中，mutable也是为了突破const的限制而设置的。被mutable修饰的变量，将永远处于可变的状态，即使在一个const函数中
+- 2.lambda：mutable指示符：用来说用是否可以修改捕获的变量
 
 ```c++
 class TestMutable
@@ -241,7 +255,7 @@ private:
 
 > noexcept说明符
 
-noexcept说明指定某个函数不会抛出异常，在说明noexcept的同时又含有throw语句。一旦一个noexcept函数抛出了异常，程序就会调用terminate以确保遵守不在运行时抛出异常的承诺。
+noexcept说明指定某个函数不会抛出异常。如果说明noexcept的同时又含有throw语句，一旦一个noexcept函数抛出了异常，程序就会调用terminate以确保遵守不在运行时抛出异常的承诺。
 
 noexcept说明符接受一个可选的实参，该实参必须能转换为bool类型。
 
@@ -284,6 +298,8 @@ class MyClass
 ```
 
 - 使用delete关键字显式指示编译器不生成函数的默认版本（如复制构造函数）
+  - 可用于阻止拷贝，此时使用了delete
+  - 阻止拷贝的外方式：设为private，且只声明不定义
 
 ```c++
 class MyClass
