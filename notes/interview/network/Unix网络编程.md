@@ -60,6 +60,8 @@ Unix网络编程
 
 [select函数及fd_set介绍](https://blog.csdn.net/liitlefrogyyh/article/details/52101999)
 
+[select、poll、epoll之间的区别总结[整理\]](http://www.cnblogs.com/Anker/p/3265058.html)
+
 ```c
 /*
 ** @n:需要检查的文件描述字个数
@@ -109,7 +111,7 @@ int poll (struct pollfd *fds, unsigned int nfds, int timeout);
   - 都需要在返回后，通过遍历文件描述符来获取已经就绪的socket。事实上，同时连接的大量客户端在一时刻可能只有很少的处于就绪状态，因此随着监视的描述符数量的增长，其效率也会线性下降
 - poll与select的不同点
   - fd文件描述符集合的大小限制
-  - 调用函数时是否情况fd文件描述符集合
+  - 调用函数时是否清空fd文件描述符集合
 
 **epoll**
 
@@ -140,6 +142,7 @@ int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout
 
 - 1.支持一个进程所能打开的最大连接数
   - select使用的是指针指向的long数组
+  - poll使用的是pollfd链表
 
 ![](../../../pics/interview/network/select_poll_epoll_区别1.png)
 
@@ -148,6 +151,7 @@ int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout
 ![](../../../pics/interview/network/select_poll_epoll_区别2.png)
 
 - 3.消息传递方式
+  - select每次调用时清空文件描述符集合，但poll不清空
 
 ![](../../../pics/interview/network/select_poll_epoll_区别3.png)
 
