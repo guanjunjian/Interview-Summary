@@ -17,7 +17,7 @@ Unix网络编程
 
 - **五种IO模型：**阻塞IO，非阻塞IO，IO复用，信号驱动式IO，异步IO
 - 对于一次IO访问（以read举例），数据会先被拷贝到操作系统内核的缓冲区中，然后才会从操作系统内核的缓冲区拷贝到应用程序的地址空间。所以说，当一个read操作发生时，它会经历两个阶段：
-  - 等待数据准备 (Waiting for the data to be ready)
+  - 等待数据准备 (Waiting for the data to be ready)：数据拷贝到操作系统内核的缓冲区中
   - 将数据从内核拷贝到进程中 (Copying the data from the kernel to the process)
 
 **1.阻塞式I/O模型**
@@ -58,7 +58,17 @@ Unix网络编程
 
 **select**
 
+[select函数及fd_set介绍](https://blog.csdn.net/liitlefrogyyh/article/details/52101999)
+
 ```c
+/*
+** @n:需要检查的文件描述字个数
+** @readfds:用来检查可读性的一组文件描述字
+** @writefds:用来检查可写性的一组文件描述字
+** @exceptset:用来检查是否有异常条件出现的文件描述字。(注：错误不包括在异常条件之内)
+** @timeout:超时，填NULL为阻塞，填0为非阻塞，其他值表示为一段超时时间。可设置超时时间，超时时间到了就跳过代码继续往下执行,用于决定select等待I/o的最长时间。如果为空将一直等待
+ fd_set其实这是一个数组的宏定义，实际上是一long类型的数组，每一个数组元素都能与一打开的文件句柄(socket、文件、管道、设备等)建立联系，建立联系的工作由程序员完成，当调用select()时，由内核根据IO状态修改fd_set的内容，由此来通知执行了select()的进程哪个句柄可读
+*/
 int select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
 ```
 
@@ -73,6 +83,19 @@ int select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct 
 **poll**
 
 ```c
+/*
+这个结构中fd表示文件描述符，events表示请求检测的事件，revents表示检测之后返回的事件，如果当某个文件描述符有状态变化时，revents的值就不为空
+*/
+struct pollfd {
+	int fd;
+	short events;
+	short revents;
+};
+/*
+** @fds:是一个struct pollfd结构类型的数组，用于存放需要检测其状态的Socket描述符；每当调用这个函数之后，系统不会清空这个数组，操作起来比较方便；特别是对于socket连接比较多的情况下，在一定程度上可以提高处理的效率；这一点与select()函数不同，调用select()函数之后，select()函数会清空它所检测的socket描述符集合，导致每次调用select()之前都必须把socket描述符重新加入到待检测的集合中；因此，select()函数适合于只检测一个socket描述符的情况，而poll()函数适合于大量socket描述符的情况。
+** @nfds:nfds_t类型的参数，用于标记数组fds中的结构体元素的总数量
+** @timeout:是poll函数调用阻塞的时间，单位：毫秒
+*/
 int poll (struct pollfd *fds, unsigned int nfds, int timeout);
 ```
 
@@ -84,6 +107,9 @@ int poll (struct pollfd *fds, unsigned int nfds, int timeout);
   - poll还有一个特点是“水平触发”，如果报告了fd后，没有被处理，那么下次poll时会再次报告该fd
 - poll与select的共同点：
   - 都需要在返回后，通过遍历文件描述符来获取已经就绪的socket。事实上，同时连接的大量客户端在一时刻可能只有很少的处于就绪状态，因此随着监视的描述符数量的增长，其效率也会线性下降
+- poll与select的不同点
+  - fd文件描述符集合的大小限制
+  - 调用函数时是否情况fd文件描述符集合
 
 **epoll**
 
@@ -113,7 +139,7 @@ int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout
 **总结：select、poll、epoll区别**
 
 - 1.支持一个进程所能打开的最大连接数
-  - select使用的是指针指向的数组
+  - select使用的是指针指向的long数组
 
 ![](../../../pics/interview/network/select_poll_epoll_区别1.png)
 
@@ -148,4 +174,4 @@ int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout
 
 >  4).epoll有两种触发模式？这两种触发模式有什么区别？编程的时候有什么区别？ 
 
-epoll有EPOLLLT和EPOLLET两种触发模式，LT是默认的模式，ET是“高速”模式。LT模式下，只要这个fd还有数据可读，每次 epoll_wait都会返回它的事件，提醒用户程序去操作，而在ET（边缘触发）模式中，它只会提示一次，直到下次再有数据流入之前都不会再提示了，无 论fd中是否还有数据可读。所以在ET模式下，read一个fd的时候一定要把它的buffer读光，也就是说一直读到read的返回值小于请求值，或者遇到EAGAIN错误
+epoll有EPOLLLT和EPOLLET两种触发模式，LT是默认的模式，ET是“高速”模式。LT模式下，只要这个fd还有数据可读，每次 epoll_wait都会返回它的事件，提醒用户程序去操作，而在ET（边缘触发）模式中，它只会提示一次，直到下次再有数据流入之前都不会再提示了，无论fd中是否还有数据可读。所以在ET模式下，read一个fd的时候一定要把它的buffer读光，也就是说一直读到read的返回值小于请求值，或者遇到EAGAIN错误
