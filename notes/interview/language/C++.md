@@ -1275,6 +1275,10 @@ type (expr);  //函数形式的强制类型转换
 
 [C++四大类型转换](https://blog.csdn.net/Robin__Chou/article/details/51957686)
 
+## 2.前置++和后置++的区别
+
+
+
 ---
 
 # 函数
