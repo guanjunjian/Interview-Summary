@@ -1277,6 +1277,21 @@ type (expr);  //函数形式的强制类型转换
 
 ## 2.前置++和后置++的区别
 
+```c++
+// 前置++，返回自增后的值，且返回的是一个左值
+int& operator++(){
+    *this += 1;
+    return *this;
+} 
+
+// 后置++，返回自增前的值，且返回的是一个右值
+const int operator++(int){
+    int temp(*this);
+    *this += 1;
+    return temp;
+}
+```
+
 
 
 ---
