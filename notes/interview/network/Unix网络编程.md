@@ -141,7 +141,7 @@ int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout
 **总结：select、poll、epoll区别**
 
 - 1.支持一个进程所能打开的最大连接数
-  - select使用的是指针指向的long数组
+  - select使用的是指针指向的long数组，位图
   - poll使用的是pollfd链表
 
 ![](../../../pics/interview/network/select_poll_epoll_区别1.png)
