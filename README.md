@@ -22,10 +22,10 @@
 
 > C++
 
-- [第Ⅰ部分](https://guanjunjian.github.io/2017/02/02/study-cpp-primer-summary_1/)
-- [第Ⅱ部分](https://guanjunjian.github.io/2017/02/02/study-cpp-primer-summary_2/)
+- [第Ⅰ部分](https://guanjunjian.github.io/2017/01/19/study-cpp-primer-summary_1/)
+- [第Ⅱ部分](https://guanjunjian.github.io/2017/01/26/study-cpp-primer-summary_2/)
 - [第Ⅲ部分](https://guanjunjian.github.io/2017/02/02/study-cpp-primer-summary_3/)
-- [第 IV 部分](https://guanjunjian.github.io/2017/02/02/study-cpp-primer-summary_4/)
+- [第 IV 部分](https://guanjunjian.github.io/2017/02/09/study-cpp-primer-summary_4/)
 
 整理自《C++ Primer》
 
