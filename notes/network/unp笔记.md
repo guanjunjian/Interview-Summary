@@ -2,6 +2,8 @@ unp笔记
 
 [TOC]
 
+# 第2章 传输层：TCP、UDP和SCTP
+
 ## 2.6 TCP连接的建立和终止
 
 ### 2.6.1 三路握手
@@ -151,4 +153,111 @@ unp笔记
 - 4.数据保存的过程：应用进程的数据在沿协议向下传递时，通常被复制到某种格式的一个内核缓冲区中，当数据发送后，副本被链路层丢弃
 - 5.UDP的write成功返回表示所写的数据报或其所有分段已经被加入数据链路层的输出队列
 - 6.如果链路层输出队列没有足够的空间存放数据报或分段，返回ENOBUFS错误到进程
+
+
+# 第3章 套接字编程简介
+
+[UNPv1第三章：套接字编程简介](https://blog.csdn.net/lxj1137800599/article/details/51244629)
+
+### 3.2.1 IPv4套接字地址结构
+
+IPv4套接字地址结构通常也称为“网际套接字地址结构”
+
+```c
+//<netinet/in.h>
+struct in_addr {
+    in_addr_t s_addr; //32位IPv4地址网络字节序
+    				
+};
+
+struct sockaddr_in{
+ 　　uint8_t             sin_len;          //带符号8位整数地址结构长度，用于简化套接字地址结构的处理
+ 　　sa_family_t         sin_family;       //协议族，IPv4为AF_INET
+ 　　in_port_t           sin_port;         //TCP或UDP端口号，16字节，网络字节序
+ 　　struct in_addr       sin_addr;         //32位IPv4，网络字节序地址
+ 　　char                sin_zero[8];      //填充对齐位，未使用，通常为0
+};
+//必须的字段：sin_family、sin_port、sin_addr
+//sockaddr_in至少16字节
+//总是在填写该结构前将整个结构置为0
+//该结构仅在给定主机上使用，不在主机之间传递
+```
+
+从进程到内核传递套接字地址结构的函数有4个，它们都要调用sockargs函数
+
+- 1.bind
+- 2.connect
+- 3.sendto
+- 4.sendmsg
+
+从内核到进程传递套接字地址结构的函数有5个
+
+- 1.accept
+- 2.recvfrom
+- 3.recvmsg
+- 4.getpeername
+- 5.getsockname
+
+### 3.2.2 通用套接字地址结构
+
+用处：兼容所有协议的套接字地址结构，对指向特定于协议的套接字地址结构的指针执行类型强制转换
+
+ANSI C后，可以使用void*解决
+
+```c
+//<sys/socket.h>
+struct sockaddr {
+  uint8_t            sa_len;
+  sa_family_t        sa_family;       /* address family: AF_xxx value */
+  char               sa_data[14];     /* protocol-specific address */
+};
+
+//例子：
+struct sockaddr_in  serv;      /* IPv4 socket address structure */
+bind(sockfd, (struct sockaddr *) &serv, sizeof(serv));
+```
+
+### 3.2.3 IPv6套接字地址结构
+
+```c
+//<netinet/in.h>
+struct in6_addr{
+ 　　uint8_t            s6_addr[16];            //128位IPv6网络字节序地址
+};
+
+#define SIN6_LEN                                //编译时测试所需
+struct sockaddr_in6{
+ 　 uint8_t             sin6_len;               //这个结构的长度
+ 　 sa_family_t         sin6_family;            //协议族，AF_INET6
+ 　 in_port_t           sin6_port;              //端口号，网络字节序
+
+　　uint32_t            sin6_flowinfo;          //流信息，未定义
+ 　 struct in6_addr     sin6_addr;              //IPv6地址，网络字节序
+
+　　uint32_t            sin6_scope_id;          //一定范围的接口
+ };
+```
+
+### 3.2.4 新的通用套接字地址结构
+
+```c
+//<netinet/in.h>
+struct sockaddr_storage {
+  uint8_t      ss_len;       /* length of this struct (implementation dependent) */
+  sa_family_t  ss_family;    /* address family: AF_xxx value */
+  /*其他字段对用户来说的透明的 故没有列出*/  
+};
+//优势：足以容纳系统所支持的任何套接字地址结构
+```
+
+与sockaddr的对比：
+
+- 1.sockaddr_storage通用套接字地址结构满足对齐要求
+- 2.sockaddr_storage通用套接字地址结构足够大，能够容纳系统支持的任何套接字地址结构
+
+### 3.2.5 套接字地址结构的比较
+
+![](../../pics/network/unp笔记/Pic_3_6_不同套接字地址结构的比较.png)
+
+## 3.3 值-结果参数
 
