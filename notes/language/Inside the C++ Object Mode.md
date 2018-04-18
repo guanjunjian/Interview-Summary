@@ -125,3 +125,19 @@ Bear &rb = *pb;
 
 ![](../../pics/language/Inside the C++ Object Model/Pic_1_5_派生类的对象和指针布局.png)
 
+
+
+```c++
+Bear b;
+ZooAnimal *pz = &b;
+Bear *pb = &b;
+```
+
+**pz与pb的区别是：**
+
+- pb所涵盖的地址包含整个Bear对象
+- pz所涵盖的地址只包含Bear对象中的ZooAnimal子对象
+- 不能通过pz来处理Bear的任何members，例外：虚函数
+
+ 
+
