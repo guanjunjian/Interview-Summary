@@ -437,5 +437,50 @@ const char *inet_ntop(int family, const void *addrptr, char *strptr, size_t len)
 
 ![](../../pics/network/unp笔记/Pic_3_11_地址转换函数小结.png)
 
-## 3.8 sock_ntop和相关函数
+## 3.8 sock_ntop和相关函数（本书自定义函数）
+
+本书自定义函数
+
+```c
+#include "unp.h"
+#define	SA	struct sockaddr
+
+//将统配地址和一个临时端口绑定到一个套接字
+int		 sock_bind_wild(int sockfd, int family);
+//比较两个套接字地址结构的地址部分
+int		 sock_cmp_addr(const SA *sockaddr1, const SA *sockaddr2, socklen_t addrlen);
+//比较两个套接字地址结构的端口号部分
+int		 sock_cmp_port(const SA *sockaddr1, const SA *sockaddr2, socklen_t addrlen);
+//只返回端口号
+int		 sock_get_port(const SA *sockaddr, socklen_t addrlen);
+//把一个套接字地址结构中的主机部分转换为表达格式（不包括端口号）
+char	*sock_ntop_host(const SA *sockaddr, socklen_t addrlen);
+//把一个套接字地址结构中的地址部分设为ptr所指的值
+void	 sock_set_addr(SA *sockaddr, socklen_t addrlen, const void *ptr);
+//只设置一个套接字地址结构的端口号部分
+void	 sock_set_port(SA *sockaddr, socklen_t addrlen, int port);
+//把一个套接字地址结构中的地址部分置为通配地址
+void	 sock_set_wild(SA *sockaddr, socklen_t addrlen);
+char	*sock_ntop(const SA *, socklen_t);
+```
+
+## 3.9 readn、writen和readline函数（本书自定义函数）
+
+字节流套接字上调用read或write输入或输出的字节数可能比请求的数量少
+
+- 原因：套接字的缓冲区可能已经达到了极限
+- 解决方法：
+  - 1.再次调用read或write函数，以输入或输出剩余的字节
+  - 2.实现自定义函数
+
+自定义的目的：实现一个输入或输出的字节数与请求数量一样的函数
+
+```c
+#include "unp.h"
+//实际上就是read、write函数增强版
+ssize_t readn(int filedes, void *buff, size_t nbytes);
+ssize_t writen(int filedes, const void *buff, size_t nbytes);
+ssize_t readline(int filedes, void *buff, size_t maxlen);
+//均返回：读或写的字节数，若出错则为-1
+```
 
