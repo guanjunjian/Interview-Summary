@@ -33,7 +33,7 @@
 
 整理自《C 和指针》
 
-> [深度探索C++对象模型](notes/language/Inside the C++ Object Mode.md)
+> [深度探索C++对象模型](notes/language/Inside_the_C++_Object_Mode.md)
 
 ## 网络
 
