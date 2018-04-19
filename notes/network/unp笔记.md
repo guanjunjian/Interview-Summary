@@ -261,3 +261,181 @@ struct sockaddr_storage {
 
 ## 3.3 值-结果参数
 
+**1.从进程到内核传递套接字结构函数**
+
+![](../../pics/network/unp笔记/Pic_3_7_从进程到内核传递套接字地址结构.png)
+
+- bind
+- connect
+- sendto
+
+这些函数的一个参数是指向某个套接字地址结构的指针，另一个参数是该结构体的整数大小 
+
+```c
+struct sockaddr_in serv;
+connect (sockfd, (SA *) &serv, sizeof(serv));
+```
+
+**2.从内核到进程传递套接字地址结构的函数**
+
+![](../../pics/network/unp笔记/Pic_3_8_从内核到进程传递套接字地址结构.png)
+
+- accept
+- recvfrom
+- getsockname
+- getpeername
+
+两个参数指向某个套接字结构体的指针和指向表示该结构体大小的整数变量的指针
+
+```c
+struct sockaddr_un cli; /* Unix domain */
+socklen_t len;
+len = sizeof(cli); /* len is a value */
+getpeername(unixfd, (SA *) &cli, &len);
+/* len may have changed */
+```
+
+长度为指针的原因（什么是值-结果参数 Value-result）：
+
+- 函数调用时：结构大小len是一个值（value）, 它告诉内核cli结构的大小，使内核在写cli结构时不至于越界
+- 函数返回时：结构大小len是一个结果（result），它告诉进程内核在cli结构中确切存储了多少信息
+
+## 3.4 字节排序函数
+
+**小端字节序**：将低序字节存储在起始地址
+
+**大端字节序**：将高序字节存储在起始地址
+
+”大端“、”小端“表示多个字节值的哪一端（小端或大端）存储在该值的起始地址
+
+**MSB**：most significant bit，最高有效位
+
+**LSB**：least significant bit，最低有效位
+
+**主机字节序**：某个给定系统所用的字节序称为主机字节序（不同系统有不同）
+
+![](../../pics/network/unp笔记/Pic_3_9_16位整数的小端字节序和大端字节序.png)
+
+```c
+union {
+	  short  s;
+      char   c[sizeof(short)];
+    } un;
+un.s = 0x0102;
+if(un.c[0] == 1 && un.c[1] == 2); //大端
+if (un.c[0] == 2 && un.c[1] == 1); //小端
+```
+
+**网络字节序**：网络协议使用大端字节序来传递这些字节整数
+
+主机字节序与网络字节序之间的转换函数：
+
+```c
+#include <netinet/in.h>
+//h表示host, n表示network，s代表short，l代表long
+//均返回：网络字节序的值
+uint16_t htons(uint16_t host16bitvalue);    //主机to网络 short
+uint32_t htonl(uint32_t host32bitvalue);    //主机to网络 long
+
+//均返回：主机字节序的值
+uint16_t ntohs(uint16_t net16bitvalue);     //网络to主机 short
+uint32_t ntohl(uint32_t net32bitvalue);     //网络to主机 long
+
+```
+
+**字节==八位组==8位的量**
+
+**位序**：按照在线缆上出现的顺序排列的4个字节（32个位）
+
+![](../../pics/network/unp笔记/位序.png)
+
+## 3.5 字节操作函数
+
+**Berkely**
+
+```c
+#include <strings.h>
+void bzero(void *dest,size_t nbytes);               //将目标字符串制定数目的字节置0
+void bcopy(const void *src,void *dest,size_t nbytes);         //拷贝指定字节
+int bcmp(const void*ptrl,const void *ptr2,size_t nbytes);     //若相等返回0
+```
+
+**ANSI C**
+
+```c
+#include<string.h>
+void *memset(void *dest,const void *c,size_t len);
+void *memcpy(void *dest,const void *src,size_t nbytes);
+int memcmp(const void *ptrl,const void *ptr2,size_t nbytes);
+//返回：若相等则为0，否则为<0或者>0
+```
+
+**注意：**
+
+- 1.memcpy类似bcopy
+- 2.bcopy能正确处理源字符串与目的字符串重叠情况
+- 3.memcpy不能正确处理源字符串与目的字符串重叠情况，可以使用memmove替代
+- 4.memcmp需要将比较的字节转换为无符号字符（unsigned char）
+
+## 3.6 inet_aton、inet_addr、和inet_ntoa函数
+
+地址转换函数
+
+inet_aton、inet_addr和inet_ntoa在点分十进制数串（eg：“206.168.112.96”）与它的32位网络字节序二进制值间转换IPv4地址。
+
+```c
+#include<arpa/inet.h>
+
+//返回：1--字符串有效， 0--字符串有错
+//将strptr所指的C字符串转换成32位的网络字节序二进制值，并通过指针addrptr来存储
+//如果strptr为空，仍然对输入函数进行有效性检查，但addrptr不存储任何结果
+int inet_aton(const char *strptr, struct in_addr *addrptr);　
+
+//返回：若成功，返回32位二进制的网络字节序地址；若有错，返回INADDR_NONE
+//作用与inet_aton一样，但是返回的是二进制值
+//不能处理255.255.255.255,因为它的错误返回值INADDR_NONE也是这个值
+//该函数已被废弃，使用inet_aton代替
+in_addr_t inet_addr(const char *strptr);
+
+//作用：将一个32位的网络字节序二进制IPv4地址转换成相应的点分十进制数串
+//返回：指向点分十进制数串的指针
+//该函数不可重入,即不能被中断，因为函数返回值所指的串驻留在静态内存中
+//注意：以结构为参数，而不是指向结构的指针
+char *inet ntoa(struct in_addr inaddr);
+　　　　　　　　　　　             
+```
+
+## 3.7 inet_pton和inet_ntop函数
+
+IPv4地址和IPv6地址都可用
+
+函数名中p和n分别代表表达(presentation)和数值(numeric)地址的表达式通常是ASCII字符串
+
+表达式即ASCII字符串
+
+数值即存放在套接字地址结构中的二进制值
+
+```c
+#include <arpa/inet.h>
+
+//family可以是AF_INET和AF_INET6
+
+//作用：ASCII字符串--->套接字地址结构中的二进制值
+//返回：若成功为1，若输入不是有效的表达式为0，若出错为-1
+int inet_pton(int family, const char *strptr, void *addrptr);
+
+//作用：套接字地址结构中的二进制值--->ASCII字符串
+//注意：strptr不能为空，调用者必须为目标存储单元分配内存并制定其大小
+//返回：若成功则为指向结果的指针，若出错则为null
+const char *inet_ntop(int family, const void *addrptr, char *strptr, size_t len);
+
+//len的定义
+//<netinet/in.h>
+#define INET_ADDRSTRLEN 16
+#define INET6_ADDRSTRLEN 46
+```
+
+![](../../pics/network/unp笔记/Pic_3_11_地址转换函数小结.png)
+
+## 3.8 sock_ntop和相关函数
+
