@@ -29,7 +29,7 @@ protected:
 };
 ```
 
-![](../../pics/language/Inside the C++ Object Model/Pic_1_2_C++对象模型.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_1_2_C++对象模型.png)
 
 每个类有一堆指向虚函数的指针，存放在表格中，这个表格称为**虚函数表**（vtbl），虚函数表的第一个slot中存放的是type_info，用于动态绑定时的类型识别。
 
@@ -88,7 +88,7 @@ ZooAnimal *pza = &za;
 
 za和pza的可能布局（注意string类型，string所存字符串长度与sizeof(对象)无关）：
 
-![](../../pics/language/Inside the C++ Object Model/Pic_1_4_独立class的object布局和pointer布局.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_1_4_独立class的object布局和pointer布局.png)
 
 如果string的布局是按图所示，则sizeof(za)==sizeof(ZooAnimal)==16字节（4+8+4）
 
@@ -123,7 +123,7 @@ Bear &rb = *pb;
 
 - 注意enum类型的布局
 
-![](../../pics/language/Inside the C++ Object Model/Pic_1_5_派生类的对象和指针布局.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_1_5_派生类的对象和指针布局.png)
 
 
 
