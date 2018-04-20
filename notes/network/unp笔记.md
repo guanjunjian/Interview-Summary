@@ -752,7 +752,52 @@ int execvp (const char *filename, char *const argv[]);
 
 **迭代服务器：**由主进程直接处理已连接套接字，没有使用fork
 
+**并发服务器：**由主进程fork出子进程，由子进程处理已连接套接字
 
+```c
+pid_t pid;
+int listenfd, connfd;
+listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+Bind(listenfd,...);
+Listen(listenfd, LISTENQ);
+for ( ; ; ) {
+    connfd = Accept(listenfd,...);
+    if ( (childpid = Fork()) == 0) { //子进程
+			Close(listenfd); //关闭子进程监听套接字
+        	doit(connfd); //处理已连接套接字的请求
+        	Close(connfd); //关闭已连接套接字，该句并非必须，因为exit时会自动处理
+			exit(0); //终止子进程
+    }
+    Close(connfd); //父进程不等待子进程，关闭已连接套接字（引用计数-1），并继续循处理新的另一个连接
+}
+
+```
+
+**关于Close**
+
+父进程对connfd调用close没有终止它与客户端连接的原因：
+
+每个文件或套接字都有一个引用计数，在文件表项中维护，是当前打开着的引用该文件或套接字的描述符的个数。如上代码所示，Socket函数返回时，listenfd关联的文件表项的引用计数为1，Accept函数返回后connfd的引用计数也为1，fork后，子进程复制父进程数据，它们的引用计数都为2。套接字真正清理和资源释放要等引用计数为0时才发生
+
+**创建连接和子进程的过程：**
+
+**第一步**
+
+![](../../pics/network/unp笔记/Pic_4_14_accept返回前客户服务器的状态.png)
+
+**第二步：**
+
+
+
+
+
+![]()
+
+
+
+**第三步：**
+
+**第四步：**
 
 
 
