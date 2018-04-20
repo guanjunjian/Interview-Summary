@@ -485,3 +485,101 @@ ssize_t readline(int filedes, void *buff, size_t maxlen);
 ```
 
 readline原本的实现版本较慢，原因是每次调用read只读取一个字符。可以通过自己实现一个my_read，维护一个自己的缓冲区，readline调用自己实现的my_read从而得到一个较快的版本
+
+# 第4章 基本TCP套接字编程
+
+[UNPv1第四章：基本TCP套接口编程](https://blog.csdn.net/lxj1137800599/article/details/51247813)
+
+连接过程图：
+
+![](../../pics/network/unp笔记/Pic_4_1_基本TCP客户_服务器程序的套接字函数.png)
+
+## 4.2 Socket函数
+
+```c
+#include <sys/socket.h>
+/*
+** 用处：创建套接字
+** @family:协议族、协议域
+** @type:套接字类型
+** @protocol:协议类型
+** @返回值：成功时返回文件描述符（套接字描述符），错误时返回-1
+*/
+int socket (int family, int type, int protocol);
+```
+
+**family:**
+
+![](../../pics/network/unp笔记/Pic_4_2_socket函数的family常值.png)
+
+**type:**
+
+![](../../pics/network/unp笔记/Pic_4_3_socket函数的type常值.png)
+
+**protocol:**
+
+![](../../pics/network/unp笔记/Pic_4_4_socket函数AF_INET或AF_INET6的protocol常值.png)
+
+**family与type组合是否有效**
+
+![](../../pics/network/unp笔记/Pic_4_5_socket函数中family和type参数的组合.png)
+
+**对比AF_XX和PF_XX**
+
+`AF_`前缀便是地址族，`PF_`前缀表示协议族
+
+曾经的想法：单个协议族可以支持多个多个地址族，`PF_`用于创建套接字，`AF_`用于套接字地址结构
+
+实际上：支持多个地址族的协议族未实现过
+
+头文件`<sys/socket.h>`中，给定协议定义的`PF_`和`AF_`值总是相等的
+
+更多使用`AF_`，本书亦是如此
+
+## 4.3 connect函数
+
+```c
+#include <sys/socket.h>
+/*
+** 用处：建立与TCP服务器的连接
+** @sockfd:由socket函数返回的套接字描述符
+** @servaddr:指向套接字地址结构的指针
+** @addrlen:servaddr结构的长度
+** @返回值：成功返回0，失败返回-1
+*/
+int connect(int sockfd, const struct sockaddr *servaddr, socklen_t addrlen);
+```
+
+TCP套接字调用connect函数将触发三次握手过程，在连接成功或失败时返回。
+
+**出错的返回的情况有：**
+
+- 1.超时错误：若TCP客户没有收到SYN包的响应，则返回**ETIMEDOUT**错误
+- 2.RST错误：若对客户端的SYN的响应是RST（表示复位），则表明该服务器主机在我们制定的端口没有进程在等待与之连接（例如服务器进程也许没有在允许），返回**ECONNREFUSED**错误，这是一种**硬错误**
+- 3.目的地不可达：若客户发出的SYN在中间的某个路由器上引发一个“destination unreachable”（目的地不可达）ICMP错误，多次重传超时后仍然不可达，则保存的ICMP消息作为**EHOSTUNREACH**或**ENETUNREACH**错误返回给进程，这是一种**软错误**
+
+若connect失败则该套接字不再可用，必须关闭，不能对该套接字再次调用connect函数。每次调用connect失败后，必须close当前的套接字描述符并重新调用socket
+
+**RST产生的条件**
+
+- 1.端口未监听：目的地为某个端口的YSN到达，然而该端口没有正在监听的服务器
+- 2.取消连接：TCP想取消一个已有连接
+- 3.收到无法解释的分节：TCP接收到一个根本不存在的连接上的分节
+
+## 4.4 bind函数
+
+```c
+#include <sys/socket.h>
+/*
+** 作用：把一个本地协议地址赋予一个套接字
+** @sockfd：由socket函数返回的套接字描述符
+** @myaddr：一个指向特定于协议的地址结构的指针
+** @addrlen：myaddr地址结构的长度
+** @返回值：成功返回0，失败返回-1
+*/
+int bind (int sockfd, const struct sockaddr *myaddr, socklen_t addrlen);
+```
+
+本地协议地址：由32位的IPv4地址或128位的IPv6地址与16位的TCP或UDP端口号的结合
+
+**常见的bind出错情况：**返回**EADDRINUSE**（“Address already in use”，地址已经使用）
