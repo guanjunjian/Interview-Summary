@@ -573,3 +573,237 @@ public:
 - 4.在派生类的初始化列表中，调用基类的构造函数，使用派生类的成员函数返回值作为参数。
   - 最好不要这样做，因为this完成初始化
 
+
+# 第3章 Data语意学
+
+```c++
+//书上的说法
+class X { }; //sizeof(X)==1
+class Y : public virtual X { }; //sizeof(Y)==8，因为虚指针+Y的空1byte+3bytes对齐
+class Z : public virtual X { }; //sizeof(Z)==8，因为虚指针+Y的空1byte+3bytes对齐
+class A : public Y, public Z { }; //sizeof(A)==12，因为虚指针*2+X的空1byte+3bytes对齐
+
+//但在我自己的VS上测试的sizeof有所不同
+class X { }; //sizeof(X)==1
+class Y : public virtual X { }; //sizeof(Y)==4
+class Z : public virtual X { }; //sizeof(Z)==4
+class Test : public Y, public Z { }; //sizeof(A)==8
+
+//VS中A的布局
+1>class Test	size(8):
+1>	    +---
+1> 0	| +--- (base class Y)
+1> 0	| | {vbptr}
+1>	    | +---
+1> 4	| +--- (base class Z)
+1> 4	| | {vbptr}
+1>	    | +---
+1>	    +---
+1>	    +--- (virtual base X)
+1>	    +---
+1>
+1>       Test::$vbtable@Y@:
+1> 0	| 0
+1> 1	| 8 (Testd(Y+0)X)
+1>
+1>       Test::$vbtable@Z@:
+1> 0	| 0
+1> 1	| 4 (Testd(Z+0)X)
+1>vbi:	   class  offset o.vbptr  o.vbte fVtorDisp
+1>               X       8       0       4 0
+```
+
+sizeof(X)为1，因为它有一个隐藏的1byte大小，那是被编译器安插进去的一个char，这使得该类的两个对象得以在内存中配置独一无二的地址
+
+**一个类的大小（sizeof一个类或该类的对象），与一下几个因素相关**
+
+- 1.语言本身造成的负担，如由虚函数、虚基类造成的虚函数指针和虚基指针
+  - 虚基类的实现：
+    - 虚基指针指向在该派生类中虚基类的子对象的起始位置
+    - 虚基指针指向一个相关表格，表格中存放的是虚基类子对象的地址，或在该派生类对象上的偏移量（一般来说，在派生类对象的尾部）
+- 2.编译器对于特殊情况提供的优化处理，例如：
+  - 派生类本身也是空类，此时又虚继承于一个空类，由于派生类已经有一个4字节的指针，因此因自身空类产生的1字节就有能被优化掉（因为既然有成员了（虚基指针），就不需要安插一个char了）
+
+**优化前**
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\空类优化前.png)
+
+**优化后**
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\空类优化后.png)
+
+**在我的VS测试的结果**
+
+```c++
+class A {};
+class Test : virtual public A {};
+
+int main()
+{
+    cout<<sizeof(Test)<<endl; //输出为4
+    return 0;
+}
+
+//内存分布输出为：
+1>class Test	size(4):
+1>	    +---
+1> 0	| {vbptr}
+1>	    +---
+1>	    +--- (virtual base A)
+1>	    +---
+1>
+1>       Test::$vbtable@:
+1> 0	| 0
+1> 1	| 4 (Testd(Test+0)A)
+1>vbi:	   class  offset o.vbptr  o.vbte fVtorDisp
+1>               A       4       0       4 0
+```
+
+- 3.对齐
+- 4.其他非静态数据成员的大小
+
+## 3.1 数据成员的绑定
+
+**类成员的inline成员函数的数据成员绑定：**
+
+- 1.函数体中的变量值的解析工作，在类声明完成之后才会进行
+- 2.函数的参数列表中名称的解析工作，在出现参数列表代码的时候就开始进行
+
+```c++
+typedef int length;
+int _val = 10;
+
+class Point3d
+{
+public:
+    //length为int，被解析为global，即::length
+    // _val被解析为Point3d::_val;
+    void mumble( length val ) { _val = val; }
+
+private:
+    typedef float length;
+    //length被解析为float，即Point3d::length
+    length _val;
+};
+```
+
+为了避免2.中的情况，可以使用“防御性程序风格”
+
+- a.把所有数据成员放在class声明起头处，以确保正确的绑定
+
+除了a.之外，还有别的“防御性程序风格”，但这对解决上面2.的问题没有帮助
+
+- b.把所有的inline functions，不管大小，都放在class声明之外
+
+## 3.2 数据成员的布局
+
+**非静态数据成员：**在每个类对象中的排序顺序与被声明的相对顺序一致，但不一定是连续的，介于两个数据成员之间的有可能是：
+
+- 1.因对齐产生的字节
+- 2.因虚功能产生的指针（虚函数指针、虚基类指针）
+  - 虚指针的位置：
+    - 传统：所有显示声明的成员的最好
+    - 现在：每个对象的最前端
+
+**静态数据成员：**存放在程序的静态/全局变量区，与类对象无关
+
+**访问控制区域（acesss section）：**
+
+- 1.指的是由public、private、protected声明的区域
+- 2.区域内部的变量是按声明顺序进行存放的
+- 3.区域之间并不保证与声明顺序一致，但区域之间，一般来说是连在一起，并按顺序存放的
+- 4.区域个数的多少，不会影响类对象所占的空间
+
+## 3.3数据成员的存取
+
+### 静态数据成员
+
+静态成员（数据成员、成员函数）的存取效率：使用对象和使用指针来访问静态成员，实际上都是通过`::`来访问
+
+静态成员（数据成员、成员函数）的继承：静态成员可以被继承
+
+- 1.继承的静态成员函数，派生类调用该函数时，是基类的实现版本
+- 2.继承的静态数据成员，派生类与基类指向的是同一块数据，作为引用计数时要小心
+
+### 非静态数据成员
+
+```c++
+//origin是类Point3d的一个对象
+origin._y = 0.0;
+
+//编译器的行为，&origin._y实际上等于
+&origin + (&Point3d::y - 1);
+//(&Point3d::y - 1)   为y的偏移位置
+```
+
+注意这里的-1，指向数据成员的指针，它的offset总是被加上1，目的是，用于区分：
+
+- 1.一个指向数据成员的指针，用以指出类的第一个成员
+- 2.一个指向数据成员的指针，没有指向任何成员（3.6节详细讲）
+
+每个非静态成员的偏移位置在编译时期就可获知，即使该成员是基类的子对象的成员
+
+**存取效率的比较：**
+
+- 1.非虚继承，存取基类数据成员和派生类定义的数据成员的效率是一样的
+- 2.虚继承，效率会比非虚继承慢，因为需要经过虚基指针寻址
+
+**通过对象和指针访问数据成员的区别**
+
+- 1.访问静态数据成员：没区别，都是通过`::`来访问，都是编译时确定
+- 2.访问非静态数据成员
+  - 1.无继承：没区别，都是编译时确定
+  - 2.非虚继承：没区别，都是编译时确定
+  - 3.虚继承：有区别
+    - 指针访问：运行时访问，因为编译期间无法确定虚基指针，需要在运行时根据虚基指针间接导引获得
+    - 对象访问：编译时确定
+
+## 3.4 继承与数据成员
+
+下面分四个部分讨论
+
+- 1.单一继承且不含虚函数（只要继承不要多态）
+- 2.单一继承并含虚函数（加上多态）
+- 3.多重继承
+- 4.虚继承
+
+所有的讨论基于这样的一个例子：
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_1_a_个别structs的数据布局.png)
+
+### 单一继承且不含虚函数
+
+非虚继承不会增加空间和存取效率上的额外负担
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_1_b_单一继承并且没有虚函数时的数据布局.png)
+
+但因为“对齐”，使用非虚继承还是会导致空间上的负担：
+
+**不使用继承时：**
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Concrete对象.png)
+
+对象的大小为8bytes（4+1+1+1+对齐的1）
+
+**使用非虚继承后**
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Concrete使用非虚继承1.png)
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Concrete使用非虚继承2.png)
+
+Concrete1为8bytes（4+1+对齐的3）
+
+Concrete2为12bytes（Concrete1的8+1+对齐的3）
+
+Concrete3为16bytes（Concrete2的12+1+对齐的3）
+
+**在继承的子对象直接要保证对齐的目的：**
+
+基类与派生类相互赋值的行为将会出错，如图所示，如果没有子对象之间的对齐，Concrete1对象赋值给Concrete2对象时，将会出错
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\非虚继承时不进行子对象间的对齐.png)
+
+### 单一继承并含虚函数
+
+
+
