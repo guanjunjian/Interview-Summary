@@ -805,5 +805,98 @@ Concrete3为16bytes（Concrete2的12+1+对齐的3）
 
 ### 单一继承并含虚函数
 
+ 单一继承并含虚函数带来的额外负担有：
+
+- 1.为每个类维护一个虚函数表，该表的slot个数一般为虚函数个数+一或两（用于存放runtime type identification，如type_info）
+- 2.为每个该类的对象导入一个虚函数表指针vptr，提供运行时的链接
+- 3.加强构造函数，使构造函数在构造对象时能为vptr设定初值，让对应类的虚函数表
+- 4.加强析构函数，需要析构虚函数表指针
+
+**虚函数表指针的位置：**
+
+- 1.类对象的尾端（例如cfron编译器）
+  - 好处：可以保留基类C struct的对象布局，因而允许在C程序代码中也能使用（基类C struct中没有虚函数）
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_2_a_Vptr被放在类的尾端.png)
+
+- 2.类对象的头部
+  - 好处：在多重继承下，通过指向类成员的指针调用虚函数更方便
+  - 坏处：
+    - 不能保留基类C struct的对象布局（基类C struct中没有虚函数）
+    - 由派生类对象取址赋值给基类的指针时，需要编译器调整地址
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_2_b_Vptr被放在类的前端.png)
+
+```c++
+//上面例子的代码
+struct no_virts {
+	int d1;
+	int d2;
+};
+
+class has_vrts : public no_virts {
+public:
+	virtual void foo();
+private:
+	int d3;
+};
+
+//使用VS打印的结果如下，因此VS采用的是将虚指针放置与类对象前端的方式
+1>class has_vrts	size(16):
+1>	    +---
+1> 0	| {vfptr}
+1> 4	| +--- (base class no_virts)
+1> 4	| | d1
+1> 8	| | d2
+1>	    | +---
+1>12	| d3
+1>	    +---
+1>
+1>      has_vrts::$vftable@:
+1>	    | &has_vrts_meta
+1>	    |  0
+1> 0	| &has_vrts::foo
+1>
+1>has_vrts::foo this adjustor: 0
+```
+
+### 多重继承
+
+多重继承时，如果将派生类对象地址（指针）赋值给基类指针时，有可能需要修改偏移的操作
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\多重继承1.png)
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_4_数据布局_多重继承.png)
+
+```c++
+//派生类对象地址赋值给基类指针的例子
+Vertex3d v3d;
+Vertex *pv;
+Point2d *p2d;
+Point3d *p3d;
+
+//需要修改偏移
+pv = &v3d;
+//编译器的行为
+pv = (Vertex*)( ((char*)&v3d) + sizeof( Point3d ) );
+
+//不需要修改偏移
+p2d = &v3d;
+p3d = &v3d;
+
+//派生类指针赋值给基类指针的例子
+Vertex3d *pv3d;
+//需要修改偏移值
+pv = pv3d;
+//编译器的行为
+//如果pv3d为0，表示为nullptr，则此时pv也应该设为空
+//如果pv3d不为0，则修改偏移
+pv = pv3d ? (Vertex*)( ((char*)&v3d) + sizeof( Point3d ) ) : 0;
+```
+
+### 虚继承
+
+
+
 
 
