@@ -1086,4 +1086,39 @@ $ ps -a -o pid,ppid,tty,stat,args,wchan
 **正常终止客户和服务器的步骤**
 
 - 1.键入EOF（Control-D），客户端的fgets返回一个空指针，于是从str_cli函数返回
-- 2.str_cli返回到客户端的main函数，main通过调用
+- 2.str_cli返回到客户端的main函数，main通过调用exit(0)终止
+- 3.客户端进程终止处理的部分工作是关闭所有打开的描述符，因此客户端打开的套接字由内核关闭：
+  - 客户端TCP发送一个FIN给服务器（第一次挥手），客户端进入FIN_WAIT_1
+  - 服务器以ACK响应（第二次挥手），服务器进入CLOSE_WAIT，客户端进入FIN_WAIT_2
+- 4.服务器收到TCP的FIN时，服务器子进程阻塞与str_echo函数的readline调用，于是readline返回0，str_echo返回服务器子进程的main函数
+- 5.服务器子进程通过调用exit(0)来终止
+- 6.服务器子进程中打开的所有描述符随之关闭。由子进程来关闭已连接套接字，引发TCP连接终止的最后两个分节：
+  - 服务器子进程发送FIN（第三次挥手），服务器进入LAST_ACK
+  - 客户端发送最后的ACK（第四次挥手），客户端进入TIME_WAIT，服务器CLOSED
+
+**除了以上步骤，需要注意的是：**
+
+在服务器子进程终止时，给父进程发送了一个SIGCHLD信号（这里点在本例中发生了，但没有在代码中捕获该信号，而该信号的默认行为是被忽略），父进程未加处理，子进程进入僵死状态。看到下面的Z+表示子进程进入僵死状态
+
+```shell
+# 查看进程状态
+# 注意处于STAT Z+状态的进程，这是服务器子进程退出后，变为僵死状态，因为没被父进程回收
+$ ps -a -o pid,ppid,tty,stat,args,wchan
+   PID   PPID TT       STAT COMMAND                     WCHAN
+  1813   1700 pts/8    S+   ./tcpserv01                 inet_csk_accept
+  1819   1813 pts/8    Z+   [tcpserv01] <defunct>       exit
+```
+
+## 5.8 POSIX信号处理
+
+信号（signal）：告知某个进程发生了某个事件的通知，也成为软件中断
+
+信号通常是异步的，即进程预先不知道信号的发生时刻
+
+信号可以：
+
+- 1.由一个进程发送给另一个进程（或自身）
+- 2.由内核发给某个进程
+
+
+
