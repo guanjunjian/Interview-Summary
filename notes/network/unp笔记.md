@@ -867,6 +867,7 @@ int getpeername(int sockfd, struct sockaddr *peeraddr, socklen_t *addrlen);
 ## 5.2 TCP回射服务器程序：main函数
 
 ```c++
+// tcpcliserv/tcpserv01.c
 #include	"unp.h"
 
 int
@@ -916,6 +917,7 @@ main(int argc, char **argv)
 ## 5.3 TCP回射服务器程序：str_echo函数
 
 ```c
+// lib/str_echo.c
 #include	"unp.h"
 
 //作用：处理每个客户的服务：从客户读入数据，并把它们回射给客户
@@ -941,6 +943,7 @@ again:
 ## 5.4 TCP回射客户程序：main函数
 
 ```c
+// tcpcliserv/tcpcli01.c
 #include	"unp.h"
 
 int
@@ -979,6 +982,7 @@ main(int argc, char **argv)
 ## 5.5 TCP回射客户程序：str_cli函数
 
 ```c
+// lib/str_cli.c
 #include	"unp.h"
 
 void
