@@ -896,6 +896,87 @@ pv = pv3d ? (Vertex*)( ((char*)&v3d) + sizeof( Point3d ) ) : 0;
 
 ### 虚继承
 
+非虚多重继承和虚多重继承的区别：
+
+![](../../pics/language/Inside_the_C++_Object_Model/非虚多重继承与虚多重继承的区别.png)
+
+实现虚继承主要有三种主流策略
+
+- 1.在每一个直接派生类（比如istream、ostream）中安插一些指针，每个指针指向一个虚基类，要想获取继承来的虚基类成员，可以通过相关指针间接完成
+
+**1.直接派生类中安插指针**
+
+![](../../pics/language/Inside_the_C++_Object_Model/虚继承实现方式1_例子.png)
+
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_3_5_a_虚继承.png)
+
+```c++
+//通过相关间接获取虚基类成员
+//例子1
+void Point3d::operator += ( const Point3d &rhs )
+{
+    _x += rhs._x;
+    _y += rhs._y;
+    _z += rhs._z;
+}
+//编译器的行为
+void Point3d::operator += ( const Point3d &rhs )
+{
+    this->__vbcPoint2d->_x += rhs.__vbcPoint2d->_x;
+    this->__vbcPoint2d->_y += rhs.__vbcPoint2d->_y;
+    this->_z += rhs._z;
+}
+
+//例子2，派生类指针向虚基类指针的转换
+Point2d *p2d = pv3d;
+//编译器的行为
+Point2d *p2d = pv3d ? pv3d->__vbcPoint2d : 0;
+```
+
+
+
+这样实现的缺点：
+
+- 1.每个对象必须对其每一个虚基类背负一个额外的指针。我们希望类对象有固定的负担，不因为其虚基类的个数而有所变化
+
+  - 解决方法有两种：
+    - a.使用虚基类表，表中存放指向虚基类的指针
+    - b.使用虚基类表，表中存放虚基类的偏移量
+
+- 2.由于虚继承串链的加长，导致间接存取层次的增加（如果有三次虚继承，则需要三次间接存取）。我们希望有固定的存取时间，不因为虚继承的深度而改变
+
+  - 解决方法：经由拷贝操作所得所有嵌套的虚基指针，放到派生类对象中，以解决“固定存取时间”的问题。代价是需要更多的空间来存取指针
+
+
+**对于使用虚基类表，存放表中虚基类的偏移量方法的详细解释**
+
+使用该方法时，通常可以将虚基类偏移量与虚函数表中的指针放在一个表中，其中该表的正偏移量存放虚函数的指针，表的负偏移量存放虚基类的偏移量
+
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_3_5_b_虚继承.png)
+
+```c++
+//例子1
+void Point3d::operator += ( const Point3d &rhs )
+{
+    _x += rhs._x;
+    _y += rhs._y;
+    _z += rhs._z;
+}
+//编译器的行为
+void Point3d::operator += ( const Point3d &rhs )
+{
+    (this + __vptr__Point3d[-1])->_x += ( &rhs + rhs.__vptr__Point3d[-1] )->__x;
+    (this + __vptr__Point3d[-1])->_y += ( &rhs + rhs.__vptr__Point3d[-1] )->__y;
+    this->_z += rhs._z;
+}
+
+//例子2，派生类指针向虚基类指针的转换
+Point2d *p2d = pv3d;
+//编译器的行为
+Point2d *pd2 = pv3d ? pv3d + pv3d->__vptr__Point3d[-1] : 0;
+```
+
+## 3.5 对象成员的效率
 
 
 
