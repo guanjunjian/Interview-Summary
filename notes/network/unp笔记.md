@@ -1111,9 +1111,11 @@ $ ps -a -o pid,ppid,tty,stat,args,wchan
 
 ## 5.8 POSIX信号处理
 
+### 信号基本知识
+
 信号（signal）：告知某个进程发生了某个事件的通知，也成为软件中断
 
-信号通常是异步的，即进程预先不知道信号的发生时刻
+信号通常是异步的：即进程预先不知道信号的发生时刻
 
 信号可以：
 
@@ -1121,4 +1123,93 @@ $ ps -a -o pid,ppid,tty,stat,args,wchan
 - 2.由内核发给某个进程
 
 
+信号的行为：每个信号都有一个与之关联的处置，称为信号的行为。可以通过调用sigaction函数设定一个信号的行为
+
+设置信号的行为有三种方式：
+
+- 1.捕获信号：提供一个信号处理函数，只有有特定信号发生它就被调用
+  - `void handler(int signo);`
+  - 不能被捕获的信号：SIGKILL、SIGSTOP
+- 2.忽略信号：把某个信号的处置设为SIG_IGN来忽略它
+  - 不能被忽略的信号：SIGKILL、SIGSTOP
+- 3.默认处置：把某个信号的处置设定为SIG_DEF来启用它的默认处置
+  - 默认处置的行为有两种：
+    - 通常是收到信号后终止信号，其中某些信号还在工作目录下生产一个进程的核心映像（core image，也称为内存影像）
+    - 忽略信号，例如SIGCHLD和SIGURC的默认处置就是忽略该信号
+
+### signal函数
+
+建立信号处置的POSIX方法是调用sigaction函数
+
+```c
+ #include<signal.h>
+/*
+** @signum:要操作的信号
+** @act:要设置的对信号的新处理方式，指向sigaction结构的指针
+** @sigaction:原来对信号的处理方式
+** @返回值：0 表示成功，-1 表示有错误发生
+*/
+ int sigaction(int signum,const struct sigaction *act ,struct sigaction *oldact);
+```
+
+由于该函数的act必须分配和添加，因此使用下面的signal对sigaction进行封装
+
+```c
+/* include signal */
+#include	"unp.h"
+
+//typedef	void	Sigfunc(int);
+/*
+** @signo:信号名
+** @func:指向处置函数的指针、或为常值SIG_IGN、SIG_DEF
+** 返回值：signal的返回值为一个Sigfunc类型的函数指针
+** 这个指针指向的函数仅有一个整型参数，且没有返回值
+*/
+Sigfunc *
+signal(int signo, Sigfunc *func)
+{
+	//处置结构
+	struct sigaction	act, oact;
+
+	//设置处理函数
+	act.sa_handler = func;
+	/*
+	** 作用：设置处理函数的信号掩码
+	** POSIX允许指定一组信号，它们在信号处理函数被调用时阻塞。任何阻塞的信号都不能递交给进程
+	** 这里是把act.sa_mask设为空集，意味着在该信号处理函数运行期间，不阻塞额外的信号
+	** 注意：这里的阻塞与之前说的阻塞于Accept函数的意义不一样
+	** 这里的阻塞指：阻塞某个信号或信号集，防止它们在阻塞期间递交。反操作为：解阻塞
+	** 之前的阻塞指：阻塞在某个系统调用上，这个系统调用因没有必要资源而必须等待，直到这些资源可用才返回。等待期间进程进入睡眠状态。相对的概念为：非阻塞
+	*/
+	sigemptyset(&act.sa_mask);
+	//设置SA_RESTART标志，可选的。如果设置，由相应信号中断的系统调用将由内核自动重启
+	act.sa_flags = 0;
+	if (signo == SIGALRM) {
+#ifdef	SA_INTERRUPT
+		act.sa_flags |= SA_INTERRUPT;	/* SunOS 4.x */
+#endif
+	} else {
+#ifdef	SA_RESTART
+		act.sa_flags |= SA_RESTART;		/* SVR4, 44BSD */
+#endif
+	}
+	//调用sigaction函数
+	if (sigaction(signo, &act, &oact) < 0)
+		return(SIG_ERR);
+    //将相应信号的旧行为（上一次设置的行为）作为signal函数的返回值
+	return(oact.sa_handler);
+}
+/* end signal */
+```
+
+### POSIX信号语义
+
+信号处理的总结：
+
+- 1.一旦安装了信号处理函数，它便一直安装着
+- 2.在一个信号处理函数运行期间，正在递交的信号时阻塞的。且可以通过安装处理函数时传递给sigaction函数的sa_mask信号集中指定的额外信号也被阻塞（上面的代码中，sa_mask为空集，意味除了被捕获的信号外，没有额外信号被阻塞）
+- 3.如果一个信号在阻塞期间产生了一次或多次，那么该信号被解阻塞后通常只递交一次，即Unix信号时默认不排队的
+- 4.利用sigprocmask函数选择性地阻塞或解阻塞一组信号是可能的。这样可以做到一段临界区代码执行期间，防止捕获某些信号，以保护这段代码
+
+## 5.9 处理SIGCHLD信号
 
