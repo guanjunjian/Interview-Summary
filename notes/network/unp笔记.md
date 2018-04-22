@@ -826,3 +826,176 @@ int close (int sockfd);
 - 1.父进程最终将后进可用描述符
 - 2.没有一个客户连接会被终止。子进程退出后，已连接套接字的引用计数由2变为1，父进程永远不会关闭任何已连接套接字。这妨碍TCP连接终止序列的发生，导致连接一直打开着
 
+
+## 4.10 getsockname和getpeername函数
+
+```c
+#include <sys/socket.h>
+/*
+** 作用：返回与某个套接字关联的本地协议地址（IP地址和端口号的组合）
+** @sockfd：本地套接字，该函数就是获取该套接字的本地协议地址
+** @localaddr:本地协议地址指针
+** @addrlen:值-结果参数
+** @返回值：成功为0，失败为-1
+*/
+int getsockname(int sockfd, struct sockaddr *localaddr, socklen_t *addrlen);
+
+/*
+** 作用：返回与某个套接字关联的外地协议地址，应该就是与该socket连接的套接字的地址（IP地址和端口号的组合）
+** @sockfd：本地套接字，该函数就是获取与该套接字相连的套接字的地址
+** @localaddr:外地协议地址指针
+** @addrlen:值-结果参数
+** @返回值：成功为0，失败为-1
+*/
+int getpeername(int sockfd, struct sockaddr *peeraddr, socklen_t *addrlen);
+```
+
+# 第5章 TCP客户/服务器程序示例
+
+[UNPv1第五章：TCP客户服务器程序实例](https://blog.csdn.net/lxj1137800599/article/details/51247971)
+
+## 5.1 概述
+
+回射服务器的执行步骤：
+
+- 1.客户从标准输入读一行文本，写到服务器上
+- 2.服务器读入此行，并回射给客户
+- 3.客户读此回射行写到标准输出 
+
+![](../../pics/network/unp笔记/Pic_5_1_简单的回射客户_服务器.png)
+
+## 5.2 TCP回射服务器程序：main函数
+
+```c++
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					listenfd, connfd;
+	pid_t				childpid;
+	socklen_t			clilen;
+	struct sockaddr_in	cliaddr, servaddr;
+
+	//1.创建套接字，目前为未连接套接字，Listen之后变为监听套接字
+	listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+
+	//2.设置地址结构
+    //2.1.将地址结构清空
+	bzero(&servaddr, sizeof(servaddr));
+    //2.2.设置协议族
+	servaddr.sin_family      = AF_INET;
+    //2.3.绑定通配地址：告知系统：要是系统是多宿主机，我们将接受目的地址为任何本地接口的连接
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);//通配地址INADDR_ANY
+    //2.3.绑定端口，#define SERV_PORT 9877
+	servaddr.sin_port        = htons(SERV_PORT);//端口号SERV_PORT(9877)
+
+	//3.将套接字绑定到地址
+	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+
+	//4.将未连接套接字转换为监听套接字
+	Listen(listenfd, LISTENQ);
+
+	for ( ; ; ) {
+		clilen = sizeof(cliaddr);
+		//5.阻塞在Accept，等待来自客户端的连接
+		connfd = Accept(listenfd, (SA *) &cliaddr, &clilen);
+        
+		//6.为每个客户派生一个处理它们的子进程，子进程会关闭监听套接字（引用计数-1），父进程关闭已连接套接字（引用计数-1），继续在监听套接字监听
+		if ( (childpid = Fork()) == 0) {	/* child process */
+			Close(listenfd);	//关闭监听套接字（引用计数-1）
+			//7.子进程调用str_echo接收并回显客户端发来的消息
+			str_echo(connfd);	/* process the request */
+			exit(0);
+		}
+		Close(connfd);		//关闭已连接套接字（引用计数-1）
+	}
+}
+```
+
+## 5.3 TCP回射服务器程序：str_echo函数
+
+```c
+#include	"unp.h"
+
+//作用：处理每个客户的服务：从客户读入数据，并把它们回射给客户
+void
+str_echo(int sockfd)
+{
+	ssize_t		n;
+	char		buf[MAXLINE];
+
+again:
+    //read从套接字读入数据,如果客户关闭连接，那么接收到客户的FIN将导致服务器子进程的read返回0，否则返回读取到的字节数
+	while ( (n = read(sockfd, buf, MAXLINE)) > 0)
+        //Writen把buf中的内容回射给客户
+		Writen(sockfd, buf, n);
+
+	if (n < 0 && errno == EINTR)
+		goto again;
+	else if (n < 0)
+		err_sys("str_echo: read error");
+}
+```
+
+## 5.4 TCP回射客户程序：main函数
+
+```c
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					sockfd;
+	struct sockaddr_in	servaddr;
+
+	if (argc != 2)
+		err_quit("usage: tcpcli <IPaddress>");
+	
+    //1.创建套接字
+	sockfd = Socket(AF_INET, SOCK_STREAM, 0);
+	
+    //2.创建服务器地址结构
+    //2.1将地址结构清空
+	bzero(&servaddr, sizeof(servaddr));
+    //2.2.设置协议族
+	servaddr.sin_family = AF_INET;
+    //2.3.绑定端口，#define SERV_PORT 9877
+	servaddr.sin_port = htons(SERV_PORT); //端口号SERV_PORT(9877)
+    //2.4.根据main函数参数argv[1]获取服务器ip地址
+    //Inet_pton的作用：ASCII字符串--->套接字地址结构中的二进制值
+	Inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+	
+    //3.发起TCP 3次握手建立连接
+	Connect(sockfd, (SA *) &servaddr, sizeof(servaddr));
+	
+    //4.从输入按行读取文本，发送至服务器，接收并显示回显
+	str_cli(stdin, sockfd);		/* do it all */
+
+	exit(0);
+}
+```
+
+## 5.5 TCP回射客户程序：str_cli函数
+
+```c
+#include	"unp.h"
+
+void
+str_cli(FILE *fp, int sockfd)
+{
+	char	sendline[MAXLINE], recvline[MAXLINE];
+
+	while (Fgets(sendline, MAXLINE, fp) != NULL) {
+
+		Writen(sockfd, sendline, strlen(sendline));
+
+		if (Readline(sockfd, recvline, MAXLINE) == 0)
+			err_quit("str_cli: server terminated prematurely");
+
+		Fputs(recvline, stdout);
+	}
+}
+
+```
+
