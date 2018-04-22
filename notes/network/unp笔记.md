@@ -989,17 +989,101 @@ void
 str_cli(FILE *fp, int sockfd)
 {
 	char	sendline[MAXLINE], recvline[MAXLINE];
-
+	//Fgets从客户端读入一行数据
+	//当遇到文件结束符或错误，fgets（库函数）将返回一个空指针，于是客户端循环终止
+	//Fgets包裹fgets，检查是否发送错误，发送则中指程序，因此Fgets只有遇到文件结束符时才返回一个空指针
 	while (Fgets(sendline, MAXLINE, fp) != NULL) {
-
+		//Writen把从客户端读到的数据发送到服务端
 		Writen(sockfd, sendline, strlen(sendline));
-
+		//Readline读取从服务器回射的数据
 		if (Readline(sockfd, recvline, MAXLINE) == 0)
 			err_quit("str_cli: server terminated prematurely");
-
+		//Fputs把它写到标准输出
 		Fputs(recvline, stdout);
 	}
 }
-
 ```
 
+## 5.6 正常启动
+
+**启动服务器**
+
+```shell
+# 启动服务器
+$ ./tcpserv01 
+
+# 查看服务器套接字的状态
+# Local Address *:9877 表示本地地址为 通配地址+9877端口
+# State LISTEN 表示套接字处于监听状态
+# 
+$ netstat -a | grep 9877
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 *:9877                  *:*                     LISTEN
+```
+
+**启动客户端**
+
+```shell
+# 启动客户端
+# 由于Fgets，进入阻塞状态
+# 此时还存在另两个阻塞状态：服务器主进程阻塞与Accept，服务器子进程阻塞于readline
+$ ./tcpcli01 127.0.0.1
+
+# 查看套接字状态
+# 由于服务器和客户端都在同一台主机，因此我们可以看到服务器的：监听套接字、已连接套接字（第一个ESTABLISHED）和客户端的已连接套接字（第二个ESTABLISHED）
+$ netstat -a | grep 9877
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 *:9877                  *:*                     LISTEN     
+tcp        0      0 localhost:9877          localhost:51030         ESTABLISHED
+tcp        0      0 localhost:51030         localhost:9877          ESTABLISHED
+
+# 查看进程状态和关系
+# 处于inet_csk_accept（阻塞于accept）为服务器的父进程，其PPID为1700，应该就是shell(bash)的PID
+# 处于sk_wait_data（阻塞于read）为服务器的子进程，其PPID为1813，即服务器的父进程ID
+# 处于wait_woken（阻塞与fgets）的为客户端进程
+# STATE S+表示进程在等待某些资源而睡眠
+$ ps -a -o pid,ppid,tty,stat,args,wchan
+   PID   PPID TT       STAT COMMAND                     WCHAN
+  1813   1700 pts/8    S+   ./tcpserv01                 inet_csk_accept
+  1818   1742 pts/9    S+   ./tcpcli01 127.0.0.1        wait_woken
+  1819   1813 pts/8    S+   ./tcpserv01                 sk_wait_data
+```
+
+## 5.7 正常终止
+
+**客户端与服务器数据交换**
+
+```shell
+$ ./tcpcli01 127.0.0.1
+hello,world
+hello,world
+```
+
+**正常终止**
+
+```shell
+# 客户端
+# 输入EOF
+$ Control-D
+
+# 查看连接状态
+$ netstat -a | grep 9877
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 *:9877                  *:*                     LISTEN     
+tcp        0      0 localhost:51030         localhost:9877          TIME_WAIT
+
+# 查看进程状态
+# 注意处于STAT Z+状态的进程，这是服务器子进程退出后，变为僵死状态，因为没被父进程回收
+$ ps -a -o pid,ppid,tty,stat,args,wchan
+   PID   PPID TT       STAT COMMAND                     WCHAN
+  1813   1700 pts/8    S+   ./tcpserv01                 inet_csk_accept
+  1819   1813 pts/8    Z+   [tcpserv01] <defunct>       exit
+```
+
+**正常终止客户和服务器的步骤**
+
+- 1.键入EOF（Control-D），客户端的fgets返回一个空指针，于是从str_cli函数返回
+- 2.str_cli返回到客户端的main函数，main通过调用
