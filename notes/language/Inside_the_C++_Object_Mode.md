@@ -976,7 +976,122 @@ Point2d *p2d = pv3d;
 Point2d *pd2 = pv3d ? pv3d + pv3d->__vptr__Point3d[-1] : 0;
 ```
 
-## 3.5 对象成员的效率
+## 3.6 指向数据成员的指针
+
+取一个类的非静态数据成员的地址，将会得到它在类中的偏移值。这种方法存取数据成员，效率更低
+
+- `&Point3d::z`
+- `float Point3d::*p1 = &Point3d::z; ` 
+
+取一个真正绑定于类对象上的数据成员的地址，将会得到该成员在内存中的真正地址
+
+- `&ob.z`，其中ob为Point3d的一个对象
+- `int *p2 = &ob.z;`
+
+[《C++Primber》笔记 第IV部分---19.4类成员指针](https://guanjunjian.github.io/2017/02/09/study-cpp-primer-summary_4/)
+
+```c++
+//下面的结果基于VS2017
+class Point3d {
+public:
+	virtual ~Point3d();
+	static void print()
+	{
+		printf("&Point3d::x = %p\n", &Point3d::x); //输出00000004
+		printf("&Point3d::y = %p\n", &Point3d::y); //输出00000008
+		printf("&Point3d::z = %p\n", &Point3d::z); //输出0000000C
+	}
+protected:
+	static Point3d origin;
+	float x, y, z;
+};
+
+int main(int argc, char* argv[])
+{
+	
+	Point3d::print();
+	system("pause");
+	return 0;
+}
+
+//Point3d的内存布局
+1>class Point3d	size(16):
+1>	    +---
+1> 0	| {vfptr}
+1> 4	| x
+1> 8	| y
+1>12	| z
+1>	    +---
+1>
+1>       Point3d::$vftable@:
+1>	    | &Point3d_meta
+1>	    |  0
+1> 0	| &Point3d::{dtor}
+```
+
+书中有不同的解答：
+
+```c++
+//书中BCB3编译器的输出结果为：
+class Point3d {
+public:
+	virtual ~Point3d();
+	static void print()
+	{
+		printf("&Point3d::x = %p\n", &Point3d::x); //输出00000005
+		printf("&Point3d::y = %p\n", &Point3d::y); //输出00000009
+		printf("&Point3d::z = %p\n", &Point3d::z); //输出0000000D
+	}
+protected:
+	static Point3d origin;
+	float x, y, z;
+};
+```
+
+书中BCB3中多出的1byte的解释为：为了区分“没有指向任何数据成员”的指针和“一个指向第一个数据成员”的指针（这种情况仅发生在将虚函数表放在末尾或没有虚函数的情况），考虑下面的情况：
+
+```c++
+float Point3d::*p1 = 0;
+float Point3d::*p2 = &Point3d::x;
+
+//这里该如何区分
+//如果对指针数据成员的指针都加1的偏移量，那么就可以通过00000001是指向第一个数据成员，而00000000表示没有指向任何数据成员来区分
+if( p1 == p2 ){}
+```
+
+**在多重继承后，类成员指针将会变得复杂**
+
+看如下例子：
+
+```c++
+struct Base1 { int val1; };
+struct Base2 { int val2; };
+struct Derived : public Base1, public Base2 {};
+
+void fun1( int Derived::*dmp, Derived *pd )
+{
+    //期待第一个参数得到的是一个“指向派生类的成员”的指针
+    //如果传进来的是一个“指向基类成员”的指针，会怎样？
+    pd->*dmp;
+}
+
+void fun2( Derived *pd )
+{
+    //bmp将成为1
+    int Base2::*bmp = &Base2::val2;
+    //bmp为1，但在派生类pd中，val2的偏移量应该是5，因此需要编译器的转换
+    func1( bmp, pd );
+}
+
+//编译器的行为
+void fun2( Derived *pd )
+{
+    int Base2::*bmp = &Base2::val2;
+    func1( bmp ? bmp + sizeof( Base1 ) : 0 , pd );
+}
+```
+
+
 
 
 
