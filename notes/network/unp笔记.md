@@ -892,6 +892,7 @@ main(int argc, char **argv)
 	servaddr.sin_port        = htons(SERV_PORT);//端口号SERV_PORT(9877)
 
 	//3.将套接字绑定到地址
+    //#define	SA	struct sockaddr，IPv4通用套接字地址结构
 	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
 
 	//4.将未连接套接字转换为监听套接字
