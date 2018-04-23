@@ -1605,4 +1605,22 @@ main(int argc, char **argv)
 }
 ```
 
-## 5.11 accpet返回前连接中断
+## 5.11 accept返回前连接中断
+
+**accept返回错误的情况：**
+
+- 1.捕获某个信号且相应处理函数返回时，该系统调用可能返回一个EINTR错误（如SIGCHLD信号）
+- 2.ESTABLISHED状态的连接在调用accpet之前收到来自客户的RST，如图所示：
+
+![](../../pics/network/unp笔记/Pic_5_13_ESTABLISHED状态的连接在调用accpet之前收到RST.png)
+
+如何处理这种情况依赖于不同的实现：
+
+- 1.Berkely版本：在内核中处理终止的连接，服务器进程看不到
+- 2.SVR4版本：accpet返回一个EPROTO错误（“protocol error”，协议错误）
+  - 解决方法：再次调用accept
+- 3.POSIX：accpet返回一个ECONNABORTED错误（“software caused connection abort”）
+  - 解决方法：再次调用accept
+
+## 5.12 服务器进程终止
+
