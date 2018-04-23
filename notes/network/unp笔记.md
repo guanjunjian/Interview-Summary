@@ -1722,7 +1722,50 @@ str_cli(FILE *fp, int sockfd)
 - 4.给所有仍然在运行的进程发送SIGKILL信号（该信号不能被捕获），所有进程被终止
 - 5.服务器进程终止时，它将关闭所有打开着的描述符，发送FIN
 
-## 5.17 TCP程序例子小结
+## 5.18 数据格式
 
+### 5.18.1 例子：在客户与服务器之间传递文本串
 
+**要求：**
+
+- 1.客户端：键入包含空格分开的两个整数
+- 2.服务器：返回客户端输入的两个整数的和
+
+需要修改的只是服务器的str_echo函数
+
+```c
+// 源码：tcpcliserv/str_echo08.c
+#include	"unp.h"
+
+void
+str_echo(int sockfd)
+{
+	long		arg1, arg2;
+	ssize_t		n;
+	char		line[MAXLINE];
+
+	for ( ; ; ) {
+		if ( (n = Readline(sockfd, line, MAXLINE)) == 0)
+			return;		/* connection closed by other end */
+		//sscanf把文本串中的两个参数转换为长整数
+		if (sscanf(line, "%ld%ld", &arg1, &arg2) == 2)
+			//snprintf把结果转换为文本串
+			snprintf(line, sizeof(line), "%ld\n", arg1 + arg2);
+		else
+			snprintf(line, sizeof(line), "input error\n");
+
+		n = strlen(line);
+		Writen(sockfd, line, n);
+	}
+}
+```
+
+### 5.18.2 例子：在客户与服务器之间传递二进制结构
+
+**要求：**客户和服务器穿越套接字传递二进制值
+
+**三个潜在问题：**
+
+- 1.不同的实现以不同的格式存储二进制数，如使用大端字节序或小端字节序
+- 2.不同
 
