@@ -1536,6 +1536,73 @@ $ ps -a -o pid,ppid,tty,stat,args,wchan
 为了解决**遗留的僵死进程**问题，应该使用**waitpid**：在信号处理函数中循环调用waitpid（因为其在无已终止子进程时可以不阻塞，所以可以循环调用。而wait不能循环调用是因为它会阻塞）
 
 ```c
+#include	"unp.h"
 
+void
+sig_chld(int signo)
+{
+	pid_t	pid;
+	int		stat;
+	//循环调用waipid，当有已终止子进程时，能马上处理
+	while ( (pid = waitpid(-1, &stat, WNOHANG)) > 0)
+		printf("child %d terminated\n", pid);
+	return;
+}
 ```
 
+**最终版本的服务器main函数**
+
+该版本的做到的：
+
+- 1.当fork子进程时，必须捕获SIGCHLD信号
+- 2.当信号捕获时，必须处理中断的系统调用
+- 3.SIGCHLD的信号处理函数使用循环waitpid处理，避免留下僵死进程
+
+```c
+// 源码:tcpcliserv/tcpserv04.c
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					listenfd, connfd;
+	pid_t				childpid;
+	socklen_t			clilen;
+	struct sockaddr_in	cliaddr, servaddr;
+	void				sig_chld(int);
+
+	listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+
+	bzero(&servaddr, sizeof(servaddr));
+	servaddr.sin_family      = AF_INET;
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	servaddr.sin_port        = htons(SERV_PORT);
+
+	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+
+	Listen(listenfd, LISTENQ);
+
+	//1.、3.捕获SIGCHLD信号,并使用循环waitpid处理
+	Signal(SIGCHLD, sig_chld);	/* must call waitpid() */
+
+	for ( ; ; ) {
+		clilen = sizeof(cliaddr);
+		if ( (connfd = accept(listenfd, (SA *) &cliaddr, &clilen)) < 0) {
+			//2.处理SIGCHLD信号发生导致的系统调用中断
+			if (errno == EINTR)
+				continue;		/* back to for() */
+			else
+				err_sys("accept error");
+		}
+
+		if ( (childpid = Fork()) == 0) {	/* child process */
+			Close(listenfd);	/* close listening socket */
+			str_echo(connfd);	/* process the request */
+			exit(0);
+		}
+		Close(connfd);			/* parent closes connected socket */
+	}
+}
+```
+
+## 5.11 accpet返回前连接中断
