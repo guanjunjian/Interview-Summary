@@ -33,7 +33,7 @@ unp笔记
 ### 2.6.3 TCP连接终止
 
 - 1.主动关闭，首先发送FIN的一端
-- 2.被动关闭，首先受到FIN的一端
+- 2.被动关闭，首先收到FIN的一端
 - 3.被动关闭收到FIN后，将FIN作为文件结束符（EOF）传递给应用程序，放在所有数据之后。表示本端应用程序不会再收到对端的数据
 - 4.不一定是4次个分组进行4次挥手：
   - 第一个FIN可能与最后的数据一起发送
@@ -53,7 +53,7 @@ unp笔记
 
 ### 2.6.5 观察分组
 
-- 1.第二次握手中的ACK和SYN也是有可能分开发送的
+- 第二次握手中的ACK和SYN也是有可能分开发送的
   - 如果服务器产生应答（SYN）的时间少于200ms，则SYN&ACK一起发送
   - 如果服务器产生应答的时间大于1s，则先发送ACK，再发送SYN
 
@@ -65,7 +65,7 @@ unp笔记
   - 1).可靠地实现TCP全双工连接的终止
     - 如果没有WAIT_TIME。如果最后一个ACK丢失，被动关闭端回重新发送FIN，此时主动关闭端没有WAIT_TIME状态，将这个FIN以RST回应，被动关闭端会将RST解释成一个错误
   - 2).允许老的重复分节在网络中小时
-    - 不允许在TIME_WAIT状态，在以同样的IP和端口创建连接
+    - 不允许在TIME_WAIT状态，再以同样的IP和端口创建连接
     - 否则，1).中提到的丢失的ACK其实没有丢失，有可能只是迷途了，那么TIME_WAIT的对端就回收到这个ACK而发生错误
 - 4.TIME_WAIT是2MSL的原因
   - 每个方向上的分组都需要一个MSL来确保消逝
@@ -99,7 +99,9 @@ unp笔记
 
 **IPv4**
 
-- 1.IPv4最大大小是2^16（65535，包括IPv4首部，实际载荷为65535-20）,但可扩展为2^14*65535
+![](../../pics/network/unp笔记/Pic_A_1_IPv4首部格式.png)
+
+- 1.IPv4最大大小是2^16（65535，包括IPv4首部，实际载荷为65535-20）
 
 
 - 2.IPV4最小链路MTU为68，因为IPv4首部=20字节+40多字节的选项部分
@@ -135,7 +137,7 @@ unp笔记
     - 应用进程的缓冲区大于套接字的发送缓冲区
     - 套接字的发送缓冲区已有其他数据
   - 如果无法容下，进程被睡眠
-  - 内核不从write返回（假设是阻塞的套接字） ，知道应用进程的缓冲区所有的数据都复制到套接字缓冲区中
+  - 内核不从write返回（假设是阻塞的套接字） ，直到应用进程的缓冲区所有的数据都复制到套接字缓冲区中
   - 如果write返回，表示当前进程数据已经复制到套接字缓冲区，进程缓冲区可继续使用。但不表示对端已经收到
 - 3.TCP套接字缓冲区需要保留已经发送的数据，直到收到该数据的ACK
 
@@ -293,7 +295,7 @@ connect (sockfd, (SA *) &serv, sizeof(serv));
 struct sockaddr_un cli; /* Unix domain */
 socklen_t len;
 len = sizeof(cli); /* len is a value */
-getpeername(unixfd, (SA *) &cli, &len);
+getpeername(unixfd, (SA *) &cli, &len);	
 /* len may have changed */
 ```
 
@@ -328,7 +330,7 @@ if(un.c[0] == 1 && un.c[1] == 2); //大端
 if (un.c[0] == 2 && un.c[1] == 1); //小端
 ```
 
-**网络字节序**：网络协议使用大端字节序来传递这些字节整数
+**网络字节序**：网络协议使用**大端字节序**来传递这些字节整数
 
 主机字节序与网络字节序之间的转换函数：
 
@@ -388,8 +390,8 @@ inet_aton、inet_addr和inet_ntoa在点分十进制数串（eg：“206.168.112.
 ```c
 #include<arpa/inet.h>
 
+//作用：将strptr所指的C字符串转换成32位的网络字节序二进制值，并通过指针addrptr来存储
 //返回：1--字符串有效， 0--字符串有错
-//将strptr所指的C字符串转换成32位的网络字节序二进制值，并通过指针addrptr来存储
 //如果strptr为空，仍然对输入函数进行有效性检查，但addrptr不存储任何结果
 int inet_aton(const char *strptr, struct in_addr *addrptr);　
 
@@ -463,7 +465,6 @@ void	 sock_set_addr(SA *sockaddr, socklen_t addrlen, const void *ptr);
 void	 sock_set_port(SA *sockaddr, socklen_t addrlen, int port);
 //把一个套接字地址结构中的地址部分置为通配地址
 void	 sock_set_wild(SA *sockaddr, socklen_t addrlen);
-char	*sock_ntop(const SA *, socklen_t);
 ```
 
 ## 3.9 readn、writen和readline函数（本书自定义函数）
