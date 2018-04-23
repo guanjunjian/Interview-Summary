@@ -1624,3 +1624,54 @@ main(int argc, char **argv)
 
 ## 5.12 服务器进程终止
 
+**客户端的str_cli函数**
+
+```c
+// lib/str_cli.c
+#include	"unp.h"
+
+void
+str_cli(FILE *fp, int sockfd)
+{
+	char	sendline[MAXLINE], recvline[MAXLINE];
+	//Fgets从客户端读入一行数据
+	//当遇到文件结束符或错误，fgets（库函数）将返回一个空指针，于是客户端循环终止
+	//Fgets包裹fgets，检查是否发送错误，发送则中指程序，因此Fgets只有遇到文件结束符时才返回一个空指针
+	while (Fgets(sendline, MAXLINE, fp) != NULL) {
+		//Writen把从客户端读到的数据发送到服务端
+		Writen(sockfd, sendline, strlen(sendline));
+		//Readline读取从服务器回射的数据
+		if (Readline(sockfd, recvline, MAXLINE) == 0)
+			err_quit("str_cli: server terminated prematurely");
+		//Fputs把它写到标准输出
+		Fputs(recvline, stdout);
+	}
+}
+```
+
+**问题描述**：处于ESTABLISHED的连接，服务器子进程崩溃（或被主动关闭），服务器子进程终止，并关闭所有打开着的描述符，导致向客户端发送FIN，而客户端则回应服务器ACK。此时由于客户端阻塞与Fgets而无法得知服务器已经发送了FIN，此时如果客户端再键入数据，发送给服务器，服务器由于该连接的套接字已经终止，因此回应RST，之后，将会发生以下两种情况：
+
+- 1.Readline函数发生在RST到达之前：那么Readline函数因为服务器的FIN（子进程终止时发送的）而返回0，即收到一个未预期的EOF，因此err_quit退出，并打印"str_cli: server terminated prematurely"（服务器过早终止）
+- 2.Readline函数发生在RST到达之后：Readline中的readline返回一个EONNRESET（"connection reset by peer"，对方复位连接错误），并退出（因为内核向进程发送SIGPIPE信号，该信号的默认行为是终止进程）
+
+**问题本质**：当FIN到达套接字时，客户正阻塞与Fgets调用上。客户实际上应该对两个描述符（套接字和用户输入）进行监听，而不能阻塞于其中一个
+
+**解决方法**：可以通过select和poll来解决，使用这两个函数后，一旦杀死服务器子进程，客户就理解被告知收到FIN
+
+## 5.13 SIGPIPE信号
+
+当一个进程向某个已经收到RST的套接字执行写操作时，内核向该进程发送一个SIGPIPE信号。该信号的默认行为是终止进程，如果进程不希望被终止，需要捕获该信号
+
+**可能出错的情景：**在readline之前，执行两次或更多的write操作。因为第一次write之前，服务器已经半关闭，第一次write将收到RST，而继续write，则会引发SIGPIPE错误
+
+**注意：**写一个已经收到FIN的套接字是没有问题的，此时服务器会回应RST，再次写一个收到RST的套接字，将引发SIGPIPE信号
+
+**处理SIGPIPE的方法：**
+
+- 1.如果没有特殊的事情要做，则将信号处理处理办法设为SIG_IGN，并假设后续的输出操作将捕获EPIPE错误并终止
+- 2.如果信号出现时需要采取措施（如记录日志），就需要捕获信号，并编写信号处理函数
+
+## 5.14 服务器主机崩溃
+
+
+
