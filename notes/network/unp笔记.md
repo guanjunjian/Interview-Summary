@@ -1201,6 +1201,17 @@ signal(int signo, Sigfunc *func)
 	return(oact.sa_handler);
 }
 /* end signal */
+
+//对signal再封装，多了一步错误处理
+Sigfunc *
+Signal(int signo, Sigfunc *func)	/* for our signal() function */
+{
+	Sigfunc	*sigfunc;
+
+	if ( (sigfunc = signal(signo, func)) == SIG_ERR)
+		err_sys("signal error");
+	return(sigfunc);
+}
 ```
 
 ### POSIX信号语义
@@ -1213,4 +1224,318 @@ signal(int signo, Sigfunc *func)
 - 4.利用sigprocmask函数选择性地阻塞或解阻塞一组信号是可能的。这样可以做到一段临界区代码执行期间，防止捕获某些信号，以保护这段代码
 
 ## 5.9 处理SIGCHLD信号
+
+僵死（zombie）状态的**目的**：维护子进程的信息，以便父进程在以后某个时候获取，这些信息包括：
+
+- 1.子进程的进程ID
+- 2.终止状态
+- 3.资源利用情况（CPU时间、内存使用量）
+
+如果一个进程终止，而该进程有子进程处于僵死状态，那么它的所有僵死进程的父进程ID将被重置为1（由init进程管理），继承这些子进程的init进程将清理它们（init进程将wait这些僵死进程，从而去除它们的僵死状态）
+
+僵死进程的**危害**：占用内核中的空间，最终可能导致耗尽进程资源。因此fork出来的子进程一定要wait它们，以防止它们变成僵死进程
+
+处理僵死进程的**可移植方法**：捕获SIGCHLD，并调用wait或waitpid
+
+### 处理僵死进程
+
+**SIGCHLD信号处理函数**
+
+```c
+#include	"unp.h"
+
+void
+sig_chld(int signo)
+{
+	pid_t	pid;
+	int		stat;
+
+	pid = wait(&stat);
+	printf("child %d terminated\n", pid);
+    //return的作用：当某个系统调用被我们编写的某个信号处理函数中断时，可以得知该系统调用具体是被哪个信号处理函数的哪个return语句中断的
+	return;
+}
+```
+
+**Signal函数的实现**
+
+```c
+Sigfunc *
+Signal(int signo, Sigfunc *func)	/* for our signal() function */
+{
+	Sigfunc	*sigfunc;
+	//这里使用的是标准C库函数的signal，而不是第5.8节中实现的版本
+	if ( (sigfunc = signal(signo, func)) == SIG_ERR)
+		err_sys("signal error");
+	return(sigfunc);
+}
+```
+
+**可处理僵死进程的服务器main函数**
+
+```c
+//源码 tcpcliserv/tcpserv02.c
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					listenfd, connfd;
+	pid_t				childpid;
+	socklen_t			clilen;
+	struct sockaddr_in	cliaddr, servaddr;
+	void				sig_chld(int);
+
+	listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+
+	bzero(&servaddr, sizeof(servaddr));
+	servaddr.sin_family      = AF_INET;
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	servaddr.sin_port        = htons(SERV_PORT);
+
+	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+
+	Listen(listenfd, LISTENQ);
+	//实际上调用的是标准C库函数的signal，而不是第5.8节中实现的版本
+    //注册信号处理函数
+	Signal(SIGCHLD, sig_chld);
+
+	for ( ; ; ) {
+		clilen = sizeof(cliaddr);
+		connfd = Accept(listenfd, (SA *) &cliaddr, &clilen);
+
+		if ( (childpid = Fork()) == 0) {	/* child process */
+			Close(listenfd);	/* close listening socket */
+			str_echo(connfd);	/* process the request */
+			exit(0);
+		}
+		Close(connfd);			/* parent closes connected socket */
+	}
+}
+
+```
+
+**运行效果**
+
+服务器
+
+```shell
+$ ./tcpserv02 # 启动服务器
+# 客户端键入EOF之后
+child 2114 terminated                 # 信号处理函数sig_chld中的输出
+accpet error: Interrupted system call # main函数中止执行
+```
+
+客户端
+
+```shell
+$ ./tcpcli01 127.0.0.1 # 启动客户端
+hi there               # 键入一行数据  
+hi there               # 在标准输出上回射一行数据
+Control-D              # 键入EOF字符
+```
+
+**键入EOF后的具体步骤**
+
+- 1.键入EOF字符终止客户端。客户TCP发送一个FIN（第一次挥手）给服务器，服务器响应一个ACK（第二次挥手）
+- 2.收到客户的FIN导致服务器TCP传递一个EOF给子进程中str_echo函数中的readline，从而子进程终止
+- 3.当SIGCHLD信号递交时，父进程阻塞于accept调用。sig_chld函数（信号处理函数）执行，其wait调用取到子进程的PID和终止状态，随后是printf调用，最后返回
+- 4.信号在父进程阻塞于**慢系统调用**accpet函数时由父进程捕获的，内核会使accpet返回一个EINTER错误（被中断的系统调用），而如下代码显示，父进程不处理该错误
+
+```c
+#include	"unp.h"
+//父进程使用的包裹Accept函数的实现
+int
+Accept(int fd, struct sockaddr *sa, socklen_t *salenptr)
+{
+	int		n;
+
+again:
+	if ( (n = accept(fd, sa, salenptr)) < 0) {
+#ifdef	EPROTO
+		if (errno == EPROTO || errno == ECONNABORTED)
+#else
+		if (errno == ECONNABORTED)
+#endif
+			goto again;
+		else
+			err_sys("accept error");
+	}
+	return(n);
+}
+```
+
+**运行效果中的软中断**
+
+运行效果中最后的`accpet error: Interrupted system call`是由与被中断的系统调用（accpet）没有被处理。
+
+以上的运行效果使用的是标准C库函数中提供的signal函数，在一些系统中，它不会使得内核自动重启被中断的系统调用（在一些系统中会）。
+
+而5.8节中实现的signal函数，设置了SA_RESTART标志，可以应对不同的操作系统，使得所有的操作系统都会自动重启被中断的系统调用
+
+### 处理被中断的系统调用
+
+**慢系统调用**：可能永远阻塞的系统调用，即可能永远无法返回，多数网络支持函数都属于这一类，例如accept函数
+
+**适用于慢系统调用的基本规则**：当阻塞于某个慢系统调用的一个进程捕获某个信号且相应处理函数返回时，该系统调用可能返回一个EINTR错误。有些内核自动重启某些软中断的系统调用，而有的却不会
+
+为了移植性，我们编写捕获信号的程序时，必须对慢系统调用返回EINTR有所准备。下面是能正确处理EINTER错误的服务器main函数
+
+```c
+// tcpcliserv/tcpserv03.c
+
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					listenfd, connfd;
+	pid_t				childpid;
+	socklen_t			clilen;
+	struct sockaddr_in	cliaddr, servaddr;
+	void				sig_chld(int);
+
+	listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+
+	bzero(&servaddr, sizeof(servaddr));
+	servaddr.sin_family      = AF_INET;
+	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	servaddr.sin_port        = htons(SERV_PORT);
+
+	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+
+	Listen(listenfd, LISTENQ);
+
+	Signal(SIGCHLD, sig_chld);
+
+	for ( ; ; ) {
+		clilen = sizeof(cliaddr);
+		if ( (connfd = accept(listenfd, (SA *) &cliaddr, &clilen)) < 0) {
+			//自己重启被中断的系统调用
+			if (errno == EINTR)
+				continue;		/* back to for() */
+			else
+				err_sys("accept error");
+		}
+
+		if ( (childpid = Fork()) == 0) {	/* child process */
+			Close(listenfd);	/* close listening socket */
+			str_echo(connfd);	/* process the request */
+			exit(0);
+		}
+		Close(connfd);			/* parent closes connected socket */
+	}
+}
+```
+
+可以自己重启被中断的系统调用：accept、read、write、select、open
+
+不可以自己重启被中断的系统调用：connect
+
+connect的处理方法：如果系统不自动重启，则调用select等待连接完成
+
+## 5.10 wait和waipid函数
+
+```c
+#include <sys/wait.h>
+
+/*
+** 作用：处理已终止的子进程，如果调用wait时没有已终止的子进程，但有仍然在允许的子进程，则wait会阻塞到现有子进程第一个终止为止
+** @statloc：子进程终止状态，可以调用三个宏来检查终止状态，并分辨子进程是正常终止、由某个信号杀死还是作业控制停止
+** @返回值：已终止子进程的进程ID号
+*/
+pid_t wait (int *statloc);
+
+/*
+** 相比wait，waipid可以选择等待哪个进程，已经是否阻塞等
+** @pid：指定想等待的进程ID，-1表示等待第一个终止的子进程
+** @statloc：子进程终止状态
+** @options：指定附加选项，如WNOHANG表示告知内核再没有已终止子进程时不要阻塞
+** @返回值：已终止子进程的进程ID号
+*/
+pid_t waitpid (pid_t pid, int *statloc, int options);
+```
+
+### 函数wait和waipid的区别
+
+**发现问题**
+
+可以与服务器建立5个连接的客户端程序，目的是从并发服务器上派生多个子进程
+
+```c
+// tcpcliserv/tcpcli04.c
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					i, sockfd[5];
+	struct sockaddr_in	servaddr;
+
+	if (argc != 2)
+		err_quit("usage: tcpcli <IPaddress>");
+
+	for (i = 0; i < 5; i++) {
+		sockfd[i] = Socket(AF_INET, SOCK_STREAM, 0);
+
+		bzero(&servaddr, sizeof(servaddr));
+		servaddr.sin_family = AF_INET;
+		servaddr.sin_port = htons(SERV_PORT);
+		Inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+
+		Connect(sockfd[i], (SA *) &servaddr, sizeof(servaddr));
+	}
+
+	str_cli(stdin, sockfd[0]);		/* do it all */
+
+	exit(0);
+}
+```
+
+建立连接后如图所示：
+
+![](../../pics/network/unp笔记/Pic_5_8_与同一个并发服务器建立5个连接的客户.png)
+
+客户端终止，调用exit函数，5个连接基本在同一时刻终止，引发5个FIN。从而导致服务器的5个子进程基本在同一时刻终止，从而差不多同一时刻有5个SIGCHLD信号传递给父进程
+
+![](../../pics/network/unp笔记/Pic_5_10_客户终止，关闭5个连接，终止5个子进程.png)
+
+运行效果如下：
+
+服务器
+
+```shell
+$ ./tcpserv03 #启动服务器
+
+# 客户端键入EOF后
+child 2411 terminated
+child 2410 terminated
+child 2412 terminated
+child 2413 terminated
+```
+
+客户端
+
+```shell
+$ ./tcpcli04 127.0.0.1
+hello
+hello
+Control-D
+
+# 查看进程状态，可以看到仍然有僵死进程
+$ ps -a -o pid,ppid,tty,stat,args,wchan
+   PID   PPID TT       STAT COMMAND                     WCHAN
+  2307   1668 pts/0    S+   ./tcpserv03                 inet_csk_accept
+  2414   2307 pts/0    Z+   [tcpserv03] <defunct>       exit
+```
+
+书本中的效果是只有一个子进程被wait，还有4个僵死进程。但我的运行效果是4个子进程被wait，还有1个僵死进程。根据书中的说法，这有可能是FIN的时机没有同时到达导致的。
+
+问题：所有5个信号都在信号处理函数执行之前产生，而信号处理函数只执行一次，因为Unix信号一般是不排队的
+
+为了解决**遗留的僵死进程**问题，应该使用**waitpid**：在信号处理函数中循环调用waitpid（因为其在无已终止子进程时可以不阻塞，所以可以循环调用。而wait不能循环调用是因为它会阻塞）
+
+```c
+
+```
 
