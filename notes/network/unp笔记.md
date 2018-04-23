@@ -1766,6 +1766,115 @@ str_echo(int sockfd)
 
 **三个潜在问题：**
 
-- 1.不同的实现以不同的格式存储二进制数，如使用大端字节序或小端字节序
-- 2.不同
+- 1.不同的实现以不同的格式存储二进制数
+  - 如使用大端字节序或小端字节序
+- 2.不同的实现在存储相同的C数据类型上可能存在异常
+  - 大多数32位Unix系统使用32位表示长整数，而64位系统却使用64位来表示长整数
+  - short、int或long等整数类型，各自的大小也都没有明确的保证
+- 3.不同的实现给结构打包的方式存在差异
+  - 打包方式取决于各种数据类型所使用的位数以及机器的对齐限制
+
+**解决方法**
+
+- 1.把所有的数值数据作为文本串来传递（前提是客户与服务器主机具有相同的字符集）
+- 2.显示定义所支持数据类型的二进制格式（位数、大端或小端字节序），并以这样的格式在客户与服务器之间传递所有数据
+  - 远程过程调用软件包通常使用这种技术
+
+**问题描述**
+
+客户和服务器的main函数不需要修改，只需修改客户的`str_cli`函数和服务器的`str_echo`函数，同时，为参数和结果定义结构
+
+```c
+// 源码: tcpcliserv/sum.h
+//为参数和结果定义结构
+struct args {
+  long	arg1;
+  long	arg2;
+};
+
+struct result {
+  long	sum;
+};
+```
+
+**客户端str_cli**
+
+```c
+// 源码：tcpcliserv/str_cli09.c
+
+#include	"unp.h"
+#include	"sum.h"
+
+void
+str_cli(FILE *fp, int sockfd)
+{
+	char			sendline[MAXLINE];
+	struct args		args;
+	struct result	result;
+
+	while (Fgets(sendline, MAXLINE, fp) != NULL) {
+		//sscanf把两个参数从文本串转换为二进制数
+		if (sscanf(sendline, "%ld%ld", &args.arg1, &args.arg2) != 2) {
+			printf("invalid input: %s", sendline);
+			continue;
+		}
+		//将参数数据结构发送给服务器
+		Writen(sockfd, &args, sizeof(args));
+		//读取服务器回应
+		if (Readn(sockfd, &result, sizeof(result)) == 0)
+			err_quit("str_cli: server terminated prematurely");
+		//输出结果
+		printf("%ld\n", result.sum);
+	}
+}
+```
+
+**服务器str_echo**
+
+```c
+// 源码：tcpcliserv/str_echo09.c
+
+#include	"unp.h"
+#include	"sum.h"
+
+void
+str_echo(int sockfd)
+{
+	ssize_t			n;
+	struct args		args;
+	struct result	result;
+
+	for ( ; ; ) {
+		//读入参数
+		if ( (n = Readn(sockfd, &args, sizeof(args))) == 0)
+			return;		/* connection closed by other end */
+		//计算和
+		result.sum = args.arg1 + args.arg2;
+		//把结果结果发回客户
+		Writen(sockfd, &result, sizeof(result));
+	}
+}
+```
+
+**结果展示**
+
+情况一：如果客户和服务器具有相同的体系结构，不会存在什么问题
+
+```shell
+$ tcpcli09 12.106.32.254
+11 22                  #客户键入两个数
+33                     #服务器应答
+-11 -44                #客户再次键入两个数
+-55                    #服务器应答
+```
+
+情况二：如果客户和服务器具有不同的体系结构，则无法正常工作
+
+```shell
+$ tcpcli09 12.106.32.254
+1 2                    #客户键入两个数
+3                      #服务器应答，结果正确
+-22 -77                #客户再次键入两个数
+-16777314              #服务器应答，结果错误
+```
 
