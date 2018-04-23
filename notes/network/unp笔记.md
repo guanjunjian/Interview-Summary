@@ -652,7 +652,7 @@ int listen (int sockfd, int backlog);
 
 **队列满时的处理**
 
-当一个客户SYN到达时，若这些队列是满的，TCP忽略该分节，且不会发送RST
+当一个客户SYN到达时，若未完成队列是满的，TCP忽略该分节，且不会发送RST
 
 不发送的原因：
 
@@ -766,7 +766,7 @@ Listen(listenfd, LISTENQ);
 for ( ; ; ) {
     connfd = Accept(listenfd,...);
     if ( (childpid = Fork()) == 0) { //子进程
-			Close(listenfd); //关闭子进程监听套接字
+			Close(listenfd); //关闭子进程监听套接字（引用计数-1）
         	doit(connfd); //处理已连接套接字的请求
         	Close(connfd); //关闭已连接套接字，该句并非必须，因为exit时会自动处理
 			exit(0); //终止子进程
@@ -820,11 +820,11 @@ int close (int sockfd);
 
 **描述符引用计数**
 
-**知识点1**：close知识减少引用计数，如果调用close后，引用计数仍大于0，则不引发四次挥手。如果想要某个TCP连接立马发送FIN，可以使用shutdown函数
+**知识点1**：close只是减少引用计数，如果调用close后，引用计数仍大于0，则不引发四次挥手。如果想要某个TCP连接立马发送FIN，可以使用shutdown函数
 
 **知识点2：**如果父进程对accept返回的已连接套接字都不调用close，会发生什么？
 
-- 1.父进程最终将后进可用描述符
+- 1.父进程最终将耗尽可用描述符
 - 2.没有一个客户连接会被终止。子进程退出后，已连接套接字的引用计数由2变为1，父进程永远不会关闭任何已连接套接字。这妨碍TCP连接终止序列的发生，导致连接一直打开着
 
 
@@ -993,7 +993,7 @@ str_cli(FILE *fp, int sockfd)
 	char	sendline[MAXLINE], recvline[MAXLINE];
 	//Fgets从客户端读入一行数据
 	//当遇到文件结束符或错误，fgets（库函数）将返回一个空指针，于是客户端循环终止
-	//Fgets包裹fgets，检查是否发送错误，发送则中指程序，因此Fgets只有遇到文件结束符时才返回一个空指针
+	//Fgets包裹fgets，检查是否发送错误，出错则终止程序，因此Fgets只有遇到文件结束符时才返回一个空指针
 	while (Fgets(sendline, MAXLINE, fp) != NULL) {
 		//Writen把从客户端读到的数据发送到服务端
 		Writen(sockfd, sendline, strlen(sendline));
@@ -1033,7 +1033,7 @@ tcp        0      0 *:9877                  *:*                     LISTEN
 $ ./tcpcli01 127.0.0.1
 
 # 查看套接字状态
-# 由于服务器和客户端都在同一台主机，因此我们可以看到服务器的：监听套接字、已连接套接字（第一个ESTABLISHED）和客户端的已连接套接字（第二个ESTABLISHED）
+# 由于服务器和客户端都在同一台主机，因此我们可以看到服务器的：监听套接字、服务器已连接套接字（第一个ESTABLISHED）和客户端的已连接套接字（第二个ESTABLISHED）
 $ netstat -a | grep 9877
 Active Internet connections (servers and established)
 Proto Recv-Q Send-Q Local Address           Foreign Address         State
