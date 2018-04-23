@@ -483,7 +483,7 @@ char	*sock_ntop(const SA *, socklen_t);
 ssize_t readn(int filedes, void *buff, size_t nbytes);
 ssize_t writen(int filedes, const void *buff, size_t nbytes);
 ssize_t readline(int filedes, void *buff, size_t maxlen);
-//均返回：读或写的字节数，若出错则为-1
+//均返回：读或写的字节数，若出错则为-1，连接已经关闭为0
 ```
 
 readline原本的实现版本较慢，原因是每次调用read只读取一个字符。可以通过自己实现一个my_read，维护一个自己的缓冲区，readline调用自己实现的my_read从而得到一个较快的版本
