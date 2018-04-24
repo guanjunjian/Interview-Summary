@@ -1115,7 +1115,7 @@ $ ps -a -o pid,ppid,tty,stat,args,wchan
 
 ### 信号基本知识
 
-信号（signal）：告知某个进程发生了某个事件的通知，也成为软件中断
+信号（signal）：告知某个进程发生了某个事件的通知，也称为软件中断
 
 信号通常是异步的：即进程预先不知道信号的发生时刻
 
@@ -1129,14 +1129,14 @@ $ ps -a -o pid,ppid,tty,stat,args,wchan
 
 设置信号的行为有三种方式：
 
-- 1.捕获信号：提供一个信号处理函数，只有有特定信号发生它就被调用
+- 1.捕获信号：提供一个信号处理函数，只要有特定信号发生它就被调用
   - `void handler(int signo);`
   - 不能被捕获的信号：SIGKILL、SIGSTOP
 - 2.忽略信号：把某个信号的处置设为SIG_IGN来忽略它
   - 不能被忽略的信号：SIGKILL、SIGSTOP
 - 3.默认处置：把某个信号的处置设定为SIG_DEF来启用它的默认处置
   - 默认处置的行为有两种：
-    - 通常是收到信号后终止信号，其中某些信号还在工作目录下生产一个进程的核心映像（core image，也称为内存影像）
+    - 通常是收到信号后终止进程，其中某些信号还在工作目录下生产一个进程的核心映像（core image，也称为内存影像）
     - 忽略信号，例如SIGCHLD和SIGURC的默认处置就是忽略该信号
 
 ### signal函数
@@ -1154,7 +1154,7 @@ $ ps -a -o pid,ppid,tty,stat,args,wchan
  int sigaction(int signum,const struct sigaction *act ,struct sigaction *oldact);
 ```
 
-由于该函数的act必须分配和添加，因此使用下面的signal对sigaction进行封装
+由于该函数的act必须分配和添加，因此使用下面的signal（注意与标准C库函数中signal的区别，在一些系统中，C库函数中signal不会使得内核自动重启被中断的系统调用）对sigaction进行封装
 
 ```c
 /* include signal */
@@ -1411,8 +1411,8 @@ main(int argc, char **argv)
 
 	for ( ; ; ) {
 		clilen = sizeof(cliaddr);
-		if ( (connfd = accept(listenfd, (SA *) &cliaddr, &clilen)) < 0) {
-			//自己重启被中断的系统调用
+		if ( (connfd = accept(listenfd, (SA *) &cliaddr, &clilen)) < 0) 		{
+			//用户实现重启被中断的系统调用
 			if (errno == EINTR)
 				continue;		/* back to for() */
 			else
@@ -1429,9 +1429,9 @@ main(int argc, char **argv)
 }
 ```
 
-可以自己重启被中断的系统调用：accept、read、write、select、open
+可以用户实现重启被中断的系统调用：accept、read、write、select、open
 
-不可以自己重启被中断的系统调用：connect
+不可以用户实现重启被中断的系统调用：connect
 
 connect的处理方法：如果系统不自动重启，则调用select等待连接完成
 
@@ -1448,7 +1448,7 @@ connect的处理方法：如果系统不自动重启，则调用select等待连�
 pid_t wait (int *statloc);
 
 /*
-** 相比wait，waipid可以选择等待哪个进程，已经是否阻塞等
+** 相比wait，waipid可以选择等待哪个进程，以及是否阻塞等
 ** @pid：指定想等待的进程ID，-1表示等待第一个终止的子进程
 ** @statloc：子进程终止状态
 ** @options：指定附加选项，如WNOHANG表示告知内核再没有已终止子进程时不要阻塞
@@ -1637,7 +1637,7 @@ str_cli(FILE *fp, int sockfd)
 	char	sendline[MAXLINE], recvline[MAXLINE];
 	//Fgets从客户端读入一行数据
 	//当遇到文件结束符或错误，fgets（库函数）将返回一个空指针，于是客户端循环终止
-	//Fgets包裹fgets，检查是否发送错误，发送则中指程序，因此Fgets只有遇到文件结束符时才返回一个空指针
+	//Fgets包裹fgets，检查是否发送错误，发生则终止程序，因此Fgets只有遇到文件结束符时才返回一个空指针
 	while (Fgets(sendline, MAXLINE, fp) != NULL) {
 		//Writen把从客户端读到的数据发送到服务端
 		Writen(sockfd, sendline, strlen(sendline));
@@ -1650,10 +1650,10 @@ str_cli(FILE *fp, int sockfd)
 }
 ```
 
-**问题描述**：处于ESTABLISHED的连接，服务器子进程崩溃（或被主动关闭），服务器子进程终止，并关闭所有打开着的描述符，导致向客户端发送FIN，而客户端则回应服务器ACK。此时由于客户端阻塞与Fgets而无法得知服务器已经发送了FIN，此时如果客户端再键入数据，发送给服务器，服务器由于该连接的套接字已经终止，因此回应RST，之后，将会发生以下两种情况：
+**问题描述**：处于ESTABLISHED的连接，服务器子进程崩溃（或被主动关闭），服务器子进程终止，并关闭所有打开着的描述符，导致向客户端发送FIN，而客户端则回应服务器ACK。此时由于客户端阻塞与Fgets而无法得知服务器已经发送了FIN，此时如果客户端再键入数据（向一个已经收到FIN的套接字发送数据，将收到一个RST），发送给服务器，服务器由于该连接的套接字已经终止，因此回应RST，之后，将会发生以下两种情况：
 
 - 1.Readline函数发生在RST到达之前：那么Readline函数因为服务器的FIN（子进程终止时发送的）而返回0，即收到一个未预期的EOF，因此err_quit退出，并打印"str_cli: server terminated prematurely"（服务器过早终止）
-- 2.Readline函数发生在RST到达之后：Readline中的readline返回一个ECONNRESET（"connection reset by peer"，对方复位连接错误），并退出（因为内核向进程发送SIGPIPE信号，该信号的默认行为是终止进程）
+- 2.Readline函数发生在RST到达之后：Readline中的readline返回一个ECONNRESET（"connection reset by peer"，对方复位连接错误），此时不会退出（Readline出错返回到str_cli，继续循环Fgets）。如果再向收到RST的套接字写数据，才会发生内核向进程发送SIGPIPE信号，并导致默认退出
 
 **问题本质**：当FIN到达套接字时，客户正阻塞与Fgets调用上。客户实际上应该对两个描述符（套接字和用户输入）进行监听，而不能阻塞于其中一个
 
@@ -1663,7 +1663,7 @@ str_cli(FILE *fp, int sockfd)
 
 当一个进程向某个已经收到RST的套接字执行写操作时，内核向该进程发送一个SIGPIPE信号。该信号的默认行为是终止进程，如果进程不希望被终止，需要捕获该信号
 
-**可能出错的情景：**在readline之前，执行两次或更多的write操作。因为第一次write之前，服务器已经半关闭，第一次write将收到RST，而继续write，则会引发SIGPIPE错误
+**可能出错的情景：**在readline之前，执行两次或更多的write操作。因为第一次write之前，服务器已经半关闭，第一次write（向一个已经收到FIN的套接字写）将收到RST，而继续write（向一个已经收到RST的套接字写），则会引发SIGPIPE错误
 
 **注意：**写一个已经收到FIN的套接字是没有问题的，此时服务器会回应RST，再次写一个收到RST的套接字，将引发SIGPIPE信号
 
@@ -1692,7 +1692,7 @@ str_cli(FILE *fp, int sockfd)
 根据情况不同，有可能发生不同的错误
 
 - 1.如果某个中间路由器判定服务器主机已经不可达，则路由向客户主机发送"destination unreachable"（目的地不可达）ICMP消息，那么客户TCP向客户进程返回的错误是EHOSTUNREACH或ENETUNREACH
-- 2.服务器主机崩溃，客户的数据分节没有响应，返回错误ETIMEDOUT
+- 2.服务器主机崩溃，客户的数据分节没有响应，返回错误ETIMEDOUT（超时）
 
 **解决方法：**
 
@@ -1709,7 +1709,7 @@ str_cli(FILE *fp, int sockfd)
 - 3.客户键入文本，调用Writen写入内核，并由客户TCP发送分节
 - 4.客户阻塞于readline，等待回射的应答
 - 5.当服务器重启好后，服务器TCP丢失了崩溃前所有的连接信息，因此服务器TCP收到客户的数据分节响应以RST
-- 6.当客户TCP收到服务器的RST，此时客户阻塞于readline，导致该调用返回ECONNRESET错误（"connection reset by peer"，对方复位连接错误），此时不会退出。如果再向收到RST的套接字写数据，才会发生内核向进程发送SIGPIPE信号，并导致默认退出
+- 6.当客户TCP收到服务器的RST，此时客户阻塞于readline，导致该调用返回ECONNRESET错误（"connection reset by peer"，对方复位连接错误），此时不会退出（Readline出错返回到str_cli，继续循环Fgets）。如果再向收到RST的套接字写数据，才会发生内核向进程发送SIGPIPE信号，并导致默认退出
 
 ## 5.16 服务器主机关机
 
