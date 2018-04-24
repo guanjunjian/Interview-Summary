@@ -1091,8 +1091,223 @@ void fun2( Derived *pd )
 }
 ```
 
+# 第4章 函数语意学
 
+函数分类
 
+- 1.非静态成员函数
+- 2.虚成员函数
+- 3.静态成员函数
+
+## 4.1 成员的各种调用方式
+
+### 非静态成员函数
+
+实际上**成员函数**会内化为**非成员函数**的形式，步骤如下：
+
+- 1.改写函数原型，安插一个额外的参数this指针到成员函数中，用以提供一个存取管道，使类对象得以将此函数调用
+- 2.对每一个非静态成员的存取操作改为经由this指针来存取
+- 3.将成员函数重写为一个外部函数（extern），函数名经过mangle处理，使得它在程序中成为唯一的
+  - 成员（数据成员、成员函数）名称前一般会加上类名、参数个数、参数类型等（用以重载）
+
+```c++
+//成员函数例子1，转化前
+Point3d Point3d::normalize() const
+{
+    register float mag = magnitude();
+    Point3d normal;
+    
+    normal._x = _x / mag;
+    normal._y = _y / mag;
+    normal._z = _z / mag;
+    return normal;
+}
+
+//成员函数例子1，转换后
+//Point3d拥有拷贝构造函数，且NRV优化启用
+// 1.、3.
+extern void magnitude__7Point3dFv(register const Point3d *const this, Point3d &__result);
+
+void magnitude__7Point3dFv(register const Point3d *const this, Point3d &__result)
+{
+    // 2.
+    register float mag = this->magnitude();
+    //默认构造函数
+    //__result用以取代返回值
+    __result.Point3d::Point();
+    __result._x = this->_x / mag;
+    __result._y = this->_y / mag;
+    __result._z = this->_z / mag;
+    return;
+}
+
+//成员函数例子2，直接构建normal，转化前
+//这可以节省默认构造函数引起的额外负担
+Point3d Point3d::normalize() const
+{
+    register float mag = magnitude();
+    normal._x = _x / mag;
+    normal._y = _y / mag;
+    normal._z = _z / mag;
+    return Point3d(_x / mag, _y / mag, _z / mag);
+}
+
+//成员函数例子2，直接构建normal，转化后
+void magnitude__7Point3dFv(register const Point3d *const this, Point3d &__result)
+{
+    register float mag = this->magnitude();
+    //非默认构造函数
+    //__result用以取代返回值
+    __result.Point3d::point3d(this->_x / mag, this->_y / mag, this->_z / mag);
+    return;
+}
+
+```
+
+调用操作也需要修改
+
+```c++
+Point3d obj;
+Point3d *ptr = &obj;
+//修改前
+Point3d result1 = obj.magnitude();
+Point3d result2 = ptr->magnitude();
+
+//修改后
+magnitude__7Point3dFv( &obj, result1 );
+magnitude__7Point3dFv( ptr, result2 );
+```
+
+### 虚成员函数
+
+在4.2将详细介绍
+
+**注意区别：**
+
+- 1.指针调用虚函数与对象调用虚函数
+- 2.虚函数内调用同类虚函数
+
+```c++
+//1.指针调用虚函数与对象调用虚函数
+
+//指针调用虚函数
+ptr->normalize();
+//编译器的行为
+/*
+** vptr虚函数指针，指向该类的虚函数表，安插在每一个类对象中，其名称也会被mangle
+** 函数传入ptr，作为this指针
+*/
+(*ptr->vptr[1])(ptr);
+
+//对象调用虚函数
+obj.normalize();
+//编译器的行为
+//这样是不必要的，实际上编译器不会这样做
+(*obj.vptr[1])(&obj);
+//编译器实际上是这样做，即“经由一个类对象调用虚函数”与“调用非静态成员函数”没区别
+normalize_7Point3dFv( &obj );
+```
+
+```c++
+//2.虚函数内调用同类虚函数
+//假设normalize()为虚函数，magnitude()也为虚函数
+Point3d Point3d::normalize() const
+{
+    register float mag = magnitude();
+    Point3d normal;
+    
+    normal._x = _x / mag;
+    normal._y = _y / mag;
+    normal._z = _z / mag;
+    return normal;
+}
+
+//其中的register float mag = magnitude()
+//编译器的行为
+//这样是不必要的，实际上编译器不会这样做
+register float mag = ( *this->vptr[2] )(this);
+//编译器实际上是这样做
+//因为Point3d::magnitude()是在Point3d::normalize()的范围内调用，因为Point3d::normalize()已经确定了this的类型，因而这里的magnitude()可以直接使用类型调用，效率更高
+register float mag = Point3d::magnitude();
+```
+
+### 静态成员函数
+
+静态成员函数的**主要特性**：没有this指针
+
+静态成员函数的**次要特性**（根源于其主要特性）：
+
+- 1.不能直接存取类的非静态成员（数据成员、成员函数）
+- 2.不能被声明为const（const成员函数）、volatile或virtual
+- 3.不需要经过类对象调用
+
+**静态成员函数定义的编译器转换过程：**
+
+```c++
+class Point3d{
+public:
+    static unsigned int object_count();
+    ....
+};
+//非静态成员函数的定义
+unsigned int Point3d::object_count();
+{
+    return _object_count;
+}
+
+//编译器的行为
+//注意：1.mangle名称；2.没有this指针作为参数
+unsigned int object_count_5dPoint3dSFv()
+{
+    return object_count_5Dpoint3d;
+}
+```
+
+**静态成员函数调用的编译器转换过程：**
+
+```c++
+//指针调用
+ptr->object_count();
+//编译器的行为
+object_count_5dPoint3dSFv();
+
+//对象调用
+obj.object_count();
+//编译器的行为，与指针调用没差别
+object_count_5dPoint3dSFv();
+```
+
+**取址静态成员函数**
+
+[《C++Primber》笔记 第IV部分---19.4类成员指针](https://guanjunjian.github.io/2017/02/09/study-cpp-primer-summary_4/)
+
+背景知识，成员函数指针：
+
+```c++
+class Screen {
+    char get_cursor() const { return contents[cursor]; }
+    inline char get(pos ht, pos wd) const;
+}
+char (Screen::*pm2)(Screen::pos,Screen::pos) const;
+
+Screen myScreen, *pScreen = &myScreen;
+char c1 = (pScreen->*pmf2)(0,0);
+char c2 = (myScreen.*pmf2)(0,0);
+```
+
+但取一个**静态成员函数的地址**与取**非静态成员函数的地址**得到的指针类型不一样
+
+```c++
+unsigned int (*f1)();
+//正确，&Point3d::object()返回的类型为unsigned int (*)();
+f1 = &Point3d::object();
+
+unsigned int (Point3d::*f2)();
+//错误，&Point3d::object()的返回类型不为unsigned int (Point3d::*)();
+f2 = &Point3d::object();
+```
+
+## 4.2 虚成员函数
 
 
 
