@@ -1562,3 +1562,61 @@ Base2 *pb2 = pb1->clone();
 
 ### 虚继承下的虚函数
 
+```c++
+class Point2d {
+public:
+    Point2d( float = 0.0, float = 0.0 );
+    virtual ~Point2d();
+    
+    virtual void mumble();
+    virtual float z();
+    
+protected:
+    float _x,_y;
+};
+
+class Point3d : public virtual Point2d {
+public:
+    Point3d( float = 0.0, float = 0.0, float = 0.0 );
+    ~Point3d();
+    float z();
+protected:
+    float _z;
+};
+```
+
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_4_3_虚函数表布局_虚继承情况.png)
+
+## 4.4 指向成员函数的指针
+
+**指向类数据成员的指针**：取一个非静态数据成员的地址，得到的结果是该成员在类布局中的bytes位置（加1）。它是一个不完整的值，它需要被绑定于某个类对象的地址上，才能被存取
+
+**指向类非静态成员函数的指针**：取一个非静态成员函数的地址，如果该函数是非虚函数，得到的结果是它在内存中真正的地址，它也是一个不完整的值，需要绑定于某个类成员的地址上，才能给通过它调用函数。所有非静态成员函数都需要对象的地址（即this指针）
+
+**指向类静态函数的指针**：与一般的函数指针没区别
+
+```c++
+//声明语句：
+/*
+** double --> 返回类型
+** Point3d::* ---> 类的函数成员
+** pmf ---> 指针的名字
+** () ---> 参数列表
+*/
+double (Point3d::*pmf)();
+//定义并初始化指针
+double (Point::*coord)() = &Point::x;
+//可以再次赋值
+coord = &Point::y;
+
+//通过对象调用
+(orginal.*coord)();
+//编译器转化为
+( coord )( &origin );
+
+//通过指针调用
+(ptr->*coord)();
+//编译器转化为
+( coord )( ptr );
+```
+
