@@ -1309,5 +1309,209 @@ f2 = &Point3d::object();
 
 ## 4.2 虚成员函数
 
+对于一个由虚函数的类以及类成员，在编译期和执行期分别有不同的工作要做
 
+**编译期工作：**
+
+- 1.为类生成一个虚函数表，在虚函数表中为每个虚函数生成一个表格索引值（虚函数地址）
+- 2.为类对象安插一个虚函数表指针，指向虚函数表
+
+**执行期工作：**在特定的虚函数表slot（记录着虚函数的地址）中激活虚函数
+
+**虚函数表中包括：**
+
+- 1.该类定义的虚函数实例。即该类重写了基类的虚函数或该类自定义了新的虚函数
+- 2.继承自基类的虚函数实例。即该类没有重写基类的对应虚函数时，才会有
+- 3.一个`pure_virtual_called()`函数实例。它的作用：
+  - 纯虚函数的空间保卫者
+  - 作为执行期异常处理函数
+
+### 单继承下的虚函数
+
+```c++
+//存虚函数在内存中的表现
+class Test {
+public:
+	virtual void fun1() = 0;
+	virtual void fun2() { cout << "hello" << endl; }
+};
+1>class Test	size(4):
+1>	    +---
+1> 0	| {vfptr}
+1>	    +---
+1>
+1>       Test::$vftable@:
+1>	    | &Test_meta
+1>	    |  0
+1> 0	| &Test::fun1
+1> 1	| &Test::fun2
+```
+
+书本中相关例子：
+
+**无派生时**
+
+```c++
+class Point{
+public:
+    //slot0用于存放type_info，用于RTTI
+    //在slot1
+    virtual ~Point();
+    //在slot2，pure_virtual_called()，如果该函数被以外调用，通常的操作是结束掉这个程序
+    virtual Point& mult( float ) = 0;
+    
+    //非虚函数，因此在表中没有
+    float x() const { return x; }
+    //在slot3
+    virtual float y() const { return 0; }
+    //在slot4
+    virtual float z() const { return 0; }
+
+protected:
+    Point( float x = 0.0 );
+    float _x;
+};
+```
+
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_4_1_虚函数表的布局_单一继承情况_1.png)
+
+**直接继承**
+
+```c++
+class Point2d : public Point {
+public:
+    Point2d( float x = 0.0, float y = 0.0 ) : Point( x ), _y(y) {};
+    //重写
+    ~Point2d(){}
+    //纯虚函数被重写，注意这里的返回类型，是基类的派生类的引用，这是允许的
+    Point2d& mult( float );
+    //重写
+    float y() const { return _y; }
+    //z()没有重写，因此在虚函数表中还是Point::z()
+protected:
+    //新添加的元素
+    float _y;
+}
+```
+
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_4_1_虚函数表的布局_单一继承情况_2.png)
+
+**间接继承**
+
+```c++
+class Point3d : public Point2d {
+public:
+    Point3d( float x = 0.0, float y = 0.0, float z = 0.0 ) : Point2d( x, y ),_z( z ) {}
+    //重写
+    ~Point3d();
+    
+    //重写
+    Point3d& mult( float );
+    //重写
+    float z() const { return _z; }
+
+private:
+    //新添加的元素
+	float _z;    
+};
+```
+
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_4_1_虚函数表的布局_单一继承情况_3.png)
+
+**虚函数的调用**
+
+```c++
+ptr->z();
+//如果ptr不为空
+( *ptr->vptr[4] )( ptr );
+```
+
+### 多重继承下的虚函数
+
+```c++
+class Base1 {
+public:
+	Base1();
+	virtual ~Base1();
+	virtual void speakClearly();
+	virtual Base1 *clone() const;
+protected:
+	float data_Base1;
+};
+
+class Base2 {
+public:
+	Base2();
+	virtual ~Base2();
+	virtual void mumble();
+	virtual Base2 *cline() const;
+protected:
+	float data_Base2;
+};
+
+class Derived : public Base1, public Base2 {
+public:
+	Derived();
+	virtual ~Derived();
+	virtual Derived *clone() const;
+protected:
+	float data_Derived;
+};
+
+//使用VS生成的内存分布图
+//Base1的内存分布图
+1>class Base1	size(8):
+1>	    +---
+1> 0	| {vfptr}
+1> 4	| data_Base1
+1>	    +---
+1>
+1>        Base1::$vftable@:
+1>	    | &Base1_meta
+1>	    |  0
+1> 0	| &Base1::{dtor}
+1> 1	| &Base1::speakClearly
+1> 2	| &Base1::clone
+
+//Base2的内存分布图
+1>class Base2	size(8):
+1>	    +---
+1> 0	| {vfptr}
+1> 4	| data_Base2
+1>	    +---
+1>
+1>       Base2::$vftable@:
+1>	    | &Base2_meta
+1>	    |  0
+1> 0	| &Base2::{dtor}
+1> 1	| &Base2::mumble
+1> 2	| &Base2::cline
+
+//Derived的内存分布图
+1>class Derived	size(20):
+1>	    +---
+1> 0	| +--- (base class Base1)
+1> 0	| | {vfptr}
+1> 4	| | data_Base1
+1>	    | +---
+1> 8	| +--- (base class Base2)
+1> 8	| | {vfptr}
+1>12	| | data_Base2
+1>	    | +---
+1>16	| data_Derived
+1>	     +---
+1>
+1>       Derived::$vftable@Base1@:
+1>	    | &Derived_meta
+1>	    |  0
+1> 0	| &Derived::{dtor}
+1> 1	| &Base1::speakClearly
+1> 2	| &Derived::clone
+1>
+1>        Derived::$vftable@Base2@:
+1>	    | -8
+1> 0	| &thunk: this-=8; goto Derived::{dtor}
+1> 1	| &Base2::mumble
+1> 2	| &Base2::cline
+```
 
