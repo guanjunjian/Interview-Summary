@@ -1416,7 +1416,7 @@ private:
 };
 ```
 
-![](../../pics/language/Inside_the_C++_Object_Model/Pic_4_1_虚函数表的布局_单一继承情况_3.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_4_1_虚函数表的布局_单一继承情况_3.png)	
 
 **虚函数的调用**
 
@@ -1469,7 +1469,7 @@ protected:
 1>        Base1::$vftable@:
 1>	    | &Base1_meta
 1>	    |  0
-1> 0	| &Base1::{dtor}
+1> 0	| &Base1::{dtor}  // Base1析构函数
 1> 1	| &Base1::speakClearly
 1> 2	| &Base1::clone
 
@@ -1483,7 +1483,7 @@ protected:
 1>       Base2::$vftable@:
 1>	    | &Base2_meta
 1>	    |  0
-1> 0	| &Base2::{dtor}
+1> 0	| &Base2::{dtor}  // Base2析构函数
 1> 1	| &Base2::mumble
 1> 2	| &Base2::cline
 
@@ -1504,14 +1504,61 @@ protected:
 1>       Derived::$vftable@Base1@:
 1>	    | &Derived_meta
 1>	    |  0
-1> 0	| &Derived::{dtor}
+1> 0	| &Derived::{dtor}  // Base1虚函数表中的Derived析构函数
 1> 1	| &Base1::speakClearly
 1> 2	| &Derived::clone
 1>
 1>        Derived::$vftable@Base2@:
 1>	    | -8
-1> 0	| &thunk: this-=8; goto Derived::{dtor}
+1> 0	| &thunk: this-=8; goto Derived::{dtor}  // Base2虚函数表中的Derived析构函数
 1> 1	| &Base2::mumble
 1> 2	| &Base2::cline
 ```
+
+书中的布局：
+
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_4_2_虚函数表的布局_多重继承情况.png)
+
+（上图有一个问题，为什么在Base1的表中会有`Base2::mumble()`//TODO）
+
+在多重继承下，一个派生类内含n-1个额外的虚函数表（n表示上一层基类的个数），对于本例来说，会有两个虚函数表：
+
+- 1.一个主要表格，与Base1（派生顺序中最左端的基类）共享，如果派生类有新的虚构函数，添加到该表上
+  - 表名：`vtbl__Derived`
+  - 将Derived对象指定给Base1指针或Derived指针时，被处理的虚函数表是主要表格`vtbl__Derived`
+- 2.一个次要表格，与Base2（派生顺序中第二个基类）有关
+  - 表名：`vtbl__Base2__Derived`
+  - 将Derived对象指定给Base2指针时，被处理的虚函数表是次要表格`vtbl__Base2__Derived`
+
+**有三种情况，第二个或后续的基类会影响对虚函数的支持**
+
+- 1.通过一个“指向第二个基类”的指针，调用派生类虚函数
+
+```c++
+Base2 *ptr = new Derived;
+//这里调用派生类的虚析构函数Derived::~Derived
+//ptr必须向后调整sizeof(Base1)个字节
+delete ptr;
+```
+
+- 2.通过一个“指向派生类”的指针，调用第二个基类中一个继承而来的虚函数
+
+```c++
+Derived *pder = new Derived;
+//调用Base2::mumble()
+//pder必须被向后调整sizeof(Base1)个字节  TODO：书上说的是向前，不是很理解
+pder->mumble();
+```
+
+- 3.前提：允许一个虚函数的返回值有所变化（派生类的实现版本的返回类型可以是基类实现版本的返回类型的子类）。通过“指向第二个基类”的指针调用clone()时，this指针的offset需要经过3次调整
+
+```c++
+//1.pd1调整指向Base2子对象
+Base2 *pd1 = new Derived;
+//2.pb1调整指向起始位置，从而调用Derived::clone()
+//3.Derived::clone()传回一个指针，指向一个新的Derived对象，该对象的地址在被指定给pb2之前，必须调整并指向Base2子对象
+Base2 *pb2 = pb1->clone();
+```
+
+### 虚继承下的虚函数
 
