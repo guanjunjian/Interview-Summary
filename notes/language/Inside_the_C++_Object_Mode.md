@@ -96,11 +96,11 @@ za和pza的可能布局（注意string类型，string所存字符串长度与siz
   - sizeof(stirng)==28
   - sizeof(za)==sizeof(ZooAnimal)==28+4+4==36
 
-### 指针的类型
+### 1.3.1 指针的类型
 
 “指针类型”作用：告诉编译器如何解释某个特定地址中的内存内容及其大小
 
-### 加上多态之后
+### 1.3.2 加上多态之后
 
 ```c++
 class bear : public ZoonAnimal {
@@ -309,7 +309,7 @@ Raccoon little_critle = *ptr;
 
 ## 2.3 程序转化语意学
 
-### 显示的初始化操作
+### 2.3.1 显示的初始化操作
 
 显示初始化时，必要的程序转化有两个阶段：
 
@@ -341,7 +341,7 @@ void foo_bar() {
 }
 ```
 
-### 参数的初始化
+### 2.3.2 参数的初始化
 
 实现方式有两种：
 
@@ -367,7 +367,7 @@ void foo( X& x0 );
 foo( __temp0 );
 ```
 
-### 返回值的初始化
+### 2.3.3 返回值的初始化
 
 函数的返回值处理分为两个阶段：
 
@@ -417,7 +417,7 @@ void (*pf)( X& );
 pf = bar;
 ```
 
-### 在使用者层面做优化
+### 2.3.4 在使用者层面做优化
 
 ```c++
 X bar( const T &y, const T &z )
@@ -450,7 +450,7 @@ void bar( X &__result )
 }
 ```
 
-### 在编译器层面做优化
+### 2.3.5 在编译器层面做优化
 
 NRV优化，即Named Return Value，具体优化过程如下：
 
@@ -500,7 +500,7 @@ Thing outer; //全局变量
 }
 ```
 
-### 拷贝构造函数：要还是不要
+### 2.3.6 拷贝构造函数：要还是不要
 
 如果有大量的数据成员初始化操作，而你又想编译器为你做NRV优化，则可以显示声明一个inline的拷贝构造函数，以激活编译器的NRV优化
 
@@ -626,11 +626,11 @@ sizeof(X)为1，因为它有一个隐藏的1byte大小，那是被编译器安�
 
 **优化前**
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\空类优化前.png)
+![](../../pics/language/Inside_the_C++_Object_Model/空类优化前.png)
 
 **优化后**
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\空类优化后.png)
+![](../../pics/language/Inside_the_C++_Object_Model/空类优化后.png)
 
 **在我的VS测试的结果**
 
@@ -716,7 +716,7 @@ private:
 
 ## 3.3数据成员的存取
 
-### 静态数据成员
+### 3.3.1 静态数据成员
 
 静态成员（数据成员、成员函数）的存取效率：使用对象和使用指针来访问静态成员，实际上都是通过`::`来访问
 
@@ -725,7 +725,7 @@ private:
 - 1.继承的静态成员函数，派生类调用该函数时，是基类的实现版本
 - 2.继承的静态数据成员，派生类与基类指向的是同一块数据，作为引用计数时要小心
 
-### 非静态数据成员
+### 3.3.2 非静态数据成员
 
 ```c++
 //origin是类Point3d的一个对象
@@ -769,27 +769,27 @@ origin._y = 0.0;
 
 所有的讨论基于这样的一个例子：
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_1_a_个别structs的数据布局.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_3_1_a_个别structs的数据布局.png)
 
-### 单一继承且不含虚函数
+### 3.4.1 单一继承且不含虚函数
 
 非虚继承不会增加空间和存取效率上的额外负担
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_1_b_单一继承并且没有虚函数时的数据布局.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_3_1_b_单一继承并且没有虚函数时的数据布局.png)
 
 但因为“对齐”，使用非虚继承还是会导致空间上的负担：
 
 **不使用继承时：**
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Concrete对象.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Concrete对象.png)
 
 对象的大小为8bytes（4+1+1+1+对齐的1）
 
 **使用非虚继承后**
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Concrete使用非虚继承1.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Concrete使用非虚继承1.png)
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Concrete使用非虚继承2.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Concrete使用非虚继承2.png)
 
 Concrete1为8bytes（4+1+对齐的3）
 
@@ -801,9 +801,9 @@ Concrete3为16bytes（Concrete2的12+1+对齐的3）
 
 基类与派生类相互赋值的行为将会出错，如图所示，如果没有子对象之间的对齐，Concrete1对象赋值给Concrete2对象时，将会出错
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\非虚继承时不进行子对象间的对齐.png)
+![](../../pics/language/Inside_the_C++_Object_Model/非虚继承时不进行子对象间的对齐.png)
 
-### 单一继承并含虚函数
+### 3.4.2 单一继承并含虚函数
 
  单一继承并含虚函数带来的额外负担有：
 
@@ -817,7 +817,7 @@ Concrete3为16bytes（Concrete2的12+1+对齐的3）
 - 1.类对象的尾端（例如cfron编译器）
   - 好处：可以保留基类C struct的对象布局，因而允许在C程序代码中也能使用（基类C struct中没有虚函数）
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_2_a_Vptr被放在类的尾端.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_3_2_a_Vptr被放在类的尾端.png)
 
 - 2.类对象的头部
   - 好处：在多重继承下，通过指向类成员的指针调用虚函数更方便
@@ -825,7 +825,7 @@ Concrete3为16bytes（Concrete2的12+1+对齐的3）
     - 不能保留基类C struct的对象布局（基类C struct中没有虚函数）
     - 由派生类对象取址赋值给基类的指针时，需要编译器调整地址
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_2_b_Vptr被放在类的前端.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_3_2_b_Vptr被放在类的前端.png)
 
 ```c++
 //上面例子的代码
@@ -860,13 +860,13 @@ private:
 1>has_vrts::foo this adjustor: 0
 ```
 
-### 多重继承
+### 3.4.3 多重继承
 
 多重继承时，如果将派生类对象地址（指针）赋值给基类指针时，有可能需要修改偏移的操作
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\多重继承1.png)
+![](../../pics/language/Inside_the_C++_Object_Model/多重继承1.png)
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\Inside_the_C++_Object_Model\Pic_3_4_数据布局_多重继承.png)
+![](../../pics/language/Inside_the_C++_Object_Model/Pic_3_4_数据布局_多重继承.png)
 
 ```c++
 //派生类对象地址赋值给基类指针的例子
@@ -894,7 +894,7 @@ pv = pv3d;
 pv = pv3d ? (Vertex*)( ((char*)&v3d) + sizeof( Point3d ) ) : 0;
 ```
 
-### 虚继承
+### 3.4.4 虚继承
 
 非虚多重继承和虚多重继承的区别：
 
@@ -1101,7 +1101,7 @@ void fun2( Derived *pd )
 
 ## 4.1 成员的各种调用方式
 
-### 非静态成员函数
+### 4.1.1 非静态成员函数
 
 实际上**成员函数**会内化为**非成员函数**的形式，步骤如下：
 
@@ -1178,7 +1178,7 @@ magnitude__7Point3dFv( &obj, result1 );
 magnitude__7Point3dFv( ptr, result2 );
 ```
 
-### 虚成员函数
+### 4.1.2 虚成员函数
 
 在4.2将详细介绍
 
@@ -1231,7 +1231,7 @@ register float mag = ( *this->vptr[2] )(this);
 register float mag = Point3d::magnitude();
 ```
 
-### 静态成员函数
+### 4.1.3 静态成员函数
 
 静态成员函数的**主要特性**：没有this指针
 
@@ -1326,7 +1326,7 @@ f2 = &Point3d::object();
   - 纯虚函数的空间保卫者
   - 作为执行期异常处理函数
 
-### 单继承下的虚函数
+### 4.2.1 单继承下的虚函数
 
 ```c++
 //存虚函数在内存中的表现
@@ -1426,7 +1426,7 @@ ptr->z();
 ( *ptr->vptr[4] )( ptr );
 ```
 
-### 多重继承下的虚函数
+### 4.2.2 多重继承下的虚函数
 
 ```c++
 class Base1 {
@@ -1560,7 +1560,7 @@ Base2 *pd1 = new Derived;
 Base2 *pb2 = pb1->clone();
 ```
 
-### 虚继承下的虚函数
+### 4.2.3 虚继承下的虚函数
 
 ```c++
 class Point2d {
@@ -1593,7 +1593,7 @@ protected:
 
 **指向类非静态成员函数的指针**：取一个非静态成员函数的地址，如果该函数是非虚函数，得到的结果是它在内存中真正的地址，它也是一个不完整的值，需要绑定于某个类成员的地址上，才能给通过它调用函数。所有非静态成员函数都需要对象的地址（即this指针）
 
-**指向类静态函数的指针**：与一般的函数指针没区别
+**指向类静态函数的指针**：与一般的函数指针没区别，指向函数的地址
 
 ```c++
 //声明语句：
