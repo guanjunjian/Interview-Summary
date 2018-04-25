@@ -1757,3 +1757,75 @@ inline int bar()
 }
 ```
 
+### 4.5.2 局部变量
+
+**inline对局部变量的处理**
+
+```c++
+inline int min( int i, int j )
+{
+    //局部变量minval
+    int minval = i < j ? i : j;
+    return minval;
+}
+
+//在某个代码块中调用inline函数
+{
+    int local_val;
+    int minval;
+    
+    minval = min( val1, val2 );
+}
+//编译器的行为
+{
+    int local_val;
+    int minval;
+    //将inline函数的局部变量名称经过mangle处理
+    int __min_lv_minval;
+    minval = ( __min_lv_minval = val1 < val2 ? val1 : val2 ), __min_lv_minval;
+}
+```
+
+注意：
+
+- 1.如果inline函数以单一表达式扩展多次（在同一等号中多次调用），则每次扩展都需要自己的一组局部变量
+- 2.如果inline函数以分离的多个式子被扩展多次（在不同的等号中分别调用），那只需要一组局部变量，可以重复利用
+
+**局部变量+有副作用的参数**
+
+局部变量+有副作用的参数的inline函数可能会导致大量临时对象的产生，特别是它以单一表达式被扩展多次的话
+
+```c++
+{
+    minval = min( val1, val2 ) + min( foo(), foo()+1 );
+}
+//编译器的行为
+{
+    //为inline中的局部变量产生临时变量
+    int __min_lv_minval_00; //用于第一次调用
+    int __min_lv_minval_01; //用于第二次调用
+    
+    //为放置inline函数参数的副作用值产生临时变量
+    int t1;
+    int t2;
+    
+    minval = ( (__min_lv_minval00 = val1 < val2 ? val1 : val2), __min_lv_minval00 ) +
+        ((__min_lv_minval01 = ( t1 = foo()), ( t2 = foo+1 ), t1 < t2 ? t1 : t2 ), __min_lv_min__01 );
+}
+```
+
+**inline函数的优势与劣势**
+
+优势：
+
+- 1.对封装提供了一种必要的支持，可以有效存取封装于类中的非public函数，例如inline的Get()函数
+- 2.是C程序中大量使用的#define（预处理宏）的一个安全替代品，特别是如果宏中的参数有副作用的话
+
+劣势：
+
+- 1.inline函数如果被调用太多次的话，会产生大量的扩展代码，使程序大小暴涨
+- 2.参数带有副作用、有多个局部变量、单一表达式做多次调用都会产生临时变量
+- 3.inline中再有inline有可能会因为复杂度而没有办法扩展开
+
+
+
