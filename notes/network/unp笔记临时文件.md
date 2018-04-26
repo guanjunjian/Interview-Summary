@@ -206,7 +206,7 @@ str_cli(FILE *fp, int sockfd)
 - 1.批量方式下，标准输入中的EOF并不意味着同时也完成了从套接字的读入。可能仍有请求在去往服务器的路上，或有应答在返回客户的路上
   - 解决方法：写半关闭，当标准输入读到EOF时，给服务器发送FIN，告诉它我们完成了数据发送，但仍然保持套接字描述符打开以便读取
   - 解决函数：shutdown
-- 2.客户进程使用文本作为输入时，fgets函数读取输入时，文本输入行被读入到stdio所用的缓冲区中，而fgets只返回其中一行，其余输入仍在stdio缓冲区中。write只将其中一行写给服务器，随后select再次被调用而等待新的工作，而不管stdio缓冲区中还有额外的输入待消费
+- 2.客户进程使用文本作为输入（标准输入）时，fgets函数读取输入时，文本输入行被读入到stdio所用的缓冲区中，而fgets只返回其中一行，其余输入仍在stdio缓冲区中。write只将其中一行写给服务器，随后select再次被调用而等待新的工作，而不管stdio缓冲区中还有额外的输入待消费
   - 原因：select不知道stdio使用了缓冲区，它只从read系统调用的角度考虑是否有数据可读，而不是在fgets的角度考虑（//TODO：read和fgets的区别是什么）
 - 3.客户进程从套接字读取时，在readline调用时，套接字缓冲区也存在2.中提到的问题
 
@@ -245,3 +245,127 @@ int shutdown(int sockfd, int howto);
 （//TODO:这张图中关于close的部分还需要去了解）
 
 ![](../../pics/network/unp笔记/Pic_7_12_shutdown和SO_LINGER各种情况的总结.png)
+
+## 6.7 str_cli函数（select修订版2）
+
+解决6.5节中在批量数据下提出的三个问题：输入的EOF不代表进程结束问题、标准输入（文件输入）缓冲区问题、套接字接收缓冲区问题
+
+```c
+// 源码：select/strcliselect02.c
+#include	"unp.h"
+
+void
+str_cli(FILE *fp, int sockfd)
+{
+	//当标准输入键入EOF时，表示不会再有新的内容发往服务器
+	//此时客户只需要等待所有“回射”的数据都被接收到后，就能
+	//返回，stdineof就是记录是否已经键入EOF
+	int			maxfdp1, stdineof;
+	fd_set		rset;
+	char		buf[MAXLINE];
+	int		n;
+
+	stdineof = 0;
+	FD_ZERO(&rset);
+	for ( ; ; ) {
+		//如果标准输入EOF标记不为0，则对标准输入描述符设为关心
+		if (stdineof == 0)
+			FD_SET(fileno(fp), &rset);
+		FD_SET(sockfd, &rset);
+		maxfdp1 = max(fileno(fp), sockfd) + 1;
+		Select(maxfdp1, &rset, NULL, NULL, NULL);
+
+		if (FD_ISSET(sockfd, &rset)) {	/* socket is readable */
+			//如果套接字遇到EOF
+			//使用Read直接对套接字缓存进行操作，上一版本使用Readline
+			if ( (n = Read(sockfd, buf, MAXLINE)) == 0) {
+				//如果标准输入也已经EOF，则表示正常的终止
+				if (stdineof == 1)
+					return;		/* normal termination */
+				else //否则，标准输入没有遇到EOF，说明服务器进程提前终止
+					err_quit("str_cli: server terminated prematurely");
+			}
+
+			Write(fileno(stdout), buf, n);
+		}
+
+		if (FD_ISSET(fileno(fp), &rset)) {  /* input is readable */
+			//如果标准输入遇到EOF
+			//使用Read直接对缓冲区进行操作，上一版本使用Fgets
+			if ( (n = Read(fileno(fp), buf, MAXLINE)) == 0) {
+				//将标准输入EOF标记设为1
+				stdineof = 1;
+				//写端关闭
+				Shutdown(sockfd, SHUT_WR);	/* send FIN */
+				//取消对标准输入描述符的关心
+				FD_CLR(fileno(fp), &rset);
+				continue;
+			}
+
+			Writen(sockfd, buf, n);
+		}
+	}
+}
+```
+
+**比较Read、Realine、Fgets**
+
+Read的实现
+
+```c
+// lib/wrapunix.c
+ssize_t
+Read(int fd, void *ptr, size_t nbytes)
+{
+	ssize_t		n;
+
+	if ( (n = read(fd, ptr, nbytes)) == -1)
+		err_sys("read error");
+	return(n);
+}
+```
+
+Realine的实现
+
+```c
+// lib/readline.c
+ssize_t
+Readline(int fd, void *ptr, size_t maxlen)
+{
+	ssize_t		n;
+
+	if ( (n = readline(fd, ptr, maxlen)) < 0)
+		err_sys("readline error");
+	return(n);
+}
+```
+
+Fgets的实现
+
+```c
+// lib/wrapstdio.c
+char *
+Fgets(char *ptr, int n, FILE *stream)
+{
+	char	*rptr;
+
+	if ( (rptr = fgets(ptr, n, stream)) == NULL && ferror(stream))
+		err_sys("fgets error");
+
+	return (rptr);
+}
+```
+
+归根结底是read、readline和fgets的区别
+
+[gets、fgets、puts、fputs、scanf、read、readline、getline等](https://blog.csdn.net/taozhi20084525/article/details/26606149)
+
+- fgets:
+  - 当遇到换行符或者缓冲区已满，fgets就会停止，返回读到的数据。注意换行符会被保存在缓冲区中，只是后面再加个'\0'
+  - 对于fgets来说，'\n'是一个特别的字符，而'\0'并无任何特别之处，如果读到'\0'就当作普通字符读入。如果文件中存在'\0'字符（或者0x00字节），调用fgets之后就无法判断缓冲区中的'\0'究竟是从文件读上来的字符还是由fgets自动添加的结束符，所以fgets只适合读文本文件而不适合读二进制文件，并且文本文件中的所有字符都应该是可见字符，不能有'\0'。
+- readline库:
+  - readline 是一个强大的库，只要使用了它的程序，都可以用同一个配置文件配置，而且用同样的方法操作命令行，让你可以方便的编辑命令行
+- read
+  - 是一个系统调用，其他函数会调用该函数
+  - read 函数从 filedes 指定的已打开文件中读取 nbytes 字节到 buf 中
+
