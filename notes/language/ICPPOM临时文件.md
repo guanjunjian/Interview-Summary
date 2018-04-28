@@ -283,3 +283,243 @@ extern void operator delete(void *ptr)
 
 ### 6.2.5 针对数组的new语意
 
+```c++
+int *p_array = new int[5];
+
+//编译器的行为
+int *p_array = (int*)__new(5 * sizeof(int));
+```
+
+vec_new()不会真正被调用，vec_new()的主要功能是把默认构造函数施行于数组中的每个类对象中，但int类型没有默认构造函数。这里只会调用operator new分配空间
+
+```c++
+//struct simple_aggr{float f1,f2;};
+simple_aggr *p_aggr = new simple_aggr[5];
+```
+
+vec_new()也不会被调用。因为simple_aggr并没有定义一个构造函数或析构函数，所以配置数组以及清除p_aggr数组的操作，只是单纯地获得内存和释放内存。由operator new和operator delete来完成
+
+如果class定义了一个默认构造函数，某些版本的vec_new()就会被调用
+
+```c++
+Point3d *p_array = new Point3d[10];
+
+//编译器的行为
+Point3d *p_array;
+p_array = vec_new( 0, sizeof( Point3d ), 10, &Point3d::Point3d, &Point3d::~Point3d );
+```
+
+当 delete 一个指向数组的指针时，C++2.0版之前，需要提供数组的大小。而2.1版后，不需要提供数组大小，只有在 `[]` 出现时，编译器才寻找数组的维度。否则它便假设只有单独一个object要被删除
+
+```c++
+//C++2.0版之前
+int array_size = 10;
+Point3d *p_array = new Point3d[ array_size ];
+delete[ array_size ] p_array;
+
+//只有第一个元素会被析构，其他元素仍然存在
+delete p_array;
+//正确的写法
+delete[] p_array;
+```
+
+C++2.1之后，delete不需要提供数组大小，如何**记录数组**的元素？有两种方法：
+
+- 1.为vec_new()所传回的每一个内存区块配置一个额外的word，然后把元素个数包藏在这个word之中，通常这种被包藏的数值称为cookie
+- 2.Jonathan和Sun编译器维护一个”联合数组“，放置指针及大小。Sun同时也把析构函数的地址放置在“联合数组”中
+
+**cookie策略的问题**：
+
+- 如果一个坏指针被交给delete_vec()，取出来的cookie自然是不合法的。一个不合法的元素个数和一个坏指针的起始地址，会导致析构函数以非预期的次数被实施于一段非预期的区域
+- ”联合数组“的策略下，坏指针的可能结果就只是取出错误的元素个数而已
+
+**避免以一个基类指针指向一个派生类对象所组成的数组（如果派生类对象比基类对象大的话）**
+
+```c++
+Point *ptr = new Point3d[10];
+delete[] ptr;
+```
+
+**存在的问题**：
+
+- 实施于数组上的析构函数，是根据交给vec_delete()函数的”被删除的指针类型的析构函数“（在本例中就是Point的析构函数），与我们的期望不符
+- 每一个元素的大小也一并被传递过去（本例中是Point类对象的大小）
+- vec_delete()以“Point的析构函数”和“Point的对象大小”迭代走过每一个数组元素，最终执行失败，原因：执行了错误的析构函数和元素大小。从第一个元素之后，该destructor即被施行于不正确的内存区块中
+
+**解决方法**：
+
+- 1.程序员层面
+- 2.析构函数设为虚函数
+
+```c++
+//循环delete
+for( int ix = 0; ix < elem_count; ++ )
+{
+    Point3d *p = &((Point3d*)ptr)[ix];
+    delete p;
+}
+```
+
+**VS中的测试**
+
+将析构函数设为虚函数，就不会有问题
+
+析构函数非虚：
+
+```c++
+class A {
+public:
+	A() { cout << "A()" << " "; }
+	~A() { cout << "~A()" << " "; }
+};
+
+class B : public A {
+public:
+	B() { cout << "B()" << " "; }
+	~B() { cout << "~B()" << " "; }
+};
+int main(int agrc, char** agrv)
+{
+	A* p = new B[3];
+	delete[] p;
+	cout << endl;
+	system("pause");
+	return 0;
+}
+//输出：A() B() A() B() A() B() ~A() ~A() ~A()
+
+//虚析构函数
+class A {
+public:
+	A() { cout << "A()" << " "; }
+	//虚析构函数
+	virtual ~A() { cout << "~A()" << " "; }
+};
+
+class B : public A {
+public:
+	B() { cout << "B()" << " "; }
+	~B() { cout << "~B()" << " "; }
+};
+int main(int agrc, char** agrv)
+{
+	A* p = new B[3];
+	delete[] p;
+	cout << endl;
+	system("pause");
+	return 0;
+}
+//输出：A() B() A() B() A() B() ~B() ~A() ~B() ~A() ~B() ~A()
+```
+
+## 6.2.6 Placement Operator new的语意
+
+Placement Operator new：一个预定义好的重载的operator new，它需要两个参数
+
+```c++
+void* operator new( size_t, void *p );
+//使用
+//arena指向一块内存区域，返回根据Point2w构造函数构造好的指向arena的Point2w类型的指针
+Point2w *ptw = new ( arena ) Point2w;
+
+//编译器的行为
+//1.将arena void* 转换为 Point2w*
+Point2w *ptw = ( Point2w* ) arena;
+//2.将Point2w构造函数实施于arena所指向的地址
+if( ptw != 0 )
+    ptw->Point2w::Point2w();
+```
+
+**问题1：析构**
+
+如果placement operator在原已存在的一个对象上构造新的对象，而原已存在的对象的类有析构函数，但这个函数不会自动被调用，需要手动调用其析构函数
+
+```c++
+//错误的析构方式，不仅析构，还释放掉了内存
+delete ptw;
+ptw = new (arena) Point2w;
+
+//正确的析构方式，只析构，不释放
+ptw->~Point2w;
+ptw = new (arena) Point2w;
+```
+
+由于无法得知arena所指向的区域是否需要析构，所以这一切都需要程序员负责，编译器不会自动执行
+
+**问题2：真正的指针类型**
+
+arena指向的内存：
+
+- 1.必须是相同类型的
+- 2.一块“新鲜”内存，并且足够荣内该类型的对象
+
+```c++
+//相同类型的
+Point2w *arena = new Point2w;
+
+//“新鲜”的存储空间
+char* arena = new char[ sizeof( Point2w ) ];
+
+//之后再执行placement operator new
+Point2w* ptw = new (arena) Point2w;
+```
+
+**问题3：多态**
+
+placement operator new并不支持多态，被交给new的指针，应该适当地指向一块预先配置好的内存
+
+如果派生类比其基类大，如：
+
+```c++
+Point2w *p2w = new ( arena ) Point3w; 
+```
+
+Point3w的构造函数将导致严重的破坏，因为arena指向的内存只有Point2w对象的大小
+
+如果派生类与基类一样大，如：
+
+```c++
+struct Base { int j; virtual void f(); };
+struct Derived : Base { void f(); };
+
+void() fooBar
+{
+    Base b;
+    b.f(); //使用对象调用，静态调用虚函数，Base::f()被调用
+    b.~Base(); 
+    new ( &b ) Derived; 
+    b.f(); // 哪一个f()被调用？
+}
+```
+
+不能确切的说哪一个f()被调用，使用者可能以为调用的是Derived::f()，但大部分编译器调用的是Base::f()
+
+VS中的结果：
+
+```c++
+struct Base { int j; virtual void f() { cout << "Base"<<" "; } };
+struct Derived : Base { void f() { cout << "Derived"<<" "; } };
+
+void fooBar()
+{
+	Base b;
+	b.f(); //使用对象调用，静态调用虚函数，Base::f()被调用
+	b.~Base();
+	new (&b) Derived;
+	b.f(); // 哪一个f()被调用？
+}
+
+int main(int agrc, char** agrv)
+{
+	fooBar();
+	cout << endl;
+	system("pause");
+	return 0;
+}
+//输出：Base Base
+```
+
+## 6.3 临时对象
+
+
+
