@@ -326,5 +326,66 @@ muble()
 
 构造并放置于异常堆栈中的是全局变量errVer的复制品，catch子句对于异常对象的改变都是局部性的，不会影响errVer。当一个catch子句评估完毕并且不会再抛出异常后，该复制品被销毁（//TODO：这里不是很理解）
 
-## 7.3 执行期类型识别
+## 7.3 执行期类型识别RTTI
 
+### 7.3.1 保证安全的向下转换操作
+
+C++ 缺乏一种保证安全的**向下转换**机制（downcast）,只有在“类型真的可以被适当转换的情况下”才能执行**向下转换**,一个类型安全的**向下转换**必须对指针有所查询，看它是否指向它所表达的对象的真正类型 
+
+目前编译器的做法：所有多态类的对象都维护一个指针，指向虚函数表，与该类相关的RTTI对象的地址放在虚函数表中（通常放在第一个slot），该地址只需要被设定一次，并且是被编译器静态设定的（即虚函数表生成时）
+
+### 7.3.2 保证安全的动态转换（dynamic_cast）
+
+`dynamic_cast`运算符可以在执行期决定真正的类型
+
+- 如果向下转换是安全的（即如果基类指针指向一个派生类对象），这个运算符会传回被适当转换过的指针
+- 如果向下转换不是安全的
+  - 如果是指针，返回0
+  - 如果是引用，抛出一个`bad_cast`异常
+
+dynamic_cast的成本：在执行期获取对象的类型描述器：
+
+```c++
+((type_info*)(pt->vptr[0]))->type_descriptor;
+```
+
+type_info是C++标准所定义的类型描述器的类名称，该类中放置着索求的类型信息
+
+### 7.3.3 Typeid运算符
+
+Typeid运算符返回一个const reference，类型为type_info,该类定义如下：
+
+```c++
+class type_info{
+public:
+	virtual ~type_info();
+	bool operator == (const type_info&) const;
+	bool operator!=(const type_info&) const;
+	bool before(const type_info&) const; //用于排序
+
+	const char* name() const; //传回class的原始名称
+    const char* raw_name() const; //传回class名称的编码字符串,微软的VC++支持
+private:
+	type_info(const type_info&);
+	type_info& operator=(const type_info&);
+
+	//data_member
+ }
+```
+
+使用VC++完成的一个小示范，用以检验编码后的类名称
+
+![](../../pics/language/Inside_the_C++_Object_Model/typeid示范.png)
+
+**内建类型和非多态的自定类型**
+
+```c++
+int *ptr;
+//typeid传回的是一个const type_info&
+if( typeid( ptr ) == typeid( int* ) )
+```
+
+type_info和typeid也可使用于**内建类型和非多态的自定类型**， 与多态类型的**差异**在于：
+
+- 1.**内建类型和非多态的自定类型**的type_info是在**编译期静态**取得的； 多态类型的指针或引用的type_info是在**执行期动态**取得的 
+- 2.**内建类型和非多态的自定类型**一般实现策略是需要时才产生type_info对象，而非程序一开头就产生
