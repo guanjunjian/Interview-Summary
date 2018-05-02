@@ -178,3 +178,57 @@ sr0.type_dependent(); //调用extern int foo(int);
 
 ## 7.2 异常处理
 
+C++异常处理由三个主要的词汇组件构成：
+
+- 1.一个**throw**语句，它在程序某处发出一个异常，被抛出的异常类型可以是内建类型，也可以是用户自定义类型
+
+- 2.一个或多个**catch**子句，每一个catch子句都是一个“异常处理”,提供实际的处理程序
+
+- 3.一个**try**区段，区段中有一些列的语句，这些语句可能会引发catch子句起作用
+
+当一个异常抛出的时候，控制权会从函数调用中被释放出来，并寻找一个吻合的catch子句，如果没有吻合者，则调用默认的处理例程terminate()
+
+不断寻找catch子句的过程叫做**栈展开**，栈展开的过程中，将一个个函数从栈中推出，在每一个函数被推出栈之前，会先调用该函数中局部对象的析构函数
+
+
+
+异常处理改变了函数在资源管理上的语意，如下面函数含有一块共享内存的locking和unlocking操作，虽然看起来和exception没有什么关系，但在exception之下并不能保证能够正确运行： 
+
+```c++
+void mumble(void *arena){
+	Point *p = new Point;
+	smLock(arena);//对共享区域加锁
+	...//如果这里出现异常，程序不能正确运行，因为异常处理并不会去对该共享内存进行解锁操作
+	smUnLock(arena);//解锁
+	delete p;
+}
+```
+
+解决方法：添加一个default catch子句，处理正常异常处理机制所不能处理的问题：
+
+```c++
+void mumble(void *arena){
+	Point *p;
+	p = new Point;//new如果出现异常，new自身会有heap上的析构处理，也就不需要delete操作，所以不需要在try block区域内
+	try{
+		smLock(arena);
+		//...
+	}
+	catch(...){
+		//添加共享内存解锁操作
+		smUnLock(arena);
+		delete p ;
+		throw;
+	}
+	smUnLock(arena);
+	delete p;
+
+}
+```
+
+建议：将资源需求封装于一个类对象体内，由析构函数来释放资源，如下：
+
+```c++
+
+```
+
