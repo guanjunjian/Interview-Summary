@@ -1,328 +1,223 @@
-[TOC]
+# 第8章 基本UDP套接字编程
 
-## 6.8 TCP回射服务器程序（select修订版）
+## 8.1 概述
 
-使用select重写TCP回射服务器程序，可以不使用多进程的方式处理任意个客户连接
+使用UDP编写的一些常见的应用程序有：DNS（域名系统）、NFS（网络文件系统）、SNMP（简单网络管理协议）
 
-```c
-// 源码：tcpcliserv/tcpservselect01.c
+![](../../pics/network/unp笔记/Pic_8_1_UDP客户服务器程序所用的套接字函数.png)
 
-/* include fig01 */
+## 8.2 recvfrom和sendto函数
+
+```c++
+#include <sys/socket.h>
+
+/*
+** 共同参数
+** @sockfd:描述符
+** @buff:指向读入或写出缓冲区的指针
+** @nbytes:读写字节数
+** @flags：将在14章讨论，目前都设为0
+*/
+
+/*
+** 作用：
+** @from:指向一个将由该函数在返回时填写数据报发送者的协议地址的套接字地址结构
+** @addrlen:from所指向的套接字地址结构的大小，注意：值-结果参数
+** @返回值：成功：所读数据的长度；出错：-1
+*/
+sszie_t recvfrom(int sockfd, void *buff, size_t nbytes, int flags, struct sockaddr *from, socklen_t *addrlen);
+
+/*
+** 作用：
+** @to:指向一个含有数据报接收者的协议地址（IP地址和端口号）的套接字地址结构
+** @addrlen:to所指向的套接字地址结构的大小，注意：整数值
+** @返回值：成功：所写数据的长度；出错：-1
+*/
+ssize_t sentto(int sockfd, const void *buff, size_t nbytes, int flags, const struct sockaddr *to, socklen_t addrlen);
+```
+
+- recvfrom的最后两个参数（from、addrlen）类似与accept（cliaddr、addrlen）的最后两个参数
+  - UDP情况下：返回时其中套接字地址结构的内容告诉我们是谁发送了数据报
+  - TCP情况下：谁发起了连接
+- sendto的最后两个参数（to、addren）类似与connect（servaddr、addrlen）的最后两个参数
+  - UDP情况下：调用时其中套接字地址结构被我们填入数据报将发往的协议地址
+  - TCP情况下：与之建立连接的协议地址
+
+**写0长度的数据报**
+
+写一个长度为0的数据报是可行的，UDP情况下，会形成一个只包含一个IP首部（IPv4为20字节，IPv6为40字节）和一个8字节UDP首部而没有数据的IP数据报
+
+**读0长度的数据报**
+
+recvfrom返回值是0，它并不像TCP套接字read返回0表示对端已经关闭连接，因为UDP无连接，因此没有关闭连接之说。返回值为0说明读到的对端发送的“写0长度的数据报”
+
+**from参数为空**
+
+recvfrom的from参数可以是空指针，此时addrlen也必须为空，表示我们不关心数据报发送者的协议地址
+
+**TCP使用这两个函数**
+
+recvfrom和sendto可以用于TCP，但通常不会这么做
+
+## 8.3 UDP回射服务器程序：main函数
+
+![](../../pics/network/unp笔记/Pic_8_2_使用UDP的简单回射客户服务器.png)
+
+```c++
+// 源码： udpcliserv/udpserv01.c
+
 #include	"unp.h"
 
 int
 main(int argc, char **argv)
 {
-	/*
-	* @maxi:client数组当前使用项的最大下标
-	* @maxfd：目前select监听的最大描述符
-	*/
-	int					i, maxi, maxfd, listenfd, connfd, sockfd;
-	/*
-	* @nready:本次调用select返回了几个就绪描述符
-	* @client[FD_SETSIZE]：存储客户套接字的数组
-	*/
-	int					nready, client[FD_SETSIZE];
-	ssize_t				n;
-	fd_set				rset, allset;
-	char				buf[MAXLINE];
-	socklen_t			clilen;
-	struct sockaddr_in	cliaddr, servaddr;
+	int					sockfd;
+	struct sockaddr_in	servaddr, cliaddr;
 
-	listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+	//SOCK_DGRAM表示创建一个UDP套接字
+	sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
 
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family      = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	//#define SERV_PORT 9877
 	servaddr.sin_port        = htons(SERV_PORT);
 
-	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+	Bind(sockfd, (SA *) &servaddr, sizeof(servaddr));
 
-	Listen(listenfd, LISTENQ);
+	//调用dg_echo函数来执行服务器的处理工作
+	dg_echo(sockfd, (SA *) &cliaddr, sizeof(cliaddr));
+}
+```
 
-	maxfd = listenfd;			/* initialize */
-	maxi = -1;					/* index into client[] array */
-	for (i = 0; i < FD_SETSIZE; i++)
-		client[i] = -1;			/* -1 indicates available entry */
-	FD_ZERO(&allset);
-	FD_SET(listenfd, &allset);
-/* end fig01 */
+## 8.4 UDP回射服务器程序：dg_echo函数
 
-/* include fig02 */
+```c++
+// 源码：lib/dg_echo.c
+
+#include	"unp.h"
+
+void
+dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen)
+{
+	int			n;
+	socklen_t	len;
+	char		mesg[MAXLINE];
+
+	//简单的循环
 	for ( ; ; ) {
-		rset = allset;		/* structure assignment */
-		nready = Select(maxfd+1, &rset, NULL, NULL, NULL);
+		len = clilen;
+		//使用recvfrom读入下一个到达服务器端口的数据报
+		n = Recvfrom(sockfd, mesg, MAXLINE, 0, pcliaddr, &len);
 
-		//如果监听套接字就绪
-		if (FD_ISSET(listenfd, &rset)) {	/* new client connection */
-			clilen = sizeof(cliaddr);
-			connfd = Accept(listenfd, (SA *) &cliaddr, &clilen);
-#ifdef	NOTDEF
-			printf("new client: %s, port %d\n",
-					Inet_ntop(AF_INET, &cliaddr.sin_addr, 4, NULL),
-					ntohs(cliaddr.sin_port));
-#endif
-
-			//将新的客户套接字存入客户套接字数组
-			for (i = 0; i < FD_SETSIZE; i++)
-				if (client[i] < 0) {
-					client[i] = connfd;	/* save descriptor */
-					break;
-				}
-			//套接字数组已满
-			if (i == FD_SETSIZE)
-				err_quit("too many clients");
-
-			FD_SET(connfd, &allset);	/* add new descriptor to set */
-			if (connfd > maxfd)
-				maxfd = connfd;			/* for select */
-			if (i > maxi)
-				maxi = i;				/* max index in client[] array */
-
-			//如果本次select只有监听套接字就绪，直接重新调用select		
-			if (--nready <= 0)
-				continue;				/* no more readable descriptors */
-		}
-
-		//处理已连接套接字
-		for (i = 0; i <= maxi; i++) {	/* check all clients for data */
-			if ( (sockfd = client[i]) < 0)
-				continue;
-			if (FD_ISSET(sockfd, &rset)) {
-				//已连接套接字读到EOF
-				if ( (n = Read(sockfd, buf, MAXLINE)) == 0) {
-						/*4connection closed by client */
-					Close(sockfd);
-					FD_CLR(sockfd, &allset);
-					client[i] = -1;
-				} else
-					Writen(sockfd, buf, n);
-
-				if (--nready <= 0)
-					break;				/* no more readable descriptors */
-			}
-		}
+		//把读到的数据报再发送回去
+		Sendto(sockfd, mesg, n, 0, pcliaddr, len);
 	}
 }
-/* end fig02 */
 ```
 
-**本方案优缺点：**
+**该函数的特点**
 
-**优点**：避免为每个客户创建一个新进程的所有开销
+- 1.该函数永不终止，因为UDP是一个无连接的协议，它没有像TCP中EOF之类的东西
+- 2.该函数提供的是一个迭代服务器。一般来说，TCP服务器是并发的，UDP服务器是迭代的
 
-**缺点**：拒绝服务型攻击
+**接收缓冲**
 
+对于本套接字，UDP层中隐含有排队发生。事实上每个UDP套接字都有一个接收缓冲区，到达该套接字的每个数据报都进入该套接字接收缓冲区。
 
+- 每当调用recvfrom时，缓冲区中的下一个数据报以FIFO顺序返回给进程
+- 如果有多个数据报到达该套接字，那么相继到达的数据报仅仅加到该套接字的接收缓冲区中（接收缓冲区大小是有限的，通过SO_RCVBUF套接字选项修改）
 
+**TCP与UDP套接字对比**
 
+- TCP套接字
 
-**拒绝服务型攻击：**
+服务器上有两个已连接套接字，每一个都有各自的套接字接收缓冲区
 
-情景描述：如果一个恶意客户连接到服务器，发送一个字节的数据（不是换行符）后进入睡眠。服务器将调用read，从客户读入这个字节的数据，然后阻塞于下一个read调用，以等待来自该客户的其余数据。服务器于是因该客户而被阻塞（或挂起），不能再为其他任何客户提供服务（接受新客户连接或读取现有客户的数据），直到那个恶意客户发送一个换行符或终止为止
+![](../../pics/network/unp笔记/Pic_8_5_两个客户的TCP客户服务器小结.png)
 
-当一个服务器处理多个客户时，绝不能阻塞于只与单个客户相关的某个函数调用，否则可能导致服务器被挂起，拒绝为所有其他客户提供服务，这就是**拒绝服务型攻击**
+- UDP套接字
 
-解决方法：
+只有一个服务器进程，仅有的单个套接字用于接收所有到达的数据报并发回所有的响应。该套接字只有一个接收缓冲区用来存放所有到达的数据报
 
-- 1.使用非阻塞I/O
-- 2.让每个客户单独的控制线程提供服务（例如为每个客户创建一个子进程或一个线程）
-- 3.对I/O操作设置一个超时
+![](../../pics/network/unp笔记/Pic_8_6_两个客户的UDP客户服务器小结.png)
 
-## 6.9 pselect函数
+## 8.5 UDP回射客户程序：main函数
 
-pselect函数由POSIX发明
+```c++
+// 源码： udpcliserv/udpcli01.c
 
-```c
-#include <sys/select.h>
-#include <signal.h>
-#include <time.h>
-
-int pselect(int maxfd1,fd_set *readset,fd_set *writeset,fd_set *exceptset, const struct timespec *timeout,const sigset_t *sigmask);
-```
-
-**与select的区别**：
-
-- 1.**使用timespec结构，而不是timeval结构**。timespec的第二个成员是纳秒级，2而timeval的第二个成员是微妙级
-
-```c
-struct timespec {
-    time_t tv_sec; //秒，这里也有区别，timeval中tv_sec为long类型
-    long tv_nsec; //纳秒
-}
-```
-
-- 2.**增加了第6个参数：一个指向信号掩码的指针**。该参数运行程序先禁止递交某些信号，再测试由这些当前被禁止信号的信号处理函数设置的全局变量，然后调用pselect，告诉它重新设置信号掩码（调用pselect时，根据sigmask代替进程的信号掩码，当pselect返回时，进程的信号 掩码又被重置为调用pselect之前的值）
-
-## 6.10 poll函数
-
-```c
-#include <poll.h>
-
-/*
-** @fdarray:指向pollfd结构数组第一个元素的指针，pollfd用于指定测试某个给定描述符fd的条件
-** @nfds：fdarray数组中元素的个数
-** @timeout：设置poll函数返回前等待多长时间
-**                    1. INFTIM（一个负值）：永远等待下去
-**                    2. 0：立即返回，不阻塞进程
-**                    3. >0：等待指定数目的毫秒数
-** @返回值：
-**       1. 正整数：所有就绪描述符的数目
-**       2. 0：超时
-**       3. -1：出错
-*/
-int poll(struct pollfd *fdarray, unsigned int nfds, int timeout);
-
-/*
-** events、revents不使用值-结果参数，可以避免每次调用poll函数前都要重新初始化
-** 如果不再关心某个特定描述符，可以把与之对应的pollfd结构的fd成员设置成一个负值
-** poll函数将忽略这样的pollfd结构的events成员，返回时将其revents成员的值置为0
-*/
-struct pollfd{
-    int fd;         //需要测试的描述符
-    short events;   //该描述符上测试的事件
-    short revents;  //该描述符上发生的事件
-};
-```
-
-**events与revents的值**
-
-![](../../pics/network/unp笔记/Pic_6_23_poll函数的输入events和返回revents.png)
-
-- 第一部分是处理输入的4个常值
-- 第二部分是处理输出的3个常值
-- 第三部分是处理错误的3个常值
-
-对于**普通数据**、**优先级带数据**、**高优先级数据**、**错误**的解释
-
-- 所有正规TCP数据和所有UDP数据都被认为是**普通数据**
-- TCP连接读半部关闭时（如收到一个来自对端的FIN），被认为是**普通数据**，随后读操作返回0
-- TCP连接存在错误既可认为是**普通数据**，也可认为是**错误**。随后的读操作返回-1，并设置error（可用于处理诸如接收到RST或发生超时等条件）
-- TCP的带外数据被认为是**优先级带数据**
-- 在监听套接字上有新连接可用，既可认为是**普通数据**也可认为是**优先级带数据**
-- 非阻塞式connect的完成被认为是使用套接字可写
-
-**poll的优缺点**
-
-优点：
-
-- **没有最大监视描述符数量的限制**：分配一个pollfd结构的数组并把该数组中元素的数目通知内核成了调用者的责任。内核不再需要知道类似fd_set的固定大小的数据类型
-
-缺点：
-
-- 和select一样，调用返回后需要**轮询所有描述符来获取已经就绪的描述符**
-- **用户态和内核态传递描述符结构时copy开销大**
-
-## 6.11 TCP回射服务器程序（poll修订版）
-
-使用poll代替select重写6.8节中的TCP回射服务器程序
-
-在6.8的select版本中，必须分配一个client数组和一个rset描述符集
-
-在本版本中只需要分配一个pollfd结构的数组来维护客户信息
-
-```c
-// 源码：tcpcliserv/tcpservpoll01.c
-/* include fig01 */
 #include	"unp.h"
-#include	<limits.h>		/* for OPEN_MAX */
 
 int
 main(int argc, char **argv)
 {
-	//含有client数组当前正在使用的最大下标
-	int					i, maxi, listenfd, connfd, sockfd;
-	int					nready;
-	ssize_t				n;
-	char				buf[MAXLINE];
-	socklen_t			clilen;
-	struct pollfd		client[OPEN_MAX];
-	struct sockaddr_in	cliaddr, servaddr;
+	int					sockfd;
+	struct sockaddr_in	servaddr;
 
-	listenfd = Socket(AF_INET, SOCK_STREAM, 0);
+	if (argc != 2)
+		err_quit("usage: udpcli <IPaddress>");
 
+	//把服务器的IP地址和端口号填入一个IPv4的套接字地址结构
+	//该结构将传递给dg_cli函数，以指明数据报发往何处
 	bzero(&servaddr, sizeof(servaddr));
-	servaddr.sin_family      = AF_INET;
-	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servaddr.sin_port        = htons(SERV_PORT);
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(SERV_PORT);
+	Inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
 
-	Bind(listenfd, (SA *) &servaddr, sizeof(servaddr));
+	//创建一个UDP套接字
+	sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
 
-	Listen(listenfd, LISTENQ);
-	//client数组的一个项用于监听套接字
-	client[0].fd = listenfd;
-	//给监听套接字设为POLLRDNORM事件
-	client[0].events = POLLRDNORM;
-	//其余各项的描述符成员设为-1，表示当前不关心，poll函数将忽略这样的pollfd结构
-	for (i = 1; i < OPEN_MAX; i++)
-		client[i].fd = -1;		/* -1 indicates available entry */
-	maxi = 0;					/* max index into client[] array */
-/* end fig01 */
+	dg_cli(stdin, sockfd, (SA *) &servaddr, sizeof(servaddr));
 
-/* include fig02 */
-	for ( ; ; ) {
-		nready = Poll(client, maxi+1, INFTIM);
-
-		if (client[0].revents & POLLRDNORM) {	/* new client connection */
-			clilen = sizeof(cliaddr);
-			connfd = Accept(listenfd, (SA *) &cliaddr, &clilen);
-#ifdef	NOTDEF
-			printf("new client: %s\n", Sock_ntop((SA *) &cliaddr, clilen));
-#endif
-
-			for (i = 1; i < OPEN_MAX; i++)
-				if (client[i].fd < 0) {
-					client[i].fd = connfd;	/* save descriptor */
-					break;
-				}
-			if (i == OPEN_MAX)
-				err_quit("too many clients");
-
-			client[i].events = POLLRDNORM;
-			if (i > maxi)
-				maxi = i;				/* max index in client[] array */
-
-			if (--nready <= 0)
-				continue;				/* no more readable descriptors */
-		}
-
-		for (i = 1; i <= maxi; i++) {	/* check all clients for data */
-			if ( (sockfd = client[i].fd) < 0)
-				continue;
-			//检查POLLERR的原因：
-			//有些实现在一个连接上接收到RST时返回的是POLLERR事件
-			//有些实现返回的却是POLLRDNORM事件
-			if (client[i].revents & (POLLRDNORM | POLLERR)) {
-				if ( (n = read(sockfd, buf, MAXLINE)) < 0) {
-					if (errno == ECONNRESET) {
-							/*4connection reset by client */
-#ifdef	NOTDEF
-						printf("client[%d] aborted connection\n", i);
-#endif
-						Close(sockfd);
-						client[i].fd = -1;
-					} else
-						err_sys("read error");
-				} else if (n == 0) {
-						/*4connection closed by client */
-#ifdef	NOTDEF
-					printf("client[%d] closed connection\n", i);
-#endif
-					Close(sockfd);
-					client[i].fd = -1;
-				} else
-					Writen(sockfd, buf, n);
-
-				if (--nready <= 0)
-					break;				/* no more readable descriptors */
-			}
-		}
-	}
+	exit(0);
 }
-/* end fig02 */
 ```
 
-## 6.12 epoll
+## 8.6 UDP回射客户程序：dg_cli函数
 
-[UNIX网络编程卷1---arking](https://github.com/arkingc/note/blob/master/计算机网络/UNIX网络编程卷1.md#4epoll)
+```c++
+// 源码： lib/dg_cli.c
+
+#include	"unp.h"
+
+void
+dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
+{
+	int	n;
+	char	sendline[MAXLINE], recvline[MAXLINE + 1];
+
+	//使用fgets从标准输入读入一行文本行
+	while (Fgets(sendline, MAXLINE, fp) != NULL) {
+
+		//使用sendto将该文本行发送给服务器
+		Sendto(sockfd, sendline, strlen(sendline), 0, pservaddr, servlen);
+
+		//使用recvfrom读回服务器的回射
+		n = Recvfrom(sockfd, recvline, MAXLINE, 0, NULL, NULL);
+
+		recvline[n] = 0;	/* null terminate */
+		//使用fputs把回射的文本行显示到标准输出
+		Fputs(recvline, stdout);
+	}
+}
+```
+
+**端口号**
+
+该函数未请求内核给它的套接字指派一个临时端口。
+
+对于临时端口的指派：
+
+- 1.TCP：connect调用时指派
+- 2.UDP：进程首次调用sendto时如果没有绑定一个本地端口，内核在此时为它选择一个临时端口
+
+显示指定端口：UDP客户也可以显示调用bind指定端口，但很少这么做
+
+**风险（待解决的问题）**
+
+recvfrom指定的第五个和第六个参数（from、addrlen）是空指针，这告知内核我们不关心应答数据报由谁发送
+
+这样做存在一个风险：任何进程不论是在与本客户进程相同的主机还是在不同的主机上，都可以向本客户的IP地址和端口号发送数据报，这些数据报被客户读入并认为是服务器的应答。该问题将在8.8节中解决
 
