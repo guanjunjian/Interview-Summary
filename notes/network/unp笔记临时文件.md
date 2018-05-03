@@ -364,7 +364,7 @@ UDP套接字的**目的IP地址**只能通过IPv4设置`IP_RECVDSTADDR`套接字
 
 ## 8.11 UDP的connect函数
 
-**给UDP套接字调用connect**：没有三次握手过程，内核只是检查是否存在立即可知的错误（如一个显然不可达的目的地），记录对端的IP地址和端口号（取自传递给connect的套接字地址结构），然后connect立即返回到调用进程
+**给UDP套接字调用connect**：不给对端主机发送任何信息，没有三次握手过程，它完全是一个本地操作，内核只是检查是否存在立即可知的错误（如一个显然不可达的目的地），记录对端的IP地址和端口号（取自传递给connect的套接字地址结构），然后connect立即返回到调用进程。如果在一个未绑定到端口号的UDP套接字上调用connect同时也给该套接字指派一个临时端口
 
 **未连接UDP套接字**：新创建UDP套接字默认状态
 
@@ -402,5 +402,140 @@ UDP套接字的**目的IP地址**只能通过IPv4设置`IP_RECVDSTADDR`套接字
 
 ## 8.12 dg_cli函数（UDP已连接套接字修订版）
 
+将前一个版本的dg_cli函数把它重写成调用connect
 
+```c++
+// 源码： udpcliserv/dgcliconnect.c
 
+#include	"unp.h"
+
+void
+dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
+{
+	int		n;
+	char	sendline[MAXLINE], recvline[MAXLINE + 1];
+
+	//调用connect，将未连接UDP套接字变为已连接UDP套接字
+	Connect(sockfd, (SA *) pservaddr, servlen);
+
+	while (Fgets(sendline, MAXLINE, fp) != NULL) {
+
+		//以write代替sendto
+		Write(sockfd, sendline, strlen(sendline));
+
+		//以read代替recvfrom
+		n = Read(sockfd, recvline, MAXLINE);
+
+		recvline[n] = 0;	/* null terminate */
+		Fputs(recvline, stdout);
+	}
+}
+```
+
+**服务器进程未运行情景**：
+
+在主机macosx上运行该程序，并制定主机freebsd4的IP地址（它没有在端口号9877上运行相应的服务器程序）
+
+```shell
+macosx & udpcli04 172.24.37.94
+hello,world #客户键入一行内容
+read error : Connection refused #发送上一条数据报引来了服务器主机的ICMP错误
+```
+
+发送数据报引来了服务器主机的ICMP错误，该ICMP错误由内核映射成ECONNREFUSED错误，对应于由err_sys函数输出的消息串：“Connection refused”（连接被拒绝）
+
+## 8.13 UDP缺乏流量控制（dg_echo套接字缓冲区修订版）
+
+由于UDP缺乏流量控制，在服务器中，如果到达的数据报大于UDP套接字缓冲区，会被丢弃，而该“丢弃”行为不会给服务器进程或客户进程任何指示以说明数据报已丢失
+
+**UDP套接字接收缓冲区**
+
+由UDP给某个特定套接字排队的UDP数据报数目受限于该套接字接收缓冲区的大小
+
+可以使用`SO_RCVBUF`套接字修改缓冲区大小。在FreeBSD下UDP套接字接收缓冲区的默认大小为42080字节（30个*1400字节数据报的空间）
+
+增大套接字缓冲区的大小，服务器有望接收更多的数据报
+
+下例中，把缓冲区大小设为240KB（220*1024）
+
+```c++
+// 源码： udpcliserv/dgecholoop2.c
+
+#include	"unp.h"
+
+static void	recvfrom_int(int);
+static int	count;
+
+void
+dg_echo(int sockfd, SA *pcliaddr, socklen_t clilen)
+{
+	int			n;
+	socklen_t	len;
+	char		mesg[MAXLINE];
+
+	//注册SIGINT信号的行为
+	Signal(SIGINT, recvfrom_int);
+
+	n = 220 * 1024;
+	//设置缓冲区大小为240KB
+	Setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &n, sizeof(n));
+
+	for ( ; ; ) {
+		len = clilen;
+		Recvfrom(sockfd, mesg, MAXLINE, 0, pcliaddr, &len);
+
+		count++;
+	}
+}
+
+//当服务器进程收到SIGINT信号时，输出count值
+static void
+recvfrom_int(int signo)
+{
+	printf("\nreceived %d datagrams\n", count);
+	exit(0);
+}
+```
+
+## 8.14 UDP中的外出接口的确定
+
+已连接UDP套接字还可用来确定（获取）用于某个特定目的地的外出接口
+
+**做法**：UDP被connect到一个指定IP地址后，调用getsockname得到本地IP地址和端口号
+
+```c++
+// 源码： udpcliserv/udpcli09.c
+
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					sockfd;
+	socklen_t			len;
+	struct sockaddr_in	cliaddr, servaddr;
+
+	if (argc != 2)
+		err_quit("usage: udpcli <IPaddress>");
+
+	sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
+
+	bzero(&servaddr, sizeof(servaddr));
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(SERV_PORT);
+	Inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+	//connect到一个指定IP地址
+	Connect(sockfd, (SA *) &servaddr, sizeof(servaddr));
+
+	len = sizeof(cliaddr);
+	//调用getsockname得到本地IP地址和端口号
+	Getsockname(sockfd, (SA *) &cliaddr, &len);
+	printf("local address %s\n", Sock_ntop((SA *) &cliaddr, len));
+
+	exit(0);
+}
+```
+
+**执行效果**：
+
+![](../../pics/network/unp笔记/8-14-UDP中的外出接口的确定.png)
