@@ -230,7 +230,7 @@ UDP客户/服务器例子是不可靠的
 
 解决方法：给客户的recvfrom设置一个超时（14.2节）。但该方法不是完整的解决方案，因为如果确实超时了，我们无法判定超时原因是数据报没到达服务器，还是服务器的应答没有回到客户（22.5节增加UDP客户/服务器可靠性）
 
-## 8.8 验证收到的响应（dg_cli的服务器IP端口验证版）
+## 8.8 验证收到的响应（dg_cli服务器IP验证版）
 
 需要修改的地方：
 
@@ -248,7 +248,116 @@ servaddr.sin_port = htnos(7);
 ```c++
 // 源码： udpcliserv/dgcliaddr.c
 
+#include	"unp.h"
+
+void
+dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
+{
+	int				n;
+	char			sendline[MAXLINE], recvline[MAXLINE + 1];
+	socklen_t		len;
+	struct sockaddr	*preply_addr;
+
+	//调用malloc分配另一个套接字地址结构
+	preply_addr = Malloc(servlen);
+
+	while (Fgets(sendline, MAXLINE, fp) != NULL) {
+
+		Sendto(sockfd, sendline, strlen(sendline), 0, pservaddr, servlen);
+
+		len = servlen;
+		n = Recvfrom(sockfd, recvline, MAXLINE, 0, preply_addr, &len);
+		//首先比较由recvfrom在值-结果参数中返回的长度
+		//再用memcpy比较套接字地址结构本身
+		if (len != servlen || memcmp(pservaddr, preply_addr, len) != 0) 		{
+			printf("reply from %s (ignored)\n",
+					Sock_ntop(preply_addr, len));
+			continue;
+		}
+
+		recvline[n] = 0;	/* null terminate */
+		Fputs(recvline, stdout);
+	}
+}
 ```
 
+**问题**
 
+如果服务器运行在一个只有单个IP地址的主机上，该版本的客户工作正常
 
+如果服务器主机是所宿的，该客户有可能失败
+
+```shell
+# 获取freebsd4服务器的ip地址
+# macosx为客服主机名
+macosx % host freebsd4
+freebsd4.unpbook.com has address 172.24.37.94 # freebsd4有两个IP地址
+freebsd4.unpbook.com has address 135.197.17.100
+
+# 客户向freebsd4的135.197.17.100IP发送数据报
+macosx % udpcli02 135.197.17.100
+hello # 客户输入
+reply from 172.24.37.94:7 (ignored) #由于数据报的源IP为服务器的另一个IP，因此被忽略
+goodbye # 客户输入
+reply from 172.24.37.94:7 (ignored) # 同上
+```
+
+**解决办法**
+
+- 1.**客户端解决**：得到由recvfrom返回的ip地址后，客户通过DNS中查找服务器主机的名字来验证该主机的域名
+- 2.**服务器解决**UDP服务器给服务器主机上配置的每个IP地址创建一个套接字，用bind捆绑每个IP地址到各自的套接字，然后再所有套接字上使用select（等待其中任何一个变得可读），再从可读的套接字给出应答，这样可以保证应答的源地址与请求的目的地址相同
+
+## 8.9 服务器进程未运行
+
+**情景**：不启动服务器的前提下启动客户，客户键入一行文本。那么什么也不会发生，客户永远阻塞于它的recvfrom调用，等待一个永远不出现的服务器应答
+
+首先，在主机macosx上启动tcpdump，然后在同一主机上启动客户，指定主机freebsd4为服务器主机
+
+```shell
+#客户
+macosx % udpcli01 172.24.37.94
+hello world
+```
+
+tcpdump的输出
+
+![](../../pics/network/unp笔记/Pic_8_10_当服务器主机上未启动服务器进程时tcpdump的输出.png)
+
+从第4行看到，服务器主机响应的是一个“port unreachable”（端口不可达）ICMP消息，不过这个ICMP消息不返回给客户进程
+
+该ICMP错误称为**异步错误**。该错误由sendto引起，但是sendto本身却成功返回
+
+UDP中，sendto成功返回仅仅表示在接口输出队列中具有存放所形成IP数据报的空间。该ICMP错误直到后来才返回，这就是称其为**异步的原因**
+
+**为什么不返回**：如果在同一UDP套接字上连续向不同IP发生3个数据报，并阻塞与recvfrom，其中只有1个IP无法到达，发送这3个数据报的客户需要知道引发错误的数据报的目的地址以区分究竟是哪一个数据报引发了错误。但是内核如何把信息返回给客户进程呢？recvfrom可以返回的信息仅有errno，它没有办法返回出错数据报的目的IP地址和目的UDP端口号，因此作出决定：仅在进程已经被其UDP套接字连接到恰恰一个对端后，这些异步错误才返回给进程
+
+**基本规则**：对于一个UDP套接字，由它引发的异步错误却并不返回给它，除非它已连接（8.11节讨论如何给UDP套接字调用connect从而完成“连接”）。仅在进程已经被其UDP套接字连接到恰恰一个对端后，这些异步错误才返回给进程
+
+## 8.10 UDP程序例子小结
+
+> 客户角度
+
+图中圆点表示发送UDP数据报时必须指定或选择的四个值
+
+![](../../pics/network/unp笔记/Pic_8_11_从客户角度总结UDP客户服务器.png)
+
+**必须指定的**：服务器的IP地址和端口号
+
+**可选择的**：客户的IP地址和端口号（可由内核自动选择，也可以调用bind指定）
+
+- 内核自动选择**端口号**：第一次调用sendto时一次性选择，**不能改变**
+- 内核自动选择**IP地址**：可以随客户发送的每个UDP数据报而变动（假设客户没有捆绑一个具体的IP地址到其套接字上）。**原因**：如图，如果客户主机是所宿的，客户有可能在两个目的地址之间交替选择，其中一个由左边的数据链路外出，另一个由右边的数据链路外出，由内核基于外出数据链路选择的客户IP地址将随每个数据报而改变
+
+**问题**：如果客户绑定到一个IP地址到其套接字上，但内核决定外出数据报必须从另一个链路发出，会发生什么？
+
+- 答：IP数据报将包含一个不同于外出链路IP地址的源IP地址（习题8.6）
+
+> 服务器角度
+
+![](../../pics/network/unp笔记/Pic_8_12_从服务器角度总结UDP客户服务器.png)
+
+服务器可能想从到达的IP数据报上获取至少四条信息：源IP地址、目的IP地址、源端口号、目的端口号，下图显示了TCP服务器和UDP服务器返回这些信息的函数调用
+
+![](../../pics/network/unp笔记/Pic_8_13_服务器可从到达的IP数据报中获取的信息.png)
+
+UDP套接字的**目的IP地址**只能通过IPv4设置`IP_RECVDSTADDR`套接字选项（或IPv6设置`IPV6_PKTINFO`套接字选项）然后调用**recvmsg**。由于UDP是无连接的，因此目的IP地址可随发送到服务器的每个数据报而改变
