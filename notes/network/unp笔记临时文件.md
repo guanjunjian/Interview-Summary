@@ -412,7 +412,7 @@ sig_int(int signo)
 
 4.4BSD实现允许多个进程在引用同一个监听套接字的描述符上调用accept，然而这种做法也仅仅适用于在内核中实现accept的源自Berkeley的内核
 
-在基于SVR4的Solaris 2.5内核上运行3.6节的服务器程序，客户开始连接到该服务器后不久，某个子进程的accept就会返回EPROTO错误（表示协议有错）
+在基于SVR4的Solaris 2.5内核上运行30.6节的服务器程序，客户开始连接到该服务器后不久，某个子进程的accept就会返回EPROTO错误（表示协议有错）
 
 **原因**：SVR4的流实现机制和库函数版本的accept并**非一个原子操作**。Solaris 2.6修复了这个问题，但大多数SVR4实现仍然存在这个问题
 
@@ -420,13 +420,162 @@ sig_int(int signo)
 
 本节使用**fcntl函数呈现的POSIX文件上锁功能**
 
-**main函数**
+在30.6版本之上的**修改**：
+
+- 1.服务器main函数：添加了`my_lock_init`来初始化锁
+- 2.服务器child_main函数：在调用accept之前获取文件锁，在accept返回后释放文件锁
+
+**main函数**：
 
 ```c
+// 源码： server/serv03.c
 
+#include	"unp.h"
+
+static int		nchildren;
+static pid_t	*pids;
+
+int
+main(int argc, char **argv)
+{
+	int			listenfd, i;
+	socklen_t	addrlen;
+	void		sig_int(int);
+	pid_t		child_make(int, int, int);
+
+	if (argc == 3)
+		listenfd = Tcp_listen(NULL, argv[1], &addrlen);
+	else if (argc == 4)
+		listenfd = Tcp_listen(argv[1], argv[2], &addrlen);
+	else
+		err_quit("usage: serv03 [ <host> ] <port#> <#children>");
+	nchildren = atoi(argv[argc-1]);
+	pids = Calloc(nchildren, sizeof(pid_t));
+	//初始化锁
+	my_lock_init("/tmp/lock.XXXXXX"); /* one lock file for all children */
+	for (i = 0; i < nchildren; i++)
+		pids[i] = child_make(i, listenfd, addrlen);	/* parent returns */
+
+	Signal(SIGINT, sig_int);
+
+	for ( ; ; )
+		pause();	/* everything done by children */
+}
 ```
 
+**child_main函数**
 
+```c
+// 源码： server/child03.c
+
+void
+child_main(int i, int listenfd, int addrlen)
+{
+	int				connfd;
+	void			web_child(int);
+	socklen_t		clilen;
+	struct sockaddr	*cliaddr;
+
+	cliaddr = Malloc(addrlen);
+
+	printf("child %ld starting\n", (long) getpid());
+	for ( ; ; ) {
+		clilen = addrlen;
+		//获取文件锁
+		my_lock_wait();
+		connfd = Accept(listenfd, cliaddr, &clilen);
+		//释放文件锁
+		my_lock_release();
+
+		web_child(connfd);		/* process the request */
+		Close(connfd);
+	}
+}
+```
+
+下面对三个与锁相关的函数进行分析：
+
+- 1.`my_lock_init(char*)`:初始化文件锁
+- 2.`my_lock_wait()`：获取文件锁
+- 3.`my_lock_release()`：释放文件锁
+
+**my_lock_init函数**：
+
+```c
+// 源码： server/lock_fcntl.c
+
+/* include my_lock_init */
+#include	"unp.h"
+
+static struct flock	lock_it, unlock_it;
+static int			lock_fd = -1;
+					/* fcntl() will fail if my_lock_init() not called */
+
+//调用者将一个路径名模板指定为my_lock_init的函数参数
+void
+my_lock_init(char *pathname)
+{
+    char	lock_file[1024];
+
+		/* 4must copy caller's string, in case it's a constant */
+    strncpy(lock_file, pathname, sizeof(lock_file));
+    //mktemp函数根据该模板创建一个唯一的路径名
+    lock_fd = Mkstemp(lock_file);
+    //创建一个具备路径名的文件并立即unlink掉
+    Unlink(lock_file);			/* but lock_fd remains open */
+
+    //初始化lock_it，用于上锁文件
+	lock_it.l_type = F_WRLCK;
+	lock_it.l_whence = SEEK_SET;
+	lock_it.l_start = 0;
+	lock_it.l_len = 0;
+
+	//初始化unlock_it，用于解锁文件
+	unlock_it.l_type = F_UNLCK;
+	unlock_it.l_whence = SEEK_SET;
+	unlock_it.l_start = 0;
+	unlock_it.l_len = 0;
+}
+/* end my_lock_init */
+```
+
+本函数创建一个具备路径名的文件并立即unlink掉。通过从文件系统目录中删除该路径名，以后即使程序崩溃，这个临时文件也完全消失
+
+然而只有有一个或多个进程打开着这个文件（即引用计数大于0），该文件本身就不会被删除。（这也是从某个目录中删除一个路径名（引用计数为0时文件消失）与关闭一个打开着的文件（引用计数减1）的本质差别）
+
+**my_lock_wait函数**：
+
+```c
+// 源码： server/lock_fcntl.c
+
+void
+my_lock_wait()
+{
+    int		rc;
+    
+    while ( (rc = fcntl(lock_fd, F_SETLKW, &lock_it)) < 0) {
+		if (errno == EINTR)
+			continue;
+    	else
+			err_sys("fcntl error for my_lock_wait");
+	}
+}
+```
+
+**my_lock_release()函数**:
+
+```c
+// 源码： server/lock_fcntl.c
+
+void
+my_lock_release()
+{
+    if (fcntl(lock_fd, F_SETLKW, &unlock_it) < 0)
+		err_sys("fcntl error for my_lock_release");
+}
+```
+
+该版本的**缺点**：围绕accept的上锁增加了服务器的进程控制CPU时间
 
 
 
