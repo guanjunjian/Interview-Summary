@@ -963,5 +963,274 @@ doit(void *arg)
 
 ## 30.11 TCP预先创建线程服务器程序，每个线程各自accept
 
+创建一个线程池，并让每个线程各自调用accept，使用互斥锁以保证任何时刻只有一个线程在调用accept
 
+**连接在线程中的分布**：均匀分布
 
+**效率**：所有版本中最快的
+
+**Thread结构**：
+
+用于维护线程若干信息的Thread结构
+
+```c
+// 源码： server/pthread07.h
+
+typedef struct {
+  pthread_t		thread_tid;		/* 线程ID */
+  long			thread_count;	/* # 处理的客户数统计 */
+} Thread;
+Thread	*tptr;		/* array of Thread structures; calloc'ed */
+
+int				listenfd, nthreads;
+socklen_t		addrlen; 
+pthread_mutex_t	mlock; //线程锁
+```
+
+**服务器main函数**：
+
+```c
+// 源码： server/serv07.c
+
+/* include serv07 */
+#include	"unpthread.h"
+#include	"pthread07.h"
+
+pthread_mutex_t	mlock = PTHREAD_MUTEX_INITIALIZER;
+
+int
+main(int argc, char **argv)
+{
+	int		i;
+	void	sig_int(int), thread_make(int);
+
+	if (argc == 3)
+		listenfd = Tcp_listen(NULL, argv[1], &addrlen);
+	else if (argc == 4)
+		listenfd = Tcp_listen(argv[1], argv[2], &addrlen);
+	else
+		err_quit("usage: serv07 [ <host> ] <port#> <#threads>");
+	nthreads = atoi(argv[argc-1]);
+	//为存储线程信息的数组分配空间
+	tptr = Calloc(nthreads, sizeof(Thread));
+
+	//创建池中的线程
+	for (i = 0; i < nthreads; i++)
+		thread_make(i);			/* only main thread returns */
+
+	Signal(SIGINT, sig_int);
+
+	for ( ; ; )
+		pause();	/* everything done by threads */
+}
+/* end serv07 */
+```
+
+**thread_make函数**：
+
+```c
+// 源码： server/pthread07.c
+
+#include	"unpthread.h"
+#include	"pthread07.h"
+
+void
+thread_make(int i)
+{
+	void	*thread_main(void *);
+	//创建线程，线程ID存于数组中
+    //线程执行函数为thread_main，thread_main的参数为该线程的在数组中的下标
+	Pthread_create(&tptr[i].thread_tid, NULL, &thread_main, (void *) i);
+	return;		/* main thread returns */
+}
+```
+
+**thread_main函数**：
+
+```c
+// 源码： server/pthread07.c
+
+void *
+thread_main(void *arg)
+{
+	int				connfd;
+	void			web_child(int);
+	socklen_t		clilen;
+	struct sockaddr	*cliaddr;
+
+	cliaddr = Malloc(addrlen);
+
+	printf("thread %d starting\n", (int) arg);
+	for ( ; ; ) {
+		clilen = addrlen;
+		//上锁
+    	Pthread_mutex_lock(&mlock);
+		connfd = Accept(listenfd, cliaddr, &clilen);
+		//解锁
+		Pthread_mutex_unlock(&mlock);
+		tptr[(int) arg].thread_count++;
+
+		web_child(connfd);		/* process request */
+		Close(connfd);
+	}
+}
+```
+
+## 30.12 TCP预先创建线程服务器程序，主线程统一accept
+
+只让主线程调用accept并把每个客户连接传递给池中某个可用线程
+
+**问题**：主线程如何把一个已连接套接字传递给线程池中某个可用线程
+
+- 1.使用描述符传递，但所有线程和描述符都在一个进程内，没必要这样做
+- 2.将描述符存在一个数组中
+
+**效率**：慢于“TCP预先创建线程服务器程序，每个线程各自accept”版本，原因在于：本例中同时需要互斥量和条件变量，而“每个线程各自accept”版本只需要互斥量
+
+**pthread结构**：
+
+- 相比“各自accept”版本，多出了一个存储已连接描述符的数组，以及相应的互斥量和条件变量
+
+```c
+typedef struct {
+  pthread_t		thread_tid;		/* thread ID */
+  long			thread_count;	/* # connections handled */
+} Thread;
+Thread	*tptr;		/* array of Thread structures; calloc'ed */
+
+#define	MAXNCLI	32
+//由主线程往其中存入已接受的已连接套接字描述符
+//由线程池中的线程从中取出一个以服务相应的客户
+//iput是主线程将往该数组中存入的下一个元素的下标
+//iget是线程池中某个线程从该数组中取出的下一个元素的下标
+int					clifd[MAXNCLI], iget, iput;
+//互斥量，用户clifd的互斥访问
+pthread_mutex_t		clifd_mutex;
+//条件变量，用以决定是否还有需要处理的连接
+pthread_cond_t		clifd_cond;
+```
+
+**服务器main函数**：
+
+```c
+/* include serv08 */
+#include	"unpthread.h"
+#include	"pthread08.h"
+
+static int			nthreads;
+pthread_mutex_t		clifd_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t		clifd_cond = PTHREAD_COND_INITIALIZER;
+
+int
+main(int argc, char **argv)
+{
+	int			i, listenfd, connfd;
+	void		sig_int(int), thread_make(int);
+	socklen_t	addrlen, clilen;
+	struct sockaddr	*cliaddr;
+
+	if (argc == 3)
+		listenfd = Tcp_listen(NULL, argv[1], &addrlen);
+	else if (argc == 4)
+		listenfd = Tcp_listen(argv[1], argv[2], &addrlen);
+	else
+		err_quit("usage: serv08 [ <host> ] <port#> <#threads>");
+	cliaddr = Malloc(addrlen);
+
+	nthreads = atoi(argv[argc-1]);
+	tptr = Calloc(nthreads, sizeof(Thread));
+	iget = iput = 0;
+
+		/* 4create all the threads */
+	for (i = 0; i < nthreads; i++)
+		thread_make(i);		/* only main thread returns */
+
+	Signal(SIGINT, sig_int);
+
+	for ( ; ; ) {
+		clilen = addrlen;
+		connfd = Accept(listenfd, cliaddr, &clilen);
+
+		//获取对clifd的互斥访问
+		Pthread_mutex_lock(&clifd_mutex);
+		//将主线程accept的已连接套接字描述符存入clifd数组中
+		clifd[iput] = connfd;
+		//如果iput达到最大值，循环使用
+		if (++iput == MAXNCLI)
+			iput = 0;
+		//检查iput下标是否赶上iget下标
+		//如果赶上，说明数组不够大
+		if (iput == iget)
+			err_quit("iput = iget = %d", iput);
+		//释放信号量，如果有子进程睡眠于条件变量，则唤醒线程
+		Pthread_cond_signal(&clifd_cond);
+		//释放对clifd的互斥访问
+		Pthread_mutex_unlock(&clifd_mutex);
+	}
+}
+/* end serv08 */
+```
+
+**thread_make函数**：
+
+```c
+// 源码： server/pthread08.c
+
+#include	"unpthread.h"
+#include	"pthread08.h"
+
+void
+thread_make(int i)
+{
+	void	*thread_main(void *);
+	//创建线程，将线程ID存于tptr数组中
+    //线程的执行函数为thread_main，该函数的参数为线程在tptr数组中的下标
+	Pthread_create(&tptr[i].thread_tid, NULL, &thread_main, (void *) i);
+	return;		/* main thread returns */
+}
+```
+
+**thread_main函数**：
+
+```c
+// 源码： server/pthread08.c
+
+void *
+thread_main(void *arg)
+{
+	int		connfd;
+	void	web_child(int);
+
+	printf("thread %d starting\n", (int) arg);
+	for ( ; ; ) {
+		//获取clifd的互斥访问
+    	Pthread_mutex_lock(&clifd_mutex);
+    	//如果已经没有需要处理的已连接套接字
+		while (iget == iput)
+			//将该进程睡眠于条件变量
+			//如果主线程接受一个连接，则会释放条件变量
+			//从而唤醒睡眠在该条件变量上的线程（一次只唤醒一个）
+			Pthread_cond_wait(&clifd_cond, &clifd_mutex);
+		//取出一个已连接套接字
+		connfd = clifd[iget];	/* connected socket to service */
+		if (++iget == MAXNCLI)
+			iget = 0;
+		Pthread_mutex_unlock(&clifd_mutex);
+		tptr[(int) arg].thread_count++;
+		//线程处理已连接套接字
+		web_child(connfd);		/* process request */
+		Close(connfd);
+	}
+}
+```
+
+## 30.13 小结
+
+- 1.当系统负载较轻时，每来一个客户请求，现场派生一个子进程为之服务的传统并发服务器程序模式就足够了
+- 2.预先创建一个子进程池或一个线程池的设计范式能把进程控制CPU时间降低10倍或以上。但本书中例子没实现的是：监视闲置子进程个数，随着服务客户数的动态变化而增加或减少这个数目
+- 3.某些内核实现允许多个子进程或线程阻塞于同一个accept调用，有一些不能。因此需要包绕accept调用安置某些类型的锁加以保护，如文件锁或Pthread互斥锁
+- 4.让所有子进程或线程自动调用accept比让父进程或主线程独自调用accept并把描述符传递给子进程或线程来得简单而快速
+- 5.由于潜在select冲突的原因，让所有子进程或线程阻塞于同一个accept调用比让它们阻塞在同一个select调用更可取
+- 6.使用线程通常比使用进程更快，但需要考虑两个问题：
+  - 操作系统是否支持多线程
+  - 服务每个客户是否需要激活其他程序。如果accept客户连接的服务器调用fork和exec（譬如inetd超级守护进程），那么fork一个单线程的进程可能快于fork一个多线程的进程
