@@ -562,7 +562,7 @@ my_lock_wait()
 }
 ```
 
-**my_lock_release()函数**:
+**my_lock_release函数**:
 
 ```c
 // 源码： server/lock_fcntl.c
@@ -575,7 +575,393 @@ my_lock_release()
 }
 ```
 
-该版本的**缺点**：围绕accept的上锁增加了服务器的进程控制CPU时间
+该版本的**优缺点**：
+
+- 优点：可移植到所有POSIX兼容系统
+
+
+- 缺点：
+  - 围绕accept的上锁增加了服务器的进程控制CPU时间
+  - 涉及文件系统操作，比较耗时
+
+**连接在子进程中的分布**：操作系统均匀地把文件锁散布到等待进程中
+
+## 30.8 TCP预先派生子进程服务器程序，accept使用线程上锁保护 
+
+使用线程上锁保护的方法的**优点**：
+
+- 1.速度比文件上锁快
+- 2.不仅适用于同一进城内各个线程之间的上锁，也适用于不同进程之间的上锁
+
+基于30.7版本，需要改变的是3个**上锁函数**：
+
+- 1.`my_lock_init(char*)`:初始化文件锁
+- 2.`my_lock_wait()`：获取文件锁
+- 3.`my_lock_release()`：释放文件锁
+
+**my_lock_init函数**：
+
+```c
+// 源码： server/lock_pthread.c
+
+/* include my_lock_init */
+#include	"unpthread.h"
+#include	<sys/mman.h>
+
+static pthread_mutex_t	*mptr;	/* actual mutex will be in shared memory */
+
+void
+my_lock_init(char *pathname)
+{
+	int		fd;
+	pthread_mutexattr_t	mattr;
+
+	fd = Open("/dev/zero", O_RDWR, 0);
+
+	mptr = Mmap(0, sizeof(pthread_mutex_t), PROT_READ | PROT_WRITE,
+				MAP_SHARED, fd, 0);
+	Close(fd);
+
+	//以下三步的作用：
+	//调用一些Pthread库函数，告诉函数库：
+	//这是一个位于共享内存区中的互斥锁
+	//将用于不同进程之间的上锁
+	//1.为互斥锁以默认属性初始化一个phtread_mutexattr_t结构
+	Pthread_mutexattr_init(&mattr);
+	//2.赋予该结构PTHREAD_PROCESS_SHARED属性
+	//该属性的默认值为PTHREAD_PROCESS_PRIVATE，即只允许单个进程内使用
+	Pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+	//3.以mattr中的属性初始化mptr（共享内存区中的互斥锁）
+	Pthread_mutex_init(mptr, &mattr);
+}
+/* end my_lock_init */
+```
+
+在不同进程之间共享内存空间，本例中使用mmap函数和/dev/zero设备
+
+**my_lock_wait函数**：
+
+```c
+// 源码： server/lock_pthread.c
+
+void
+my_lock_wait()
+{
+	Pthread_mutex_lock(mptr);
+}
+```
+
+**my_lock_release函数**:
+
+```c
+void
+my_lock_release()
+{
+	Pthread_mutex_unlock(mptr);
+}
+```
+
+## 30.9 TCP预先派生子进程服务器程序，传递描述符
+
+只让父进程调用accept，然后父进程把所接受的已连接套接字“传递”给某个子进程
+
+**优点**：绕过了为所有子进程的accept调用提供上锁保护的可能需求
+
+**缺点**：需要从父进程到子进程的某种形式的描述符传递。会使代码更复杂，因为父进程必须跟踪子进程的忙闲状态，以便给空闲子进程传递新的套接字
+
+前后版本**对比**：
+
+- **之前**：进程无需关心由哪个子进程接收一个客户连接，操作系统处理这个细节：给某个子进程以首先调用accept的机会，或给与某个子进程以所需要的文件锁或互斥锁
+- **现在**：必须为每个字进程维护一个信息结构以方便管理。因此需要一个Child结构
+
+**效率**：父进程通过字节流管道把描述符传递给各个子进程，并且各个子进程通过字节流管道写回单个字节，无论比使用**共享内存区中的互斥锁**，还是使用**文件锁**的上锁和解锁相比，都要**更费时**
+
+**连接在子进程中的分布**：越早派生从而在Child结构数组中排位越靠前的子进程处理的客户数越多
+
+**Child结构**：
+
+```c
+// 源码： server/child.h
+
+typedef struct {
+  pid_t		child_pid;		/* 子进程ID */
+  int		child_pipefd;	/* 父进程连接到该子进程的字节流管道描述符 */
+  int		child_status;	/* 子进程状态，0 = ready */
+  long		child_count;	/* # 子进程已处理客户的计数 */
+} Child;
+
+Child	*cptr;		/* array of Child structures; calloc'ed */
+```
+
+**child_make函数：**
+
+![](G:\OneDrive\Github\Interview-Summary\pics\network\unp笔记\Pic_30_22_父子进程各自关闭一端后的字节流管道.png)
+
+![](G:\OneDrive\Github\Interview-Summary\pics\network\unp笔记\Pic_30_23_所有子进程都派生之后的各个字节流管道.png)
+
+```c
+// 源码： server/child05.c
+
+/* include child_make */
+#include	"unp.h"
+#include	"child.h"
+
+pid_t
+child_make(int i, int listenfd, int addrlen)
+{
+	//sockfd[0] 父进程使用
+	//sockfd[1] 子进程使用
+	int		sockfd[2];
+	pid_t	pid;
+	void	child_main(int, int, int);
+
+	//创建一个字节流管道，是一对Unix域字节流套接字
+	Socketpair(AF_LOCAL, SOCK_STREAM, 0, sockfd);
+
+	//父进程
+	if ( (pid = Fork()) > 0) {
+		//父进程关闭子进程使用的域套接字
+		Close(sockfd[1]);
+		cptr[i].child_pid = pid;
+		cptr[i].child_pipefd = sockfd[0];
+		cptr[i].child_status = 0;
+		//父进程返回服务器main函数
+		return(pid);		/* parent */
+	}
+
+	//子进程
+	//将流管道的自身的一端复制到标准错误输出
+	//这样每个子进程可以通过读写标准错误输出和父进程通信
+	Dup2(sockfd[1], STDERR_FILENO);		/* child's stream pipe to parent */
+	//子进程关闭父进程使用的域套接字
+	Close(sockfd[0]);
+	//由于已经将流管道子进程的一端复制到了标准错误输出
+	//因此可以关闭sockfd[1]
+	Close(sockfd[1]);
+	//关闭监听套接字，由父进程进行监听
+	Close(listenfd);
+	//子进程不返回，进入child_main函数	/* child does not need this open */
+	child_main(i, listenfd, addrlen);	/* never returns */
+}
+/* end child_make */
+```
+
+**服务器main函数**：
+
+```c
+// 源码： server/serv05.c
+
+/* include serv05a */
+#include	"unp.h"
+#include	"child.h"
+
+static int		nchildren;
+
+int
+main(int argc, char **argv)
+{
+	int			listenfd, i, navail, maxfd, nsel, connfd, rc;
+	void		sig_int(int);
+	pid_t		child_make(int, int, int);
+	ssize_t		n;
+	fd_set		rset, masterset;
+	socklen_t	addrlen, clilen;
+	struct sockaddr	*cliaddr;
+
+	if (argc == 3)
+		listenfd = Tcp_listen(NULL, argv[1], &addrlen);
+	else if (argc == 4)
+		listenfd = Tcp_listen(argv[1], argv[2], &addrlen);
+	else
+		err_quit("usage: serv05 [ <host> ] <port#> <#children>");
+
+	FD_ZERO(&masterset);
+	//打开监听套接字对应的位
+	FD_SET(listenfd, &masterset);
+	maxfd = listenfd;
+	cliaddr = Malloc(addrlen);
+
+	nchildren = atoi(argv[argc-1]);
+	//navail用于跟踪当前可用的子进程数
+	navail = nchildren;
+	//分配Child结构数组的内存空间
+	cptr = Calloc(nchildren, sizeof(Child));
+
+		/* 4prefork all the children */
+	for (i = 0; i < nchildren; i++) {
+		child_make(i, listenfd, addrlen);	/* parent returns */
+		//打开各个子进程的字节流管道对应的位
+		FD_SET(cptr[i].child_pipefd, &masterset);
+		maxfd = max(maxfd, cptr[i].child_pipefd);
+	}
+
+	Signal(SIGINT, sig_int);
+
+	for ( ; ; ) {
+		rset = masterset;
+		//如果navail为0，表示无子进程“闲置”
+		//从select的描述符集中关掉与监听套接字对应的位
+		//防止父进程再无可用子进程的情况下accept连接
+		//内核仍然将这些连接入队，直到达到listen的backlog数为止
+		if (navail <= 0)
+			FD_CLR(listenfd, &rset);	/* turn off if no available children */
+		//父进程使用select监听“监听套接字”和各个子进程的字节流管道
+		nsel = Select(maxfd + 1, &rset, NULL, NULL, NULL);
+
+			/* 4check for new connections */
+		//监听套接字可读，至少有一个连接准备好accept
+		if (FD_ISSET(listenfd, &rset)) {
+			clilen = addrlen;
+			connfd = Accept(listenfd, cliaddr, &clilen);
+
+			//找出第一个可用的子进程
+			for (i = 0; i < nchildren; i++)
+				if (cptr[i].child_status == 0)
+					break;				/* available */
+
+			//如果遍历完cptr数组也没有可用的子进程，说明子进程不够用
+			if (i == nchildren)
+				err_quit("no available children");
+			//改变被选中的子进程的状态
+			cptr[i].child_status = 1;	/* mark child as busy */
+			//更新选中子进程处理客户的统计值
+			cptr[i].child_count++;
+			//可用子进程数减少1
+			navail--;
+
+			//把就绪的已连接套接字传递给选中子进程
+			n = Write_fd(cptr[i].child_pipefd, "", 1, connfd);
+			//父进程关闭已经传送给子进程的这个已连接套接字
+			Close(connfd);
+			if (--nsel == 0)
+				continue;	/* all done with select() results */
+		}
+
+			/* 4find any newly-available children */
+		for (i = 0; i < nchildren; i++) {
+			//child_main函数调用子进程处理完一个客户后，
+			//通过子进程的字节流管道向父进程写回单个字节
+			//使得该字节流的父进程拥有端变为可读
+			if (FD_ISSET(cptr[i].child_pipefd, &rset)) {
+				if ( (n = Read(cptr[i].child_pipefd, &rc, 1)) == 0)
+					err_quit("child %d terminated unexpectedly", i);
+				//将处理完客户的子进程状态更改为可用
+				cptr[i].child_status = 0;
+				//递增可用子进程计数
+				navail++;
+				//select中就绪套接字都处理完，则可以提前终止循环
+				if (--nsel == 0)
+					break;	/* all done with select() results */
+			}
+		}
+	}
+}
+/* end serv05a */
+```
+
+**child_main函数**：
+
+```c
+// 源码： server/child05.c
+
+/* include child_main */
+void
+child_main(int i, int listenfd, int addrlen)
+{
+	char			c;
+	int				connfd;
+	ssize_t			n;
+	void			web_child(int);
+
+	printf("child %ld starting\n", (long) getpid());
+	for ( ; ; ) {
+		//阻塞于read_fd调用，等待父进程传递过来一个已连接套接字描述符
+		if ( (n = Read_fd(STDERR_FILENO, &c, 1, &connfd)) == 0)
+			err_quit("read_fd returned 0");
+		if (connfd < 0)
+			err_quit("no descriptor from read_fd");
+
+		web_child(connfd);				/* process request */
+		Close(connfd);
+		//子进程处理完一个客户后，
+		//通过子进程的字节流管道向父进程写回单个字节
+		//告知父进程本子进程已可用（闲置）
+		//使得该字节流的父进程拥有端变为可读
+		//父进程可以更新该子进程的状态变为“可用”
+		Write(STDERR_FILENO, "", 1);	/* tell parent we're ready again */
+	}
+}
+/* end child_main */
+```
+
+## 30.10 TCP并发服务器程序，每个客户一个线程
+
+如果服务器主机支持线程，我们可以改用线程以取代子进程
+
+为每个客户创建一个线程，以取代为每个客户派生一个子进程
+
+**优点**：简单的创建线程版本快于所有预先派生子进程的版本
+
+**main函数**：
+
+```c
+// 源码： server/serv06.c
+
+#include	"unpthread.h"
+
+int
+main(int argc, char **argv)
+{
+	int				listenfd, connfd;
+	void			sig_int(int);
+	void			*doit(void *);
+	pthread_t		tid;
+	socklen_t		clilen, addrlen;
+	struct sockaddr	*cliaddr;
+
+	if (argc == 2)
+		listenfd = Tcp_listen(NULL, argv[1], &addrlen);
+	else if (argc == 3)
+		listenfd = Tcp_listen(argv[1], argv[2], &addrlen);
+	else
+		err_quit("usage: serv06 [ <host> ] <port#>");
+	cliaddr = Malloc(addrlen);
+
+	Signal(SIGINT, sig_int);
+
+	for ( ; ; ) {
+		clilen = addrlen;
+		//主线程阻塞于accept
+		connfd = Accept(listenfd, cliaddr, &clilen);
+
+		//当主线程返回一个客户连接时，调用Pthread_create创建一个新线程
+		//新线程执行的函数是doit，其参数是“已连接套接字”
+		Pthread_create(&tid, NULL, &doit, (void *) connfd);
+	}
+}
+```
+
+**doit函数**：
+
+```c
+// 源码： server/serv06.c
+
+void *
+doit(void *arg)
+{
+	void	web_child(int);
+
+	//让自己脱离，使得主线程不必等待它
+	Pthread_detach(pthread_self());
+	//调用客户处理函数
+	web_child((int) arg);
+	//处理完毕后，该线程关闭“已连接套接字”
+	Close((int) arg);
+	return(NULL);
+}
+```
+
+## 30.11 TCP预先创建线程服务器程序，每个线程各自accept
 
 
 
