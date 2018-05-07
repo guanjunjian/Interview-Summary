@@ -1,3 +1,5 @@
+[TOC]
+
 # 第7章 套接字选项
 
 ## 7.1 概述
@@ -47,7 +49,13 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
 
   ![](../../pics/network/unp笔记/Pic_7_2_传输层的套接字选项汇总.png)
 
-  ## 7.4 套接字状态
+  
+
+
+
+  
+
+## 7.4 套接字状态
 
   以下的套接字选项由TCP已连接套接字从监听套接字继承而来
 
@@ -135,7 +143,7 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
 
   ![](../../pics/network/unp笔记/Pic_7_6_检测各种TCP条件的方法.png)
 
-  ### 7.5.6 SO_LINGER套接字选项
+### 7.5.6 SO_LINGER套接字选项
 
   **该选项指定close函数对面向连接的协议如何操作**。默认操作是close函数立即返回，但是如果有数据残留在套接字发送缓冲区中，系统将试着把这些数据发送给对端。SO_LINGER套接字选项使得我们可以改变这个默认设置 
 
@@ -228,7 +236,65 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
 
   ### 7.5.9 SO_RCVLOWAT和SO_SNDLOWAT套接字选项
 
-  
+每个套接字还有一个接收低水位标记和一个发送低水位标记。它们由select函数使用 
+
+**接收低水位标记** :让select返回“可读”时套接字接收缓冲区中所需的数据量（对于TCP、UDP、SCTP套接字，其默认值是1） 
+
+**发送低水位标记**：让select返回“可写”时套接字发送缓冲区中所需的可用空间 （对于TCP套接字，其默认值通常是2048；UDP也使用发送低水位标记，然而由于UDP并不为应用程序传递给它的数据报保留副本，因此UDP套接字的发送缓冲区中可用空间的字节数从不改变，只要一个UDP套接字的发送缓冲区大小大于该套接字的低水位标记，该UDP套接字就总是可写的。UDP并没有发送缓冲区，只有发送缓冲区大小这个属性） 
+
+### 7.5.10 SO_RCVTIMEO和SO_SNDTIMEO套接字选项
+
+这两个选项允许我们给套接字的接收和发送设置一个超时值。访问它们的getsockopt和setsockopt函数的参数指向timeval结构的指针，与select所用参数相同
+
+```c
+struct timeval {
+    long tv_sec; //秒数
+    long tv_usec; //微秒
+};
+```
+
+**接收超时**影响5个输入函数：
+
+- read
+- readv
+- recv
+- recvfrom
+- recvmsg
+
+**发送超时**影响5个输出函数：
+
+- write
+- writev
+- send
+- sendto
+- sendmsg
+
+### 7.5.11 SO_REUSEADDR和SO_REUSEPOPT套接字
+
+SO_REUSEADDR套接字选项的4个功能
+
+>  **1.允许启动一个监听服务器并捆绑其众所周知端口，即使以前建立的将该端口用作它们的本地端口的连接仍然存在**，这个条件通常是这样产生的：
+
+- a）启动一个监听服务器
+- b）连接请求到达，派生一个子进程来处理这个客户
+- c）监听服务器终止，但子进程继续为现有连接上的客户提供服务
+- d）重启监听服务
+
+**解释**：默认情况下，当监听服务器在步骤d通过调用socket、bind和listen重新启动时，由于它试图绑定一个现有连接（即正由早先派生的那个子进程处理着的连接）上的端口，从而bind调用会失败。但如果该服务器在socket和bind两个调用之间设置了SO_REUSEADDR套接字选项，那么bind成功。
+
+**建议**：所有TCP服务器都应该指定本套接字选项，以允许服务器在这种情况下被重新启动
+
+> **2.允许在同一端口上启动同一服务器的多个实例，只要每个实例捆绑一个不同的本地IP地址即可** 
+
+**举例**：三个服务器实例，一个使用通配地址、另两个使用指定地址
+
+**建议**：执行通配地址的服务器进程最后一个启动
+
+> **3.允许单个进程捆绑同一端口到多个套接字上，只要每次捆绑指定不同的本地IP地址即可** 
+
+
+
+
 
   
 
