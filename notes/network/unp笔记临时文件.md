@@ -203,7 +203,7 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
 
   ![](../../pics/network/unp笔记/Pic_7_12_shutdown和SO_LINGER各种情况的总结.png)
 
-  ## 7.5.8 SO_RCVBUF和SO_RCVSNDBUF套接字选项
+  ### 7.5.8 SO_RCVBUF和SO_RCVSNDBUF套接字选项
 
   **作用**：每个套接字都有一个发送缓冲区和一个接收缓冲区。这两个套接字选项允许我们改变这两个缓冲区的默认大小 
 
@@ -225,6 +225,10 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
   - 应该是响应连接的MSS值的偶数倍
   - 如果套接字缓冲区小于**带宽-延迟积**，连接管道将不会处于满状态
     - 带宽-延迟积：通过带宽和RTT相乘
+
+  ### 7.5.9 SO_RCVLOWAT和SO_SNDLOWAT套接字选项
+
+  
 
   
 
