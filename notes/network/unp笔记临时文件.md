@@ -49,12 +49,6 @@ int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t
 
   ![](../../pics/network/unp笔记/Pic_7_2_传输层的套接字选项汇总.png)
 
-  
-
-
-
-  
-
 ## 7.4 套接字状态
 
 以下的套接字选项由TCP已连接套接字从监听套接字继承而来
@@ -408,3 +402,4 @@ Rlogin和Telnet的客户端是两个常见的小分组产生进程。考虑一�
     - 1.使用writev而不是两次调用write，只产生一个TCP分节
     - 2.将4字节和396字节先复制到单个缓冲区中，再对该缓冲区调用一次write
     - 3.设置TCP_NODELAY套接字选项，继续调用write两次（不推荐）
+
