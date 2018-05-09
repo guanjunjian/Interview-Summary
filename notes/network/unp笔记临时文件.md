@@ -388,5 +388,151 @@ doit(void *arg)
 
 - 6.当一个线程终止时会发生什么？这就是**key结构**中的**析构函数指针**的用武之地。一个线程调用pthread_key_create创建某个线程特定数据元素时，所指定的函数参数之一就是指向某个析构函数的指针。当一个线程终止时，系统将扫描该线程的**pkey数组**，为每个非空的pkey指针调用相应的析构函数（在**key结构**中获得）
 
+下面介绍**相关函数**
+
+```c
+#include <pthread.h>
+
+/*
+** 作用：根据onceptr所指向的值判断，是否还需要再次调用init所指向的函数，用以确保pthread_key_create函数在一个线程特定数据中只调用一次
+** @onceptr：用于判断是否需要再次调用init所指向函数的值
+** @init：函数指针
+** @返回值：若成功则为0，若出错则为正的Exxx值
+*/
+int pthread_once(pthread_once_t *onceptr, void (*init)(void));
+
+/*
+** 作用：获取key结构中的一个键，存入keyptr中，并将destructor函数指针插入key结构。对于每个线程特定数据，应该只调用一次该函数
+** @keyptr：key结构中的一个键
+** @destructor：析构函数指针
+** @返回值：若成功则为0，若出错则为正的Exxx值
+*/
+int pthread_key_create(pthead_key_t *keyptr, void (*destructor)(void *value));
+
+/**
+** 作用：返回线程Pthread结构中pkey数组key索引中的元素，一个指针
+** @key：一个键，或索引
+** @返回值：pkey数组中的元素，一个指向线程特定数据的指针（或空指针）
+*/
+void* pthread_getspecific(pthread_key_t key);
+
+/**
+** 作用：根据key找到线程Pthread结构中pkey数组Key索引的元素，将该元素设为value
+** @key：一个键，或索引
+** @value：一块由malloc分配的内存块，即线程特定数据
+** @返回值：若成功则为0，若出错则为正的Exxx值
+*/
+int pthread_setspecific(phread_key_t key, const void* value);
+```
+
+**例子：使用线程特定数据的readline函数**
+
+通过把3.9节中的readline函数的优化版本转换为无需改变调用顺序的线程安全版本
+
+```c
+// 源码： threads/readline.c
+
+/* include readline1 */
+#include	"unpthread.h"
+
+//存储readline函数使用的键
+static pthread_key_t	rl_key;
+//用以判断Pthread_key_create是否第一次调用
+static pthread_once_t	rl_once = PTHREAD_ONCE_INIT;
+
+static void
+readline_destructor(void *ptr)
+{
+	free(ptr);
+}
+
+//由ptherad_once调用，创建readline使用的键
+static void
+readline_once(void)
+{
+	Pthread_key_create(&rl_key, readline_destructor);
+}
+
+//存储线程特定数据，旧版本中声明为static
+//调用readline的每个线程都由readline动态分配一个Rline结构，
+//然后由readline_destructor函数析构
+typedef struct {
+  int	 rl_cnt;			/* initialize to 0 */
+  char	*rl_bufptr;			/* initialize to rl_buf */
+  char	 rl_buf[MAXLINE];
+} Rline;
+/* end readline1 */
+
+/* include readline2 */
+/**
+** @tsd：指向预先为本线程分配的Rline结构（线程特定数据）的一个指针
+*/
+static ssize_t
+my_read(Rline *tsd, int fd, char *ptr)
+{
+	if (tsd->rl_cnt <= 0) {
+again:
+		if ( (tsd->rl_cnt = read(fd, tsd->rl_buf, MAXLINE)) < 0) {
+			if (errno == EINTR)
+				goto again;
+			return(-1);
+		} else if (tsd->rl_cnt == 0)
+			return(0);
+		tsd->rl_bufptr = tsd->rl_buf;
+	}
+
+	tsd->rl_cnt--;
+	*ptr = *tsd->rl_bufptr++;
+	return(1);
+}
+
+ssize_t
+readline(int fd, void *vptr, size_t maxlen)
+{
+	size_t		n, rc;
+	char	c, *ptr;
+	Rline	*tsd;
+	//调用pthread_once使得本进程内第一个调用readline的线程通过调用
+	//Pthread_key_create创建线程特定数据使用的键
+	Pthread_once(&rl_once, readline_once);
+	//pthread_getspecific返回指向特定于本线程的Rline结构的指针
+	//如果是本线程首次调用，返回值为NULL
+	//首次调用则分配一个Rline结构的空间，并由calloc将其rl_cnt成员初始化为0
+	//再调用Pthread_setspecific为本线程存储这个指针
+	//一下次本线程调用readline时，pthread_getspecific可以返回一个非空指针（指向本线程的线程特定数据）
+	if ( (tsd = pthread_getspecific(rl_key)) == NULL) {
+		tsd = Calloc(1, sizeof(Rline));		/* init to 0 */
+		Pthread_setspecific(rl_key, tsd);
+	}
+
+	ptr = vptr;
+	for (n = 1; n < maxlen; n++) {
+		if ( (rc = my_read(tsd, fd, &c)) == 1) {
+			*ptr++ = c;
+			if (c == '\n')
+				break;
+		} else if (rc == 0) {
+			*ptr = 0;
+			return(n - 1);		/* EOF, n - 1 bytes read */
+		} else
+			return(-1);		/* error, errno set by read() */
+	}
+
+	*ptr = 0;
+	return(n);
+}
+/* end readline2 */
+
+ssize_t
+Readline(int fd, void *ptr, size_t maxlen)
+{
+	ssize_t		n;
+
+	if ( (n = readline(fd, ptr, maxlen)) < 0)
+		err_sys("readline error");
+	return(n);
+}
+```
+
 
 
