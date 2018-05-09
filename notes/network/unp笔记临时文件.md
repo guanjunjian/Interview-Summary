@@ -252,3 +252,88 @@ doit(void *arg)
 }
 ```
 
+**注意**：把connfd传递给doit时，把connfd类型做强制转换成void指针并不保证所有系统上都起作用
+
+### 26.4.1 给新线程传递参数
+
+把connfd传递给doit时，把connfd类型做强制转换成void指针并不保证所有系统上都起作用。要正确处理这一点需要做额外的工作：不能简单地把connfd的地址传递给新线程
+
+从ANSI C角度看这个是可接受的：ANSI C保证我们能够把一个整数指针类型强制转换成`void*`，然后把这个`void*`指针类型强制转换回原来的整数指针。**问题**出现在这个整数指针指向什么上
+
+主线程中只有一个整数变量connfd，每次调用accept该变量都会被覆写一个新值（已连接描述符）。问题出现在多个线程不是同步地访问一个共享变量（以取得存放在connfd中的整数值）。**解决方法**：
+
+- 1.把该值的一个副本推入被调用函数的栈中
+- 2.使用动态内存（如下代码所示）
+
+```c
+// 源码： threads/tcpserv02.c
+
+#include	"unpthread.h"
+
+static void	*doit(void *);		/* each thread executes this function */
+
+int
+main(int argc, char **argv)
+{
+	int				listenfd, *iptr;
+	thread_t		tid;
+	socklen_t		addrlen, len;
+	struct sockaddr	*cliaddr;
+
+	if (argc == 2)
+		listenfd = Tcp_listen(NULL, argv[1], &addrlen);
+	else if (argc == 3)
+		listenfd = Tcp_listen(argv[1], argv[2], &addrlen);
+	else
+		err_quit("usage: tcpserv01 [ <host> ] <service or port>");
+
+	cliaddr = Malloc(addrlen);
+
+	for ( ; ; ) {
+		len = addrlen;
+		//每次调用accpet时，首先调用malloc分配一个整数变量的内存空间，
+		//用于存放有待accept返回的已连接描述符，
+		//这使得每个线程都有各自的已连接描述符副本
+		iptr = Malloc(sizeof(int));
+		*iptr = Accept(listenfd, cliaddr, &len);
+		Pthread_create(&tid, NULL, &doit, iptr);
+	}
+}
+
+static void *
+doit(void *arg)
+{
+	int		connfd;
+
+	connfd = *((int *) arg);
+	//线程获取已连接描述符的值后调用free释放空间
+	free(arg);
+
+	Pthread_detach(pthread_self());
+	str_echo(connfd);		/* same function as before */
+	Close(connfd);			/* done with connected socket */
+	return(NULL);
+}
+```
+
+**背景知识**：
+
+- 1.**重入**一般可以理解为一个函数在同时多次调用
+- 2.在多任务系统当中，在任务执行期间捕捉到信号并对其进行处理时，进程正在执行的指令序列就被信号处理程序临时中断。如果从信号处理程序返回，则继续执行进程断点处的正常指令序列，从重新恢复到断点重新执行的过程中，函数所依赖的环境没有发生改变，就说这个函数是**可重入**的，反之就是**不可重入**的
+
+**问题**：malloc和free两个函数是**不可重入**的，即主线程正处于这两个函数之一的内部处理期间，从某个信号处理函数中调用者两个函数之一有可能导致灾难性的后果，这是因为两个函数操纵相同的静态数据结构
+
+**解决**：POSIX要求这两个函数以及许多其他函数都是**线程安全**的，通常通过在对我们透明的库函数内部执行某种形式的同步达到
+
+### 26.4.2 线程安全函数
+
+除了下图中列出的函数外，POSIX1要求由POSIX.1和ANSC C标准定义的所有函数都是线程安全的（最后5行来源于Unix98）
+
+![](../../pics/network/unp笔记/Pic_26_5_线程安全函数.png)
+
+让一个函数线程安全的共通技巧是定义一个名字以_r结尾的新函数。其中两个函数（ctermid和tmpnam）的线程安全条件是：调用者为返回这预先分配空间，并把指向该空间的指针作为参数传递给函数
+
+## 26.5 线程特定数据
+
+
+
