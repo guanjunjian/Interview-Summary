@@ -296,3 +296,155 @@ ssize_t send(int sockfd, const void* buff, size_t nbytes, int flags);
   - 套接字发生一个错误
 
 **flags参数在设计上存在一个基本问题：它是值传递的，而不是一个值-结构参数。因此它只能用于从进程向内核传递标志。内核无法向进程传递标志**。对于TCP/IP协议这一点不成问题，因为TCP/IP几乎从不需要从内核向进程传回标志。然而随着OSI协议被加到4.3BSD Reno中，却提出了随输入操作向进程返送MSG_EOR标志的需求。4.3BSD  Reno做出的决定是保持常用输入函数(recv和recvfrom)的参数不变，而改变recvmsg和sendmsg的msghdr结构。这个决定同时意味着如果一个进程需要由内核更新标志，它就必须调用recvmsg，而不是recv或recvfrom 
+
+## 14.4 readv和writev函数
+
+与标准的read和write不同在于：readv和writev允许单个系统调用读入到或写出自一个或多个缓冲区，这些操作分别称为**分散读**和**集中写**，因为来自读操作的输入数据被分散到多个应用缓冲区中，而来自多个应用缓冲区的输出数据则被集中提供给单个写操作： 
+
+```c
+#include <sys/uio.h>
+
+ssize_t readv(int filedes, const struct iovec *iov, int iovcnt);
+
+ssize_t write(int filedes, const struct iovec *iov, int iovcnt);
+
+//返回值：若成功则为读入或写出的字节数，若出错则为-1
+```
+
+- **iov**：指向某个iovec结构数组的一个指针 
+
+```c
+//定义在头文件<sys/uio.h>
+
+struct iovec{
+    void *iov_base; //buf的起始地址
+    size_t iov_len; //buf的大小
+};
+```
+
+- **iovcnt**：iovec结构数组中元素的个数存在某个限制，取决于具体实现。4.3BSD和Linux均最多允许1024个，而HP-UX最多允许2100个。POSIX要求在头文件<sys/uio.h>中定义IOV_MAX常值，其值至少为16
+
+**一些特性**：
+
+- 1.这两个函数可用于任何描述符，而不仅限于套接字
+- 2.writev是一个**原子操作**，意味着对于一个基于记录的协议（如UDP）而言，一次writev调用只产生单个UDP数据报
+  - **应用**：7.9节中提到的，一个4字节的writev后跟一个396字节的write可能触发Nagle算法，首选办法之一是针对这两个缓冲区调用writev
+
+## 14.5 14.6 recvmsg和sendmsg、辅助数据
+
+### recvmsg和sendmsg
+
+这两个函数是最通用的I/O函数
+
+可以把所有read、readv、recv、recvfrom调用替换成recvmsg调用
+
+可以把所有write、writev、send、sendto调用替换成sendmsg调用
+
+```c
+# include<sys/socket.h>
+
+ssize_t recvmsg(int sockfd, struct msghdr *msg, int flag);
+
+ssize_t sendmsg(int sockfd, struct msghdr *msg, int flag);
+
+//返回值：若成功则为读入或写出的字节数，若出错则为-1
+```
+
+- **msg**：指向一个msghdr结构，这个结构封装了大部分参数： 
+
+```c
+struct msghdr {
+    /*
+    ** msg_name和msg_namelen用于套接字未连接的场合（如UDP套接字）
+    ** msg_name指向一个套接字地址结构，调用者在其中存放接收者或发送者的协议地址
+    ** 如果无需指明协议地址（TCP或已连接UDP套接字）。msg_name应置为空指针
+    ** namelen对于sendmsg是一个值参数，对于recvmsg却是一个值-结果参数
+    */
+	void *msg_name;
+    socklen_t msg_namelen;
+    /*
+    ** msg_iov和msg_iovlen指定输入或输出缓冲区数组，
+    ** 类似readv或writev的iov和iovcnt参数
+    */
+    struct iovec *msg_iov;
+    int msg_iovlen; 
+    /*
+    ** msg_control和msg_controllen指定可选的辅助数据(控制信息)的位置和大小
+    ** msg_controllen对于recvmsg是一个值-结果参数
+    */
+    void *msg_control;
+    socklen_t msg_controllen;
+    int msg_flags; 
+};
+```
+
+对于recvmsg和sendmsg，必须区别**flags**参数（值参数）和msghdr结构（值-结果参数）的**msg_flags**成员
+
+- 只有**recvmsg使用**msg_flags成员。recvmsg被调用时，flags参数被复制到msg_flags成员，并由内核使用其值驱动接收处理过程。内核还依据recvmsg的结果更新msg_flags成员的值
+- **sendmsg则忽略**msg_flags成员，因为它直接使用flags参数驱动发送处理过程 
+
+下图汇总了内核为输入和输出函数检查的flags参数值以及recvmsg可能返回的msg_flags： 
+
+![](../../pics/network/unp笔记/Pic_14_7_各种IO函数输入和输出标志的总结.png)
+
+### 辅助数据
+
+msghdr结构中的msg_control字段指向一个**辅助数据**，又称为**控制信息**
+
+```c
+// 定义在头文件<sys/socket.h>
+
+struct cmsghdr{
+	socklen_t cmsg_len; //该辅助对象的长度（结构体+数据）
+    int cmsg_level;     //协议
+    int cmsg_type;      //协议相关的辅助数据类型
+};
+```
+
+cmsg_level和cmsg_type的取值和说明如下表： 
+
+![](../../pics/network/unp笔记/Pic_14_11_辅助数据用途的总结.png)
+
+**辅助数据由一个或多个辅助数据对象构成。每个辅助数据对象用一个cmsghdr结构表示**
+
+- **msghdr结构**的msg_control指向第一个辅助数据对象
+- **msghdr结构**的msg_controllen指定了辅助数据(即所有辅助数据对象)的总长度
+- **cmsghdr结构**的msg_len是包括这个结构在内的字节数（结构体+数据）
+- 填充字节
+  - 在**cmsghdr结构**的cmsg_type成员和实际数据之间可以有填充字节
+  - 从数据结尾处到下一个辅助数据对象之前也可以有填充字节
+
+![](../../pics/network/unp笔记/Pic_14_12_包含两个辅助数据对象的辅助数据.png)
+
+下面**5个宏**可以对应用程序屏蔽可能出现的填充字节，以简化对辅助数据的处理： 
+
+![](../../pics/network/unp笔记/Pic_14_13_后_5个辅助数据使用的宏.png)
+
+**GMSG_LEN与GMSG_SPACE的区别**：
+
+- GMSG_LEN：不计辅助数据对象中数据部分之后可能的填充字节，因而返回的是用于存放在cmsg_len成员中的值
+- GMSG_SPACE：计上结尾处可能的填充字节，因而返回的是为辅助数据对象动态分配空间的大小
+
+**5个宏的使用例子**
+
+```c
+//伪代码
+
+struct msghdr msg;
+struct cmsghdr* cmsgptr;
+
+for( cmsghdr = CMSG_FIRSTHDR(&msg); cmsghdr != NULL; cmsghdr = CMSG_NXTHDR(&msg,cmsgptr)){
+	u_char *ptr;
+    ptr = CMSG_DATA(cmsghdr);
+}
+```
+
+**下面以一个例子说明msghdr结构**：
+
+- 假设进程即将对一个UDP套接字调用recvmsg，在调用前为这个套接字设置了IP_RECVDSTADDR套接字选项，以接收所读取UDP数据报的目的IP地址。调用时，msghdr结构如下：
+
+![](../../pics/network/unp笔记/Pic_14_8_对一个UDP套接字调用recvmsg时的数据结构.png)
+
+- 接着假设从198.6.38.100端口2000到达一个170字节的UDP数据报，它的目的地址是我们的UDP套接字，目的IP地址为206.168.112.96。recvfrom返回时，msghdr结构如下： 
+
+![](../../pics/network/unp笔记/Pic_14_9_recvmsg返回时对图14-8的更新.png)

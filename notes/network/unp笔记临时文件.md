@@ -68,6 +68,8 @@ int pthread_create(pthread_t *tid, const pthread_attr_t *attr, void* (*fun)(void
 
 **pthread_join函数作用**：通过调用pthread_join等待一个给定线程终止，类似于进程的waitpid
 
+[Pthread创建线程后必须使用join或detach释放线程资源](http://www.cppblog.com/prayer/archive/2012/04/23/172427.html)
+
 ```c
 #include <pthread.h>
 
@@ -91,7 +93,7 @@ pthread_t pthread_selft(void);
 
 ### 26.2.4 pthread_detach函数
 
-**背景知识**：一个线程可以是**可汇合的**（joinable，默认值），也可以是**脱离的**（detached）。当一个可汇合的线程终止时，它的线程ID和退出状态将留存到另一个线程对它调用pthread_join。脱离的线程却像守护进程，当它终止时，所有相关资源都被释放，我们不能等待它们终止。
+**背景知识**：一个线程可以是**可汇合的**（joinable，默认值），也可以是**脱离的**（detached）。当一个可汇合的线程终止时，它的线程ID和退出状态将留存到另一个线程对它调用`pthread_join`。脱离的线程却像守护进程，当它终止时，所有相关资源都被释放，我们不能等待它们终止。`pthread_detach`之后就不能用`pthread_join`了，否则会出现Invalid argument错误 
 
 如果一个线程需要知道另一个线程什么时候终止，就最好保持第二个线程的可汇合状态
 
