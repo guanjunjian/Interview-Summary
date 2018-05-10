@@ -3816,7 +3816,7 @@ connect_timeo(int sockfd, const SA *saptr, socklen_t salen, int nsec)
 	//旧的信号处理函数保存在sigfunc中，以便在本函数结束时恢复它
 	sigfunc = Signal(SIGALRM, connect_alarm);
 	//报警时钟设置成由调用者指定的秒数
-	//如果此前已经给本进程设置过报警时钟，那么alarm的返回值是这个报警时钟的当
+	//如果此前已经给本进程设置过报警时钟，那么alarm的返回值是这个报警时钟的当前
 	//剩余秒数，否则alarm返回值为0
 	//如果是已经设置过的情况，需要显示一个警告信息，因为我们推翻了先前设置的报警时钟
 	if (alarm(nsec) != 0)
@@ -3991,7 +3991,7 @@ dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
 
 本例展示SO_RCVTIMEO套接字选项如何设置超时
 
-本选项一旦设置到某个描述符（包括指定超时值），其超时设置将应用与该描述符上的素有读操作
+本选项一旦设置到某个描述符（包括指定超时值），其超时设置将应用与该描述符上的所有读操作
 
 **优势**：一次性设置选项。SIGALARM和select方法在每个操作发生之前必须做一些工作
 
@@ -4042,7 +4042,7 @@ dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
 - 2.如果既想查看数据，又想数据仍留在接收队列中以供本进程其它部分稍后读取，可以使用**MSG_PEEK**标志。如果想这样做，但是不能肯定是否真有数据可读，那么可以结合非阻塞套接字使用该标志，也可以组合使用MSG_DONTWAIT标志和MSG_PEEK标志 
   - 就一个字节流套接字而言，其接受队列中的数据量可能在两次相继的recv调用之间发生变化。因为在这两次调用之间TCP可能又收到一些数据
   - 就一个UDP套接字而言，即使另有数据报在两次调用之间加入接收队列，两个调用的返回值也完全相同（假设没有其他进程共享该套接字并从中读取数据） 
-- 3.一些支持ioctl的FIONREAD命令。该命令的第3个ioctl参数是指向某个整数的一个指针，内核通过该整数返回的值就是套接字接收队列的当前字节数。该值是已排队字节的综合
+- 3.一些支持ioctl的FIONREAD命令。该命令的第3个ioctl参数是指向某个整数的一个指针，内核通过该整数返回的值就是套接字接收队列的当前字节数。该值是已排队字节的总和
   - 对于UDP套接字而言包括所有已排队的数据报（Berkely的实现还包括一个套接字地址结构的空间）
 
 # Unix I/O函数
@@ -4052,7 +4052,7 @@ dg_cli(FILE *fp, int sockfd, const SA *pservaddr, socklen_t servlen)
 包括
 
 - write和read
-
+- sendto和recvfrom
 - 14.3 recv和send函数
 - 14.4 readv和writev函数
 - 14.5 recvmsg和sendmsg函数
@@ -4188,7 +4188,7 @@ msghdr结构中的msg_control字段指向一个**辅助数据**，又称为**控
 // 定义在头文件<sys/socket.h>
 
 struct cmsghdr{
-	socklen_t cmsg_len; //该辅助对象的长度（结构体+数据）
+    socklen_t cmsg_len; //该辅助对象的长度（结构体+数据）
     int cmsg_level;     //协议
     int cmsg_type;      //协议相关的辅助数据类型
 };
