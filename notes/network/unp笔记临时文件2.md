@@ -308,7 +308,18 @@ main(int argc, char **argv)
 
 **步骤**：
 
-- 1.
+- 1.通过调用socketpair创建一个流管道后的mycat进程
+
+![](../../pics/network/unp笔记/Pic_15_7_使用socketpair创建流管道后的mycat进程.png)
+
+- 2.mycat进程调用fork，子进程再调用exec执行openfile程序，父进程关闭[1]描述符，子进程关闭[0]描述符
+  - 子进程调用exec时，向openfile传递a.待开打文件的路径名；b.打开方式；c.流管道某一端的描述符号
+
+![](../../pics/network/unp笔记/Pic_15_8_启动执行openfile程序后的mycat进程.png)
+
+- 3.openfile程序在通过流管道发送回打开的描述符后便终止，openfile的退出状态告知父进程文件能否打开，若不能则同时告知发生了什么类型的错误
+
+**通过执行另一个程序来打开文件的优势**：另一个程序可以是一个setuid到root的程序，能够打开我们通常没有打开权限的文件。该程序能够把通常的Unix权限概念（用户、用户组和其他用户）扩展到它想要的任何形式的访问检查
 
 **mycat程序**：
 
