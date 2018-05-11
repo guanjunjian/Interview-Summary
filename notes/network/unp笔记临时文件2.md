@@ -304,6 +304,298 @@ main(int argc, char **argv)
 
 > 描述符传递的例子
 
+给出一个描述符传递的例子：名为mycat的程序，通过命令行参数得到一个路径名，打开这个文件，再把文件的内容复制到标准输出。mycat程序调用my_open函数，my_open创建一个流管道，并调用fork和exec启动执行另一个openfile程序，期待输出的文件由openfile程序打开。openfile程序随后必须把打开的描述符通过流管道传递回给父进程
+
+**步骤**：
+
+- 1.
+
+**mycat程序**：
+
+```c
+//源码： unixdomain/mycat.c
+
+#include	"unp.h"
+
+int		my_open(const char *, int);
+
+int
+main(int argc, char **argv)
+{
+	int		fd, n;
+	char	buff[BUFFSIZE];
+
+	if (argc != 2)
+		err_quit("usage: mycat <pathname>");
+
+	if ( (fd = my_open(argv[1], O_RDONLY)) < 0)
+		err_sys("cannot open %s", argv[1]);
+
+	while ( (n = Read(fd, buff, BUFFSIZE)) > 0)
+		Write(STDOUT_FILENO, buff, n);
+
+	exit(0);
+}
+```
+
+**my_open函数**：
+
+```c
+// 源码： unixdomain/myopen.c
+
+#include	"unp.h"
+
+int
+my_open(const char *pathname, int mode)
+{
+	int			fd, sockfd[2], status;
+	pid_t		childpid;
+	char		c, argsockfd[10], argmode[10];
+
+	//创建一个流管道sockfd[0]和sockfd[1]
+	Socketpair(AF_LOCAL, SOCK_STREAM, 0, sockfd);
+
+	if ( (childpid = Fork()) == 0) {		/* child process */
+		Close(sockfd[0]);
+		//sockfd[1]的描述符号格式化输出到argsockfd
+		//打开方式mode格式化输出到argmode
+		//调用snprintf进行格式化输出时因为exec的参数必须是字符串
+		snprintf(argsockfd, sizeof(argsockfd), "%d", sockfd[1]);
+		snprintf(argmode, sizeof(argmode), "%d", mode);
+		//调用execl执行openfile程序
+		//该函数不会返回，除非它发生错误
+		//一旦成功，openfile程序的main函数就开始执行
+		execl("./openfile", "openfile", argsockfd, pathname, argmode,
+			  (char *) NULL);
+		err_sys("execl error");
+	}
+
+	/* parent process - wait for the child to terminate */
+	Close(sockfd[1]);			/* close the end we don't use */
+
+	//调用waitpid等待子进程终止
+	//子进程的终止状态在status中返回
+	Waitpid(childpid, &status, 0);
+	//检查该程序是否正常终止（也就是说未被某个信号终止）
+	if (WIFEXITED(status) == 0)
+		err_quit("child did not terminate");
+	//若正常终止，调用WEXITSTATUS宏把终止状态换成“退出状态”
+	//“退出状态”的取值在0~255之间
+	if ( (status = WEXITSTATUS(status)) == 0)
+		//调用read_fd函数通过流管道接收描述符
+		//除了描述符外，还读取1个字节的数据，但不对数据进行任何处理
+		//“还读取1个字节的数据”的原因：通过流管道发送和接收描述符时，总是发送
+		//至少1个字节的数据。要是不这么做，接收进程将难以辨别read_fd的返回值为0
+		//意味着“没有数据（但可能伴有一个描述符）”还是“文件已结束”
+		//Read_fd函数的前3个参数和read函数一样，第4个参数是指向某个整数的指针
+		//用以返回收取的描述符
+		Read_fd(sockfd[0], &c, 1, &fd);
+	else {
+		//如果openfile程序在打开所请求文件时碰到一个错误，
+		//它将以相应的errno值作为退出状态终止自身
+		errno = status;		/* set errno value from child's status */
+		fd = -1;
+	}
+
+	Close(sockfd[0]);
+	return(fd);
+}
+```
+
+**read_fd函数**:
+
+本函数必须处理两个版本的recvmsg：
+
+- 使用msg_control成员
+- 使用msg_accrights成员（较老版本）
+
+如果所支持的是msg_control版本，config.h头文件就会定义常量`HAVE_MSGHDR_MSG_CONTROL`
+
+```c
+// 源码： lib/read_fd.c
+
+/* include read_fd */
+#include	"unp.h"
+
+//该函数的前3个参数和read函数一样，第4个参数指向某个整数的指针，用以返回收到的描述符
+ssize_t
+read_fd(int fd, void *ptr, size_t nbytes, int *recvfd)
+{
+	struct msghdr	msg;
+	struct iovec	iov[1];
+	ssize_t			n;
+
+#ifdef	HAVE_MSGHDR_MSG_CONTROL
+	//msg_control缓冲区必须为cmsghdr结构适当地对齐
+	//声明了由一个cmsghdr结构和一个字符组构成的一个联合，
+	//这个联合确保字符组正确对齐
+	//保证对齐的另一个方法是调用malloc，但需要在返回时释放空间
+	union {
+	  struct cmsghdr	cm;
+	  char				control[CMSG_SPACE(sizeof(int))];
+	} control_un;
+	struct cmsghdr	*cmptr;
+
+	msg.msg_control = control_un.control;
+	msg.msg_controllen = sizeof(control_un.control);
+#else
+	int				newfd;
+
+	msg.msg_accrights = (caddr_t) &newfd;
+	msg.msg_accrightslen = sizeof(int);
+#endif
+
+	msg.msg_name = NULL;
+	msg.msg_namelen = 0;
+
+	iov[0].iov_base = ptr;
+	iov[0].iov_len = nbytes;
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
+
+	if ( (n = recvmsg(fd, &msg, 0)) <= 0)
+		return(n);
+
+#ifdef	HAVE_MSGHDR_MSG_CONTROL
+	//如果返回了辅助数据，需要验证辅助数据的长度、级别和类型
+	if ( (cmptr = CMSG_FIRSTHDR(&msg)) != NULL &&
+	    cmptr->cmsg_len == CMSG_LEN(sizeof(int))) {
+		if (cmptr->cmsg_level != SOL_SOCKET)
+			err_quit("control level != SOL_SOCKET");
+		if (cmptr->cmsg_type != SCM_RIGHTS)
+			err_quit("control type != SCM_RIGHTS");
+		//从中取出新建的描述符，并通过调用者给出的recvfd指针返回该描述符
+		//CMSG_DATA返回一个unsigned char指针，指向辅助数据对象的cmsg_data成员
+		//我们把它类型强制转换成一个int指针，并取出它指向的整数描述符
+		*recvfd = *((int *) CMSG_DATA(cmptr));
+	} else
+		*recvfd = -1;		/* descriptor was not passed */
+#else
+/* *INDENT-OFF* */
+	if (msg.msg_accrightslen == sizeof(int))
+		*recvfd = newfd;
+	else
+		*recvfd = -1;		/* descriptor was not passed */
+/* *INDENT-ON* */
+#endif
+
+	return(n);
+}
+/* end read_fd */
+
+ssize_t
+Read_fd(int fd, void *ptr, size_t nbytes, int *recvfd)
+{
+	ssize_t		n;
+
+	if ( (n = read_fd(fd, ptr, nbytes, recvfd)) < 0)
+		err_sys("read_fd error");
+
+	return(n);
+}
+```
+
+**openfile程序**：
+
+它取出三个必须传入的命令行参数（a.待打开文件的路径名；b.打开方式；c.流管道本的一端对应的描述符号），并调用通常的open函数
+
+- argv[0]:openfile
+- argv[1]:argsockfd（流管道本的一端对应的描述符号）
+- argv[2]:pathname（待打开文件的路径名）
+- argv[3]:argmode（打开方式）
+
+```c
+// 源码： unixdomain/openfile.c
+
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int		fd;
+
+	if (argc != 4)
+		err_quit("openfile <sockfd#> <filename> <mode>");
+
+	//命令行参数中的打开方式两个由my_open格式化为字符串，
+	//需要使用atoi把它们转回整数
+	//argv[2]为待打开文件的路径名；argv[3]为打开方式
+	if ( (fd = open(argv[2], atoi(argv[3]))) < 0)
+		//如果出错，与open对应的errno值就作为进程退出状态的返回
+		exit( (errno > 0) ? errno : 255 );
+
+	//argv[1]为流管道的一端对应的描述符
+	//将描述符传递回父进程
+	if (write_fd(atoi(argv[1]), "", 1, fd) < 0)
+		exit( (errno > 0) ? errno : 255 );
+
+	//write_fd把描述符传递回父进程之后，本进程立即终止
+	//本章之前说过：发送进程可以不等落地就关闭已传递的描述符（调用exit时发生）
+	//因为内核知道该描述符在飞行中，从而为接收进程保持其打开状态
+	exit(0);
+}
+```
+
+**write_fd函数**：
+
+调用sendmsg跨一个Unix域套接字发送一个描述符
+
+```c
+// 源码： lib/write_fd.c
+
+/* include write_fd */
+#include	"unp.h"
+
+ssize_t
+write_fd(int fd, void *ptr, size_t nbytes, int sendfd)
+{
+	struct msghdr	msg;
+	struct iovec	iov[1];
+
+#ifdef	HAVE_MSGHDR_MSG_CONTROL
+	union {
+	  struct cmsghdr	cm;
+	  char				control[CMSG_SPACE(sizeof(int))];
+	} control_un;
+	struct cmsghdr	*cmptr;
+
+	msg.msg_control = control_un.control;
+	msg.msg_controllen = sizeof(control_un.control);
+
+	cmptr = CMSG_FIRSTHDR(&msg);
+	cmptr->cmsg_len = CMSG_LEN(sizeof(int));
+	cmptr->cmsg_level = SOL_SOCKET;
+	cmptr->cmsg_type = SCM_RIGHTS;
+	*((int *) CMSG_DATA(cmptr)) = sendfd;
+#else
+	msg.msg_accrights = (caddr_t) &sendfd;
+	msg.msg_accrightslen = sizeof(int);
+#endif
+
+	msg.msg_name = NULL;
+	msg.msg_namelen = 0;
+
+	iov[0].iov_base = ptr;
+	iov[0].iov_len = nbytes;
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
+
+	return(sendmsg(fd, &msg, 0));
+}
+/* end write_fd */
+
+ssize_t
+Write_fd(int fd, void *ptr, size_t nbytes, int sendfd)
+{
+	ssize_t		n;
+
+	if ( (n = write_fd(fd, ptr, nbytes, sendfd)) < 0)
+		err_sys("write_fd error");
+
+	return(n);
+}
+```
+
 
 
 
