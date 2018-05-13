@@ -538,6 +538,311 @@ Readline(int fd, void *ptr, size_t maxlen)
 }
 ```
 
-## 26.6 Web客户与同时连接
+## 26.6 Web客户与同时连接（Solaris线程）
 
-//TODO：后面部分需要看完16章之后再继续
+把16.5节的Web客户程序例子重新编写成 用线程代替非阻塞connect。改用线程之后，可以让套接字停留在默认的**阻塞模式**，改而为每个连接创建一个线程，每个线程可以阻塞在它的connect调用中。内核（或线程函数库）会转而运行另外某个就绪的线程
+
+**全局变量**：
+
+```c
+// 源码： threads/web01.c
+
+/* include web1 */
+#include	"unpthread.h"   //Pthread线程
+#include	<thread.h>		/* Solaris线程 */
+
+#define	MAXFILES	20
+#define	SERV		"80"	/* port number or service name */
+
+struct file {
+  char	*f_name;			/* 文件名（复制自命令行参数） */
+  char	*f_host;			/* 文件所在服务器主机名或IP名 */
+  int    f_fd;				/* 用于读取文件的套接字描述符 */
+  int	 f_flags;			/* 用于指定准备对文件执行什么操作（连接、读取或完成）的一组标志 */
+  pthread_t	 f_tid;			/* 新增：线程ID */
+} file[MAXFILES];
+#define	F_CONNECTING	1	/* connect() in progress */
+#define	F_READING		2	/* connect() complete; now reading */
+#define	F_DONE			4	/* all done */
+
+#define	GET_CMD		"GET %s HTTP/1.0\r\n\r\n"
+
+int		nconn, nfiles, nlefttoconn, nlefttoread;
+
+void	*do_get_read(void *);
+void	home_page(const char *, const char *);
+void	write_get_cmd(struct file *);
+```
+
+**main函数**：
+
+```c
+// 源码： threads/web01.c
+
+int
+main(int argc, char **argv)
+{
+	int			i, n, maxnconn;
+	pthread_t	tid;
+	struct file	*fptr;
+
+	if (argc < 5)
+		err_quit("usage: web <#conns> <IPaddr> <homepage> file1 ...");
+	maxnconn = atoi(argv[1]);
+
+	nfiles = min(argc - 4, MAXFILES);
+	for (i = 0; i < nfiles; i++) {
+		file[i].f_name = argv[i + 4];
+		file[i].f_host = argv[2];
+		file[i].f_flags = 0;
+	}
+	printf("nfiles = %d\n", nfiles);
+
+	home_page(argv[2], argv[3]);
+
+	nlefttoread = nlefttoconn = nfiles;
+	nconn = 0;
+/* end web1 */
+/* include web2 */
+	while (nlefttoread > 0) {
+		//如果创建另一个线程的条件（nconn小于maxnconn）能够满足，就创建一个
+		while (nconn < maxnconn && nlefttoconn > 0) {
+				/* 4find a file to read */
+			for (i = 0 ; i < nfiles; i++)
+				if (file[i].f_flags == 0)
+					break;
+			if (i == nfiles)
+				err_quit("nlefttoconn = %d but nothing found", nlefttoconn);
+
+			file[i].f_flags = F_CONNECTING;
+			//线程的执行函数是do_get_read，传递给它的参数是指向file结构的指针
+			Pthread_create(&tid, NULL, &do_get_read, &file[i]);
+			file[i].f_tid = tid;
+			nconn++;
+			nlefttoconn--;
+		}
+
+		//通过指定第一个参数为0调用Solaris线程函数thr_join，等待任何一个线程终止
+		//Pthread没有提供等待任一线程终止的手段（pthread_join要求显示指定要等待的线程）
+		//Pthread解决本问题需要使用条件变量供即将终止的线程通知主线程何时终止
+		//thr_join难以移植到所有环境下
+		if ( (n = thr_join(0, &tid, (void **) &fptr)) != 0)
+			errno = n, err_sys("thr_join error");
+
+		nconn--;
+		nlefttoread--;
+		printf("thread id %d for %s done\n", tid, fptr->f_name);
+	}
+
+	exit(0);
+}
+/* end web2 */
+```
+
+**home_page函数**：
+
+与16.5节的相比，**无改动**
+
+```c
+// 源码： threads/web01.c
+#include	"web.h"
+
+void
+home_page(const char *host, const char *fname)
+{
+	int		fd, n;
+	char	line[MAXLINE];
+
+	//建立一个与服务器的连接
+	//阻塞式connect
+	fd = Tcp_connect(host, SERV);	/* blocking connect() */
+
+	//发出一个HTTP GET命令以获取主页（文件名经常是/）
+	n = snprintf(line, sizeof(line), GET_CMD, fname);
+	Writen(fd, line, n);
+
+	for ( ; ; ) {
+		//读取应答（不对应答做任何操作）
+		if ( (n = Read(fd, line, MAXLINE)) == 0)
+			break;		/* server closed connection */
+
+		printf("read %d bytes of home page\n", n);
+		/* do whatever with data */
+	}
+	printf("end-of-file on home page\n");
+	//关闭连接
+	Close(fd);
+}
+```
+
+**do_get_read函数**：
+
+```c
+// 源码： threads/web01.c
+
+/* include do_get_read */
+//功能：建立TCP连接，给服务器发送一个HTTP GET命令
+void *
+do_get_read(void *vptr)
+{
+	int					fd, n;
+	char				line[MAXLINE];
+	struct file			*fptr;
+
+	fptr = (struct file *) vptr;
+
+	//创建一个TCP套接字并建立一个连接，该套接字时通常的阻塞式套接字
+	//该线程将阻塞在connect调用，直到连接建立
+	fd = Tcp_connect(fptr->f_host, SERV);
+	fptr->f_fd = fd;
+	printf("do_get_read for %s, fd %d, thread %d\n",
+			fptr->f_name, fd, fptr->f_tid);
+
+	//构造HTTP GET命令并把它发送到服务器
+	write_get_cmd(fptr);	/* write() the GET command */
+
+		/* 4Read server's reply */
+	for ( ; ; ) {
+		//读入服务器应答
+		if ( (n = Read(fd, line, MAXLINE)) == 0)
+			break;		/* server closed connection */
+
+		printf("read %d bytes from %s\n", n, fptr->f_name);
+	}
+	printf("end-of-file on %s\n", fptr->f_name);
+	//关闭连接
+	Close(fd);
+	//设置该file完成标志
+	fptr->f_flags = F_DONE;		/* clears F_READING */
+
+	//返回，从而终止本线程
+	return(fptr);		/* terminate thread */
+}
+/* end do_get_read */
+```
+
+**write_get_cmd函数**：
+
+```c
+// 源码： threads/web01.c
+
+/* include write_get_cmd */
+void
+write_get_cmd(struct file *fptr)
+{
+	int		n;
+	char	line[MAXLINE];
+
+	n = snprintf(line, sizeof(line), GET_CMD, fptr->f_name);
+	Writen(fptr->f_fd, line, n);
+	printf("wrote %d bytes for %s\n", n, fptr->f_name);
+
+	fptr->f_flags = F_READING;			/* clears F_CONNECTING */
+}
+/* end write_get_cmd */
+```
+
+## 26.7 互斥锁
+
+**问题**：多线程更改一个共享变量
+
+**解决方法**：使用一个互斥锁（mutex）保护这个共享变量。访问该变量的前提条件时持有该锁
+
+对于Pthread，**互斥锁**是**类型**为**pthread_mutex_t**的变量
+
+- **上锁和解锁**
+
+```c
+#include <pthread.h>
+
+int pthread_mutex_lock(pthread_mutex_t *mptr);
+int pthread_mutex_unlock(pthread_mutex_t *mptr);
+
+//返回值：若成功则为0，若出错，则为正的Exxx值
+```
+
+- **锁的初始化**
+  - **互斥锁变量是静态分配的**：把它初始化为常值PTHREAD_MUTEX_INITIALIZER
+  - **在共享内存区中分配一个互斥锁**：通过调用pthread_mutex_init函数在运行时初始化
+
+**使用互斥锁的例子**：
+
+```c
+// 源码： threads/example02.c
+
+#include	"unpthread.h"
+
+#define	NLOOP 5000
+
+int				counter;		/* incremented by threads */
+pthread_mutex_t	counter_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void	*doit(void *);
+
+int
+main(int argc, char **argv)
+{
+	pthread_t	tidA, tidB;
+
+	Pthread_create(&tidA, NULL, &doit, NULL);
+	Pthread_create(&tidB, NULL, &doit, NULL);
+
+		/* 4wait for both threads to terminate */
+	Pthread_join(tidA, NULL);
+	Pthread_join(tidB, NULL);
+
+	exit(0);
+}
+
+void *
+doit(void *vptr)
+{
+	int		i, val;
+
+	/*
+	 * Each thread fetches, prints, and increments the counter NLOOP times.
+	 * The value of the counter should increase monotonically.
+	 */
+
+	for (i = 0; i < NLOOP; i++) {
+		Pthread_mutex_lock(&counter_mutex);
+
+		val = counter;
+		printf("%d: %d\n", pthread_self(), val + 1);
+		counter = val + 1;
+
+		Pthread_mutex_unlock(&counter_mutex);
+	}
+
+	return(NULL);
+}
+```
+
+## 26.8 条件变量
+
+**条件变量**可以在某个条件发生之前，将进程投入睡眠 
+
+通常是**条件变量**结合**互斥锁**实现这个功能。互斥锁提供互斥机制，条件变量提供信号机制
+
+- 结合使用的原因：“条件”通常是线程之间共享的某个变量的值，允许不同线程设置和测试该变量，因此要求一个与该变量关联的互斥锁
+
+对于Pthread，**条件变量**是**类型**为**pthread_cond_t**的变量
+
+```c
+//#include <pthread.h>
+
+//等待cptr指向的条件变量，投入睡眠之前会释放mptr指向的互斥锁，唤醒后会重新获得mptr指向的互斥锁
+int pthread_cond_wait(pthread_cond_t *cptr, pthread_mutex_t *mptr);
+
+//允许线程设置一个阻塞时间的限制。如果超时，返回ETIME错误。这个时间值是一个绝对时间，而不是一个时间增量。也就是说abstime参数是函数应该返回时刻的系统时间——从1970年1月1日UTC时间以来的秒数和纳秒数
+int pthread_cond_timewait(pthread_cond_t *cptr, pthread_mutex_t *mptr, const struct timespec *abstime);
+
+//唤醒等待cptr指向的条件变量上的单个线程
+int pthread_cond_signal(pthread_cond_t *cptr);
+
+//有时候一个线程应该唤醒多个线程，这种情况下它可以调用该函数唤醒在相应条件变量上的所有线程
+int pthread_cond_broadcast(pthread_cond_t *cptr);
+
+```
+
+## 26.9 Web客户与同时连接（Pthread线程）
