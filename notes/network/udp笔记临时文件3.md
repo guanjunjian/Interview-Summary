@@ -441,6 +441,301 @@ done:
 
 ## 16.5 非阻塞connect：Web客户程序
 
+客户先建立一个与某个Web服务器的HTTP连接，再获取一个主页。该主页往往含有多个对于其他网页的引用。客户可以使用非阻塞connect同时获取多个网页。以此取代每次只获取一个网页的串行获取手段
+
+在处理Web客户时，第一个连接独立执行，来自该连接的数据含有多个引用，随后用于访问这些引用的多个连接则并行执行
+
+执行本程序的一个典型例子如下：
+
+![](../../pics/network/unp笔记/Pic_16_13_后_Web程序执行例子.png)
+
+**解释**：
+
+- `3`：执行最多3个连接
+
+- `/`：服务器的根网页
+- `image*.gif`：一个GIF图像文件
+
+**web.h头文件**：
+
+```c
+// 源码： nonblock/web.h
+
+#include	"unp.h"
+
+//本程序最多度MAXFILES个来自Web服务器的文件
+#define	MAXFILES	20
+#define	SERV		"80"	/* port number or service name */
+
+struct file {
+  char	*f_name;			/* 文件名（复制自命令行参数） */
+  char	*f_host;			/* 文件所在服务器主机名或IP名 */
+  int    f_fd;				/* 用于读取文件的套接字描述符 */
+  int	 f_flags;			/* 用于指定准备对文件执行什么操作（连接、读取或完成）的一组标志*/
+} file[MAXFILES];
+
+#define	F_CONNECTING	1	/* connect() in progress */
+#define	F_READING		2	/* connect() complete; now reading */
+#define	F_DONE			4	/* all done */
+
+#define	GET_CMD		"GET %s HTTP/1.0\r\n\r\n"
+
+			/* globals */
+int		nconn, nfiles, nlefttoconn, nlefttoread, maxfd;
+fd_set	rset, wset;
+
+			/* function prototypes */
+void	home_page(const char *, const char *);
+void	start_connect(struct file *);
+void	write_get_cmd(struct file *);
+```
+
+**web main函数**：
+
+```c
+// 源码： nonblock/web.c
+
+/* include web1 */
+#include	"web.h"
+
+int
+main(int argc, char **argv)
+{
+	int		i, fd, n, maxnconn, flags, error;
+	char	buf[MAXLINE];
+	fd_set	rs, ws;
+
+	if (argc < 5)
+		err_quit("usage: web <#conns> <hostname> <homepage> <file1> ...");
+	//获取最多执行连接数
+	maxnconn = atoi(argv[1]);
+
+	//根据命令行参数的相关信息填写file结构数组
+	nfiles = min(argc - 4, MAXFILES);
+	for (i = 0; i < nfiles; i++) {
+		file[i].f_name = argv[i + 4];
+		file[i].f_host = argv[2];
+		file[i].f_flags = 0;
+	}
+	printf("nfiles = %d\n", nfiles);
+
+	//创建一个TCP连接，发出一个命令到服务器，读取主页
+	//第一个连接，需要在我们开始并行建立多个连接之前独自完成
+	home_page(argv[2], argv[3]);
+
+	FD_ZERO(&rset);
+	FD_ZERO(&wset);
+	maxfd = -1;
+	//nlefttoread是待读取的文件数（当它达到0时程序任务完成）
+	//nlefttoconn是尚无TCP连接的文件数
+	//nconn是当前打开着的连接数（它不能超过命令行参数[1]）
+	nlefttoread = nlefttoconn = nfiles;
+	nconn = 0;
+/* end web1 */
+/* include web2 */
+	//主循环：
+	//只要还有文件要处理（nlefttoread大于0）
+	while (nlefttoread > 0) {
+		//如果没有达到最大并行连接数且另有连接需要建立
+		//那就找到一个尚未处理的文件（由值为0的f_flags指示）
+		//然后调用start_connect发起另一连接
+		while (nconn < maxnconn && nlefttoconn > 0) {
+				/* 4find a file to read */
+			for (i = 0 ; i < nfiles; i++)
+				if (file[i].f_flags == 0)
+					break;
+			if (i == nfiles)
+				err_quit("nlefttoconn = %d but nothing found", nlefttoconn);
+			//发起非阻塞connect
+			start_connect(&file[i]);
+			nconn++;
+			nlefttoconn--;
+		}
+
+		rs = rset;
+		ws = wset;
+		//在所有活跃的描述符上使用select，
+		//以便处理非阻塞连接的建立，又处理来自服务器的数据
+		//一个非阻塞connect正在进展的描述符可能会同时开启读写
+		//连接建立完毕并正在等待来自服务器的数据的描述符只会开启读
+		n = Select(maxfd+1, &rs, &ws, NULL, NULL);
+
+		//遍历files结构数组中的元素，确定哪些描述符需要处理
+		for (i = 0; i < nfiles; i++) {
+			flags = file[i].f_flags;
+			//flags为0表示尚未开始处理
+			//flags为F_DONE表示处理完成
+			//对于这两种flags直接跳过
+			if (flags == 0 || flags & F_DONE)
+				continue;
+			fd = file[i].f_fd;
+			//对于设置了F_CONNECTING标志的一个描述符
+			//如果它在读描述符集或写描述符集中对应的位已经打开
+			//那么非阻塞connect已经完成
+			//调用getsockopt获取该套接字的待处理错误，如果为0，那么连接成功
+			if (flags & F_CONNECTING &&
+				(FD_ISSET(fd, &rs) || FD_ISSET(fd, &ws))) {
+				n = sizeof(error);
+				if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &n) < 0 ||
+					error != 0) {
+					err_ret("nonblocking connect failed for %s",
+							file[i].f_name);
+				}
+					/* 4connection established */
+				printf("connection established for %s\n", file[i].f_name);
+				//connect成功的话，关闭该描述符在写描述符集中对应的位
+				//并向服务器发送HTTP请求到服务器
+				FD_CLR(fd, &wset);		/* no more writeability test */
+				write_get_cmd(&file[i]);/* write() the GET command */
+
+			} else if (flags & F_READING && FD_ISSET(fd, &rs)) {
+				//对于设置了F_READING的描述符，且它读就绪
+				//调用read获取数据
+				if ( (n = Read(fd, buf, sizeof(buf))) == 0) {
+					//如果read返回0，表示收到服务器的FIN
+					//关闭套接字，并设置F_DONE标志
+					//关闭该套接字在读描述符集中对应的位
+					printf("end-of-file on %s\n", file[i].f_name);
+					Close(fd);
+					file[i].f_flags = F_DONE;	/* clears F_READING */
+					FD_CLR(fd, &rset);
+					nconn--;
+					nlefttoread--;
+				} else {
+					printf("read %d bytes from %s\n", n, file[i].f_name);
+				}
+			}
+		}
+	}
+	exit(0);
+}
+/* end web2 */
+```
+
+**home_page函数**：
+
+```c
+#include	"web.h"
+
+void
+home_page(const char *host, const char *fname)
+{
+	int		fd, n;
+	char	line[MAXLINE];
+
+	//建立一个与服务器的连接
+	//阻塞式connect
+	fd = Tcp_connect(host, SERV);	/* blocking connect() */
+
+	//发出一个HTTP GET命令以获取主页（文件名经常是/）
+	n = snprintf(line, sizeof(line), GET_CMD, fname);
+	Writen(fd, line, n);
+
+	for ( ; ; ) {
+		//读取应答（不对应答做任何操作）
+		if ( (n = Read(fd, line, MAXLINE)) == 0)
+			break;		/* server closed connection */
+
+		printf("read %d bytes of home page\n", n);
+		/* do whatever with data */
+	}
+	printf("end-of-file on home page\n");
+	//关闭连接
+	Close(fd);
+}
+
+```
+
+**start_connect函数**：
+
+```c
+#include	"web.h"
+
+void
+start_connect(struct file *fptr)
+{
+	int				fd, flags, n;
+	struct addrinfo	*ai;
+
+	//Host_serv查找并转换主机名和服务名
+	//它返回指向某个addrinfo结构数组的一个指针
+	//只使用其中第一个结构
+	ai = Host_serv(fptr->f_host, SERV, 0, SOCK_STREAM);
+
+	//创建一个TCP套接字
+	fd = Socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+	fptr->f_fd = fd;
+	printf("start_connect for %s, fd %d\n", fptr->f_name, fd);
+
+		/* 4Set socket nonblocking */
+	//把该套接字设置为非阻塞
+	flags = Fcntl(fd, F_GETFL, 0);
+	Fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+		/* 4Initiate nonblocking connect to the server. */
+	//发起非阻塞connect
+	if ( (n = connect(fd, ai->ai_addr, ai->ai_addrlen)) < 0) {
+		if (errno != EINPROGRESS)
+			err_sys("nonblocking connect error");
+		//如果没有立马连接成功
+		//把相应文件的标志设为“正在连接”F_CONNECTING
+		fptr->f_flags = F_CONNECTING;
+		//设置该套接字在读描述符集合写描述符集中对应的位
+		//因为select将等待其中任何一个条件变为真，作为连接已建立完毕的指示
+		FD_SET(fd, &rset);			/* select for reading and writing */
+		FD_SET(fd, &wset);
+		if (fd > maxfd)
+			maxfd = fd;
+
+	} else if (n >= 0)				/* connect is already done */
+		//如果connect立即成功返回
+		//表示连接已经建立
+		//调用write_get_cmd函数发送一个命令到服务器
+		write_get_cmd(fptr);	/* write() the GET command */
+
+	//connet把套接字设为非阻塞后，不再把它重置为默认的阻塞模式
+	//这么做没有问题，因为我们只往套接字中写入少量的数据，
+	//写入的数据比发送缓冲区小很多，因此可是说是不会阻塞的
+}
+```
+
+**write_get_cmd函数**：
+
+```c
+// 源码： nonblock/write_get_cmd.c
+
+#include	"web.h"
+
+void
+write_get_cmd(struct file *fptr)
+{
+	int		n;
+	char	line[MAXLINE];
+
+	//构造命令
+	n = snprintf(line, sizeof(line), GET_CMD, fptr->f_name);
+	//将命令写到套接字中
+	Writen(fptr->f_fd, line, n);
+	printf("wrote %d bytes for %s\n", n, fptr->f_name);
+
+	//设置F_READING，它同时清除F_CONNECTING标志
+	//该命令向main函数主循环指出：本描述符已准备好提供输入
+	fptr->f_flags = F_READING;			/* clears F_CONNECTING */
+
+	//在读描述符集中打开与本描述符对应的位
+	FD_SET(fptr->f_fd, &rset);			/* will read server's reply */
+	if (fptr->f_fd > maxfd)
+		maxfd = fptr->f_fd;
+}
+```
+
+**优化**：
+
+- 1.当select告知已经就绪的那么多描述符被处理完之后，可以终止main函数中select之后的for循环
+- 2.如果可能的话，可以减小maxfd的值，省得select检查那些不再设置的描述符位
+
+**同时连接的性能**：如果网络中存在拥塞，这个技术就会有缺陷。当一个客户到一个服务器建立多个连接时，这些连接之间在TCP层并无通信。即使其中一个连接遇到分组丢失（隐式指示网络已经拥塞），IP地址对相同的其他连接也不会得到通知
+
 ## 16.6 非阻塞accpet
 
 **背景**：一个繁忙的服务器，它无法在select返回监听套接字的可读条件后马上调用accept。当客户在服务器调用select后，accept之前中止某个连接时（客户向服务器发送RST），源自Berkeley的实现不把这个中止的连接返回给服务器，而其他实现本应该返回ECONNABORTED错误，却返回的是EPROTO错误
@@ -455,6 +750,5 @@ done:
   - ECONNABORTED（POSIX实现，客户中止连接时）
   - EPROTO（SVR4实现，客户中止连接时）
   - EINTR（如果有信号被捕获）
-
 
 
