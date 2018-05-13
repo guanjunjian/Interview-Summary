@@ -297,3 +297,164 @@ str_cli(FILE *fp, int sockfd)
 
 ## 16.3 非阻塞connect
 
+如果对于一个非阻塞的TCP套接字调用connect，并且连接不能立即建立，那么照样会发起连接，但会返回一个EINPROGRESS错误。接着使用select检查这个连接或成功或失败的已建立条件
+
+非阻塞的connect有**3个用途**：
+
+- 1.**可以把3路握手叠加在其他处理上**（完成一个connect要花一个RTT，而RTT波动范围很大，这段时间内也许有想要执行的其他处理工作可执行） 
+- 2.**同时建立多个连接**
+- 3.既然使用select等待连接建立，**可以给select指定一个时间限制，缩短connect的超时**（许多实现有着75s到数分钟的connect超时时间） 
+
+使用非阻塞式connect时，**必须处理下列细节**：
+
+- 1.尽管套接字非阻塞，如果连接到的服务器在同一个主机上，那么当我们调用connect时，连接通常立刻建立。因此，必须处理这种情况
+- 2.源自Berkeley的实现对于select和非阻塞connect有以下两个规则：
+  - 当连接成功建立时，描述符变为可写
+  - 当连接建立遇到错误时，描述符变为既可读又可写
+
+## 16.4 非阻塞connect：时间获取客户程序
+
+**main函数**：
+
+```c
+// 源码： nonblock/daytimetcpcli.c
+
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int					sockfd, n;
+	struct sockaddr_in	servaddr;
+	char				recvline[MAXLINE + 1];
+
+	if ( (sockfd = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+		err_sys("socket error");
+
+	bzero(&servaddr, sizeof(servaddr));
+	servaddr.sin_family      = AF_INET;
+	servaddr.sin_addr.s_addr = inet_addr(argv[1]);
+	servaddr.sin_port        = htons(13);	/* daytime server */
+
+	//调用非阻塞式connect
+	if (connect_nonb(sockfd, (SA *) &servaddr, sizeof(servaddr), 0) < 0)
+		err_sys("connect error");
+
+	for ( ; ; ) {
+		if ( (n = read(sockfd, recvline, MAXLINE)) <= 0) {
+			if (n == 0)
+				break;		/* server closed connection */
+			else
+				err_sys("read error");
+		}
+		recvline[n] = 0;	/* null terminate */
+		Fputs(recvline, stdout);
+	}
+	exit(0);
+}
+```
+
+**connect_nonb函数**：
+
+前3个参数与connect相同，第4个参数是等待连接完成的秒数。值为0暗指不给select设置超时；因此内核将使用通常的TCP连接建立超时
+
+```c
+// 源码： lib/connect_nonb.c
+
+#include	"unp.h"
+
+int
+connect_nonb(int sockfd, const SA *saptr, socklen_t salen, int nsec)
+{
+	int				flags, n, error;
+	socklen_t		len;
+	fd_set			rset, wset;
+	struct timeval	tval;
+
+	flags = Fcntl(sockfd, F_GETFL, 0);
+	Fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+
+	error = 0;
+	//期待的错误是EINPROGRESS
+	//connect返回的任何其他错误返回给函数的调用者
+	if ( (n = connect(sockfd, saptr, salen)) < 0)
+		if (errno != EINPROGRESS)
+			return(-1);
+
+	/* Do whatever we want while the connect is taking place. */
+
+	//如果非阻塞返回0，那么连接已经建立
+	//即服务器处于客户所在主机时可能发生这种情况
+	if (n == 0)
+		goto done;	/* connect completed immediately */
+
+	FD_ZERO(&rset);
+	FD_SET(sockfd, &rset);
+	wset = rset;
+	tval.tv_sec = nsec;
+	tval.tv_usec = 0;
+
+	//如果调用者将nsec设为0，则需要将select的最后一个参数设为NULL
+	//表示使用默认超时时间
+	if ( (n = Select(sockfd+1, &rset, &wset, NULL,
+					 nsec ? &tval : NULL)) == 0) {
+		close(sockfd);		/* timeout */
+		errno = ETIMEDOUT;
+		return(-1);
+	}
+
+	//如果描述符变为可读或可写
+	if (FD_ISSET(sockfd, &rset) || FD_ISSET(sockfd, &wset)) {
+		len = sizeof(error);
+		//调用getsockopt获取待处理错误
+		//如果连接建立成功，该值为0，则不做处理
+		//如果连接建立发生错误，该值就是对应连接错误的errno
+		if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0)
+			return(-1);			/* Solaris pending error */
+	} else
+		err_quit("select error: sockfd not set");
+
+done:
+	//恢复套接字的文件状态标志
+	Fcntl(sockfd, F_SETFL, flags);	/* restore file status flags */
+	
+	//如果自getsockopt返回的errno变量为非0值，
+	//把该值存入errno，函数本身返回-1
+	if (error) {
+		close(sockfd);		/* just in case */
+		errno = error;
+		return(-1);
+	}
+	return(0);
+}
+```
+
+**移植性问题**：
+
+套接字的各种实现以及非阻塞connect会带来移植性问题。非阻塞connect是网络编程中最不易移植的部分（比如，一个移植性问题是如何判断连接成功建立，具体参考P353）
+
+非阻塞connect不可移植，不同的实现有不同的手段指示连接已经成功建立或已经碰到错误
+
+**被中断的connect**：
+
+被中断的connect：对于一个正常的阻塞式套接字，如果其上的connect调用在TCP三路握手完成前被中断（譬如捕获了某个信号）：如果connect调用不由内核自动重启，那么它将返回EINTR。不能再次调用connect等待未完成的连接继续完成，否则会返回EADDRINUSE错误。只能调用select像处理非阻塞式connect那样处理
+
+## 16.5 非阻塞connect：Web客户程序
+
+## 16.6 非阻塞accpet
+
+**背景**：一个繁忙的服务器，它无法在select返回监听套接字的可读条件后马上调用accept。当客户在服务器调用select后，accept之前中止某个连接时（客户向服务器发送RST），源自Berkeley的实现不把这个中止的连接返回给服务器，而其他实现本应该返回ECONNABORTED错误，却返回的是EPROTO错误
+
+**问题**：在服务器从select返回到调用accept期间，服务器TCP收到来自客户的RST。这个已完成的连接被服务器TCP驱逐出队列（假设其中没有其他已完成的连接），服务器调用accept，但是由于没有任何已经完成的连接，服务器于是阻塞。从而服务器单纯地阻塞在accept调用上，无法处理任何其他就绪的描述符
+
+**解决方法**：
+
+- 1.当使用select获悉某个监听套接字上何时有已完成连接准备好被accept时，总是把监听套接字设为**非阻塞**
+- 2.在后续的accpet调用中忽略以下错误：
+  - EWOULDBLOCK（Berkeley的实现，客户中止连接时）
+  - ECONNABORTED（POSIX实现，客户中止连接时）
+  - EPROTO（SVR4实现，客户中止连接时）
+  - EINTR（如果有信号被捕获）
+
+
+
