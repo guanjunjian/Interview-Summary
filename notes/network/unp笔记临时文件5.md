@@ -373,3 +373,536 @@ getaddrinfo函数返回的所有**存储空间都是动态获取**（譬如来�
 ![](../../pics/network/unp笔记/Pic_11_freeaddrinfo函数.png)
 
 - **ai**：指向由getaddrinfo返回的第一个addrinfo结构（这个链表中所有的结构以及由它们指向的任何动态存储空间都被释放掉） 
+
+## 11.11 host_serv函数
+
+host_serv封装了函数getaddrinfo，不要求调用者分配并填写一个hints结构，该结构中的**地址族**和**套接字类型**字段作为参数： 
+
+![](../../pics/network/unp笔记/Pic_11_host_serv函数.png)
+
+**host_serv函数**：
+
+```c
+// 源码： lib/host_serv.c
+
+#include	"unp.h"
+
+struct addrinfo *
+host_serv(const char *host, const char *serv, int family, int socktype)
+{
+	int				n;
+	struct addrinfo	hints, *res;
+
+	//初始化一个hints结构
+	bzero(&hints, sizeof(struct addrinfo));
+	hints.ai_flags = AI_CANONNAME;	/* always return canonical name */
+	hints.ai_family = family;		/* AF_UNSPEC, AF_INET, AF_INET6, etc. */
+	hints.ai_socktype = socktype;	/* 0, SOCK_STREAM, SOCK_DGRAM, etc. */
+
+	if ( (n = getaddrinfo(host, serv, &hints, &res)) != 0)
+		return(NULL);
+
+	return(res);	/* return pointer to first on linked list */
+}
+```
+
+## 11.12 tcp_connect函数
+
+tcp_connect执行TCP客户的通常步骤：创建一个TCP套接字并连接到一个服务器 
+
+![](../../pics/network/unp笔记/Pic_11_tcp_connect函数.png)
+
+**tcp_connect函数**：
+
+```c
+// 源码： lib/tcp_connect.c
+
+#include	"unp.h"
+
+int
+tcp_connect(const char *host, const char *serv)
+{
+	int				sockfd, n;
+	struct addrinfo	hints, *res, *ressave;
+
+	bzero(&hints, sizeof(struct addrinfo));
+	//指定地址族为AF_UNSPEC
+	hints.ai_family = AF_UNSPEC;
+	//指定套接字类型为SOCK_STREAM
+	hints.ai_socktype = SOCK_STREAM;
+
+	if ( (n = getaddrinfo(host, serv, &hints, &res)) != 0)
+		err_quit("tcp_connect error for %s, %s: %s",
+				 host, serv, gai_strerror(n));
+	ressave = res;
+
+	//尝试getinfo返回的每一个IP地址
+	do {
+		sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (sockfd < 0)
+			continue;	/* ignore this one */
+
+		if (connect(sockfd, res->ai_addr, res->ai_addrlen) == 0)
+			break;		/* success */
+
+		Close(sockfd);	/* ignore this one */
+	} while ( (res = res->ai_next) != NULL);
+
+	if (res == NULL)	/* errno set from final connect() */
+		err_sys("tcp_connect error for %s, %s", host, serv);
+
+	//把所有动态分配的内存空间返回系统
+	freeaddrinfo(ressave);
+
+	return(sockfd);
+}
+```
+
+**例子：时间获取TCP客户程序**
+
+```c
+// 源码： names/daytimetcpcli.c
+
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int				sockfd, n;
+	char			recvline[MAXLINE + 1];
+	socklen_t		len;
+	struct sockaddr_storage	ss;
+
+	if (argc != 3)
+		err_quit("usage: daytimetcpcli <hostname/IPaddress> <service/port#>");
+
+	//argv[1]：主机名或IP地址
+	//argv[2]：服务名或端口号
+	sockfd = Tcp_connect(argv[1], argv[2]);
+
+	len = sizeof(ss);
+	//取得服务器的协议地址并显示出来，为了在后面的例子中验证所用的协议
+	Getpeername(sockfd, (SA *)&ss, &len);
+	printf("connected to %s\n", Sock_ntop_host((SA *)&ss, len));
+
+	while ( (n = Read(sockfd, recvline, MAXLINE)) > 0) {
+		recvline[n] = 0;	/* null terminate */
+		Fputs(recvline, stdout);
+	}
+	exit(0);
+}
+```
+
+## 11.13 tcp_listen函数
+
+tcp_listen执行TCP服务器的通常步骤：创建一个TCP套接字，给它捆绑服务器的众所周知的端口，并允许接受外来的连接请求： 
+
+![](../../pics/network/unp笔记/Pic_11_tcp_listen函数.png)
+
+**tcp_listen函数**：
+
+```c
+// 源码： lib/tcp_listen.c
+
+#include	"unp.h"
+
+int
+tcp_listen(const char *host, const char *serv, socklen_t *addrlenp)
+{
+	int				listenfd, n;
+	const int		on = 1;
+	struct addrinfo	hints, *res, *ressave;
+
+	bzero(&hints, sizeof(struct addrinfo));
+	//套接字将用于被动打开，因为本函数供服务器使用
+	hints.ai_flags = AI_PASSIVE;
+	//指定地址族为AF_UNSPEC
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+
+	//如果不指定主机名host（对于想绑定通配地址的服务器通常如此）
+	//AI_PASSIVE和AF_UNSPEC这两个暗示信息将会返回两个套接字地址结构
+	//第一个是IPv6的，第二个是IPv4的（假定运行在一个双栈主机上）
+	if ( (n = getaddrinfo(host, serv, &hints, &res)) != 0)
+		err_quit("tcp_listen error for %s, %s: %s",
+				 host, serv, gai_strerror(n));
+	ressave = res;
+
+	//调用socket和bind函数，如果任何一个调用失败，那就忽略当前addrinfo结构而改用下一个
+	do {
+		listenfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (listenfd < 0)
+			continue;		/* error, try next one */
+
+		//对TCP服务器总是设置SO_REUSEADDR套接字选项
+		Setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+		if (bind(listenfd, res->ai_addr, res->ai_addrlen) == 0)
+			break;			/* success */
+
+		Close(listenfd);	/* bind error, close and try next one */
+	} while ( (res = res->ai_next) != NULL);
+
+	//检查是否失败（遍历完整个链表），如果失败则显示一个出错消息并终止
+	if (res == NULL)	/* errno from final socket() or bind() */
+		err_sys("tcp_listen error for %s, %s", host, serv);
+
+	Listen(listenfd, LISTENQ);
+
+	//通过addrlenp指针返回协议地址的大小
+	if (addrlenp)
+		*addrlenp = res->ai_addrlen;	/* return size of protocol address */
+
+	freeaddrinfo(ressave);
+
+	return(listenfd);
+}
+```
+
+**例子：时间获取TCP服务器程序（不可指定协议）**
+
+```c
+// 源码： names/daytimesrv1.c
+
+#include	"unp.h"
+#include	<time.h>
+
+int
+main(int argc, char **argv)
+{
+	int				listenfd, connfd;
+	socklen_t		len;
+	char			buff[MAXLINE];
+	time_t			ticks;
+	struct sockaddr_storage	cliaddr;
+
+	if (argc != 2)
+		err_quit("usage: daytimetcpsrv1 <service or port#>");
+
+    //第一个参数是空指针，由tcp_listen内部指定的协议族为AF_UNSPEC
+    //在双栈主机上返回IPv6个IPv4套接字地址结构
+	listenfd = Tcp_listen(NULL, argv[1], NULL);
+
+	for ( ; ; ) {
+		len = sizeof(cliaddr);
+		connfd = Accept(listenfd, (SA *)&cliaddr, &len);
+		printf("connection from %s\n", Sock_ntop((SA *)&cliaddr, len));
+
+		ticks = time(NULL);
+		snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
+		Write(connfd, buff, strlen(buff));
+
+		Close(connfd);
+	}
+}
+
+```
+
+**例子：时间获取TCP服务器程序（可指定协议）**
+
+该版本允许我们强制服务器使用某个给定的协议（IPv4或IPv6）：允许用户作为程序的命令行参数输入一个IP地址或主机名，根据输入值判断协议类型（getaddrinfo会自行判断）
+
+```c
+// 源码： names/daytimesrv2.c
+
+#include	"unp.h"
+#include	<time.h>
+
+int
+main(int argc, char **argv)
+{
+	int				listenfd, connfd;
+	socklen_t		len, addrlen;
+	char			buff[MAXLINE];
+	time_t			ticks;
+	struct sockaddr_storage	cliaddr;
+
+    //主要修改在这里
+	if (argc == 2)
+		listenfd = Tcp_listen(NULL, argv[1], &addrlen);
+	else if (argc == 3)
+		listenfd = Tcp_listen(argv[1], argv[2], &addrlen);
+	else
+		err_quit("usage: daytimetcpsrv2 [ <host> ] <service or port>");
+
+	for ( ; ; ) {
+		len = sizeof(cliaddr);
+		connfd = Accept(listenfd, (SA *)&cliaddr, &len);
+		printf("connection from %s\n", Sock_ntop((SA *)&cliaddr, len));
+
+		ticks = time(NULL);
+		snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
+		Write(connfd, buff, strlen(buff));
+
+		Close(connfd);
+	}
+}
+```
+
+## 11.14 udp_client函数
+
+创建未连接UDP套接字 ：
+
+![](../../pics/network/unp笔记/Pic_11_udp_client函数.png)
+
+- **saptr**：指向的套接字地址结构保存有服务器的IP地址和端口号，用于稍后调用sendto 
+- **lenp**：saptr所指的套接字地址结构的大小。不能为空指针，因为任何sendto和recvfrom调用都需要知道套接字地址结构的长度 
+
+**udp_client函数**：
+
+```c
+// 源码： lib/udp_client.c
+
+#include	"unp.h"
+
+int
+udp_client(const char *host, const char *serv, SA **saptr, socklen_t *lenp)
+{
+	int				sockfd, n;
+	struct addrinfo	hints, *res, *ressave;
+
+	bzero(&hints, sizeof(struct addrinfo));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+
+	if ( (n = getaddrinfo(host, serv, &hints, &res)) != 0)
+		err_quit("udp_client error for %s, %s: %s",
+				 host, serv, gai_strerror(n));
+	ressave = res;
+
+	do {
+		sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (sockfd >= 0)
+			break;		/* success */
+	} while ( (res = res->ai_next) != NULL);
+
+	if (res == NULL)	/* errno set from final socket() */
+		err_sys("udp_client error for %s, %s", host, serv);
+
+	//用于分配一个套接字地址结构的内存空间
+	*saptr = Malloc(res->ai_addrlen);
+	memcpy(*saptr, res->ai_addr, res->ai_addrlen);
+	*lenp = res->ai_addrlen;
+
+	freeaddrinfo(ressave);
+
+	return(sockfd);
+}
+```
+
+**例子：时间获取UDP客户程序（可指定协议）**
+
+```c
+// 源码： names/daytimeudpcli1.c
+
+#include	"unp.h"
+
+int
+main(int argc, char **argv)
+{
+	int				sockfd, n;
+	char			recvline[MAXLINE + 1];
+	socklen_t		salen;
+	struct sockaddr	*sa;
+
+	if (argc != 3)
+		err_quit("usage: daytimeudpcli1 <hostname/IPaddress> <service/port#>");
+
+	//获得一个UDP套接字，注意这里的salen
+	sockfd = Udp_client(argv[1], argv[2], (void **) &sa, &salen);
+
+	printf("sending to %s\n", Sock_ntop_host(sa, salen));
+
+	Sendto(sockfd, "", 1, 0, sa, salen);	/* send 1-byte datagram */
+
+	n = Recvfrom(sockfd, recvline, MAXLINE, 0, NULL, NULL);
+	recvline[n] = '\0';	/* null terminate */
+	Fputs(recvline, stdout);
+
+	exit(0);
+}
+```
+
+## 11.15 udp_connect函数
+
+创建一个已连接UDP套接字： 
+
+![](../../pics/network/unp笔记/Pic_udp_connect函数.png)
+
+因为已连接套接字改用write代替sendto，所以相比于udp_client，省略了套接字地址结构及长度参数 
+
+**udp_connect函数**：
+
+与tcp_connect的区别：
+
+- UDP套接字上的connect调用不会发送任何东西到对端。如果存在错误（如对端不可达或指定端口上没有服务器），调用者就得等到向对端发送一个数据报后才能发现
+
+```c
+// 源码： lib/udp_server.c
+
+#include	"unp.h"
+
+int
+udp_server(const char *host, const char *serv, socklen_t *addrlenp)
+{
+	int				sockfd, n;
+	struct addrinfo	hints, *res, *ressave;
+
+	bzero(&hints, sizeof(struct addrinfo));
+	hints.ai_flags = AI_PASSIVE;
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+
+	if ( (n = getaddrinfo(host, serv, &hints, &res)) != 0)
+		err_quit("udp_server error for %s, %s: %s",
+				 host, serv, gai_strerror(n));
+	ressave = res;
+
+	do {
+		sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (sockfd < 0)
+			continue;		/* error - try next one */
+
+		if (bind(sockfd, res->ai_addr, res->ai_addrlen) == 0)
+			break;			/* success */
+
+		Close(sockfd);		/* bind error - close and try next one */
+	} while ( (res = res->ai_next) != NULL);
+
+	if (res == NULL)	/* errno from final socket() or bind() */
+		err_sys("udp_server error for %s, %s", host, serv);
+
+	if (addrlenp)
+		*addrlenp = res->ai_addrlen;	/* return size of protocol address */
+
+	freeaddrinfo(ressave);
+
+	return(sockfd);
+}
+```
+
+## 11.16 udp_server函数
+
+创建一个用于UDP服务器的UDP套接字：
+
+![](../../pics/network/unp笔记/Pic_udp_server函数.png)
+
+**udp_server函数**：
+
+与tcp_listen的区别：
+
+- 没有调用listen
+- 不设置SO_REUSEADDR，因为该套接字选项允许在支持多播的主机上把同一个UDP端口绑定到多个套接字上。既然UDP套接字没有TCP的TIME_WAIT状态的类似物，启动服务器时就没有设置这个套接字选项的必要
+
+```c
+// 源码： lib/udp_server.c
+
+#include	"unp.h"
+
+int
+udp_server(const char *host, const char *serv, socklen_t *addrlenp)
+{
+	int				sockfd, n;
+	struct addrinfo	hints, *res, *ressave;
+
+	bzero(&hints, sizeof(struct addrinfo));
+	hints.ai_flags = AI_PASSIVE;
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+
+	if ( (n = getaddrinfo(host, serv, &hints, &res)) != 0)
+		err_quit("udp_server error for %s, %s: %s",
+				 host, serv, gai_strerror(n));
+	ressave = res;
+
+	do {
+		sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (sockfd < 0)
+			continue;		/* error - try next one */
+
+		if (bind(sockfd, res->ai_addr, res->ai_addrlen) == 0)
+			break;			/* success */
+
+		Close(sockfd);		/* bind error - close and try next one */
+	} while ( (res = res->ai_next) != NULL);
+
+	if (res == NULL)	/* errno from final socket() or bind() */
+		err_sys("udp_server error for %s, %s", host, serv);
+
+	if (addrlenp)
+		*addrlenp = res->ai_addrlen;	/* return size of protocol address */
+
+	freeaddrinfo(ressave);
+
+	return(sockfd);
+}
+```
+
+**例子：时间获取UDP服务器程序（可指定协议）**
+
+```c
+// 源码： names/daytimeudpsrv2.c
+
+#include	"unp.h"
+#include	<time.h>
+
+int
+main(int argc, char **argv)
+{
+	int				sockfd;
+	ssize_t			n;
+	char			buff[MAXLINE];
+	time_t			ticks;
+	socklen_t		len;
+	struct sockaddr_storage	cliaddr;
+
+	if (argc == 2)
+		sockfd = Udp_server(NULL, argv[1], NULL);
+	else if (argc == 3)
+		sockfd = Udp_server(argv[1], argv[2], NULL);
+	else
+		err_quit("usage: daytimeudpsrv [ <host> ] <service or port>");
+
+	for ( ; ; ) {
+		len = sizeof(cliaddr);
+		n = Recvfrom(sockfd, buff, MAXLINE, 0, (SA *)&cliaddr, &len);
+		printf("datagram from %s\n", Sock_ntop((SA *)&cliaddr, len));
+
+		ticks = time(NULL);
+		snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
+		Sendto(sockfd, buff, strlen(buff), 0, (SA *)&cliaddr, len);
+	}
+}
+```
+
+# IP地址与端口号转主机与服务名字
+
+## 11.17 getnameinfo
+
+getaddrinfo的互补函数，以一个套接字地址为参数，返回描述其中的主机的一个字符串和描述其中的服务的另一个字符串
+
+**sock_ntop和getnameinfo的差别**：前者不涉及DNS，只返回IP地址和端口号的一个可显示版本；后者通常尝试获取主机和服务的名字（PTR记录）
+
+![](../../pics/network/unp笔记/Pic_getnameinfo函数.png)
+
+- **sockaddr**：指向套接字地址结构，包含了待转换为可读字符串的协议地址
+- **addrlen**：sockaddr指向的套接字地址结构的大小
+- **host**：指向存储转换得到的”主机名“信息的buf（调用者预先分配）
+- **hostlen**：host指向的buf的大小（不想获得”主机名“信息则设为0）
+- **serv**：指向存储转换得到的”服务名“信息的buf（调用者预先分配）
+- **servlen**：serv指向的buf的大小（不想获得”服务名“信息则设为0）
+- **flags**：标志，见下表
+
+![](../../pics/network/unp笔记/Pic_11_20_getnameinfo的标志值.png)
+
+**对flag的解释**：
+
+- **NI_DGRAM**：当知道处理的是数据报套接字时，调用者应设置NI_DGRAM标志，因为在套接字地址结构中给出的仅仅是IP地址和端口号，getnameinfo无法就此确定所用协议（TCP或UDP）
+- **NI_NAMEREQD**：如果无法使用DNS反向解析出主机名，该标志将导致返回一个错误
+- **NI_NOFQDN**：FQDN：全限定额主机名。例如：主机名是bigserver,域名是mycompany.com,那么FQDN就是bigserver.mycompany.com 。
+  - 假设套接字地址结构中的IP地址为192.168.42.2。那么不设置本标志的返回的主机名为`aix.unpbook.com`，设置本标志的返回的主机名为`aix`
+- **NI_NUMERICHOST**：告知getnameinfo不要调用DNS，而是以数值表达格式以字符串的形式返回IP地址（可能调用inet_ntop）实现
+- **NI_NUMERICSERV**：指定以十进制数格式作为字符串返回端口号，以替代查找服务名
+- **NI_NUMERICSSCOPE**：指定以数值格式作为字符串返回范围标识，以替代其名字
+- 可以把其中各个标志逻辑或在一起
+
+## 12.21 其他网络相关信息
