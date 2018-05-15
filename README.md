@@ -4,17 +4,11 @@
 
 > [《剑指offer 第二版》](notes/algorithms/剑指offer.md)
 
-> [排序算法](notes/algorithms/排序算法.md)
+> [排序算法](notes/algorithms/排序算法.md)：八大排序算法
 
-八大排序算法
+> [查找算法](notes/algorithms/查找算法.md)：二分查找等
 
-> [查找算法](notes/algorithms/查找算法.md)
-
-二分查找等
-
-> [数据结构](notes/algorithms/数据结构.md)
-
-树、堆、哈希的相关知识和算法
+> [数据结构](notes/algorithms/数据结构.md)：树、堆、哈希的相关知识和算法
 
 > [LeeCode](https://github.com/guanjunjian/LeetCode/blob/master/README.md)
 
@@ -49,12 +43,13 @@
 
 ## Docker
 
-> - [《Docker源码分析》](notes/Docker/Docker源码分析.md)
+> [《Docker源码分析》](notes/Docker/Docker源码分析.md)
 
 ## 面经
 
-> - [面经](notes/interview/面经.md)
-> - [面试记录](notes/interview/面试记录.md)
+> [面经](notes/interview/面经.md)
+
+> [面试记录](notes/interview/面试记录.md)
 
 ## 他人总结
 
