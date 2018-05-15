@@ -39,9 +39,23 @@ STL提供**六大组件**，彼此可以组合套用：
 
 ### 1.8.1 GNU C++ headers 文件分布
 
+**版本**：[cygnus c++ 2.91.57 for windows](../../source/STL/cygwin-b20.1-full2.zip)
+
 在[[g++/](../../source/STL/g++)]下有128个文件，在[[g++/std](../../source/STL/g++/std)]下有8个文件
 
 ### 18.1.2 SGI STL 文件分布与简介
+
+上一小节所呈现的众多头文件中，概略可分为五组：
+
+- 1.**C++标准规范下的C头文件(无扩展名)****：cstdio，cstdlib，cstring，...
+- 2.**C++标准程序库中不属于STL范畴者**：stream，string，...
+- 3.**STL标准头文件(无扩展名)**：vector，deque，list，map，algorithm，functional，...
+- 4.**C++标准定案前，HP所规范的STL头文件**：vector.h，deque.h，list.h，map.h，algo.h，functional.h，...
+- 5.**SGI STL内部文件**(**STL真正实现与此**)：stl_vector.h，stl_deque.h，stl_list.h，stl_map.h，stl_algo.h，stl_functional，...
+
+前两组不在本书讨论范围内
+
+
 
 
 
