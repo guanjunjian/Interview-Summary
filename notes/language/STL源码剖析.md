@@ -39,7 +39,7 @@ STL提供**六大组件**，彼此可以组合套用：
 
 ### 1.8.1 GNU C++ headers 文件分布
 
-在[[g++/](../source/STL/gplusplus)]下有128个文件，在[[g++/std](../source/STL/gplusplus)]下有8个文件
+在[[g++/](../../source/STL/g++)]下有128个文件，在[[g++/std](../../source/STL/g++)]下有8个文件
 
 ### 18.1.2 SGI STL 文件分布与简介
 
