@@ -2,9 +2,7 @@
 
 ## 数据结构与算法
 
-> [剑指offer](notes/algorithms/剑指offer.md)
-
-整理自《剑指 Offer 第二版》
+> [《剑指offer 第二版》](notes/algorithms/剑指offer.md)
 
 > [排序算法](notes/algorithms/排序算法.md)
 
@@ -22,40 +20,36 @@
 
 ## C/C++
 
-> C++
+> 《C++ Primer》
 
 - [第Ⅰ部分](https://guanjunjian.github.io/2017/01/19/study-cpp-primer-summary_1/)
 - [第Ⅱ部分](https://guanjunjian.github.io/2017/01/26/study-cpp-primer-summary_2/)
 - [第Ⅲ部分](https://guanjunjian.github.io/2017/02/02/study-cpp-primer-summary_3/)
 - [第 IV 部分](https://guanjunjian.github.io/2017/02/09/study-cpp-primer-summary_4/)
 
-整理自《C++ Primer》
+> [《C 和指针》](https://guanjunjian.github.io/2017/01/09/study-pointers-on-c-summary/)
 
-> [C](https://guanjunjian.github.io/2017/01/09/study-pointers-on-c-summary/)
+> [《深度探索C++对象模型》](notes/language/Inside_the_C++_Object_Mode.md)
 
-整理自《C 和指针》
-
-> [深度探索C++对象模型](notes/language/Inside_the_C++_Object_Mode.md)
-
-> [STL源码剖析](notes/language/STL源码剖析.md)
+> [《STL源码剖析》](notes/language/STL源码剖析.md)
 
 ## 网络
 
-> [计算机网络-自顶向下](notes/network/Computer-Networking-Top-Down.md)
+> [《计算机网络 自顶向下方法》](notes/network/Computer-Networking-Top-Down.md)
 
-根据《计算机网络 自顶向下方法》整理的一些关键知识点
-
-> [UNIX网络编程](notes/network/unp笔记.md)
+> [《UNIX网络编程》 卷1](notes/network/unp笔记.md)
 
 ## 王道
 
-> - [王道-1 C++部分](notes/Wangdao/王道程序员求职宝典_1.md)
-> - [王道-2 计算机网络部分](notes/Wangdao/王道程序员求职宝典_2.md)
-> - [王道-3 操作系统部分](notes/Wangdao/王道程序员求职宝典_3.md)
+> [王道-1 C++部分](notes/Wangdao/王道程序员求职宝典_1.md)
+
+> [王道-2 计算机网络部分](notes/Wangdao/王道程序员求职宝典_2.md)
+
+> [王道-3 操作系统部分](notes/Wangdao/王道程序员求职宝典_3.md)
 
 ## Docker
 
-> - [Docker源码分析](notes/Docker/Docker源码分析.md)
+> - [《Docker源码分析》](notes/Docker/Docker源码分析.md)
 
 ## 面经
 
