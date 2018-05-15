@@ -65,7 +65,7 @@ STL提供**六大组件**，彼此可以组合套用：
 
 ## 1.9 可能令你困惑的 C++ 语法
 
-### 1.9.1 stl_config.h 中的各种组态
+>  1.9.1 stl_config.h 中的各种组态
 
 - 组态3：**__STL_STATIC_TEMPLATE_MEMBER_BUG**
   - 测试在class template中拥有static data members 
@@ -132,7 +132,7 @@ STL提供**六大组件**，彼此可以组合套用：
  * template<> struct hash<unsigned char> { ...};
 ```
 
-### 1.9.2 临时对象的产生与运用
+>  1.9.2 临时对象的产生与运用
 
 有时候刻意制造一些临时对象，刻意使程序干净清爽
 
@@ -154,7 +154,130 @@ public:
 for_each(iv.begin(), iv.end(), print<int>());
 ```
 
-### 1.9.3 静态常量整数成员在 class 内部直接初始化
+>  1.9.3 静态常量整数成员在 class 内部直接初始化
+
+如果类内含const static 整型数据成员，根据C++标准规定，我们可以在类内直接给予初值。所谓“整型”，不单只是int
+
+```c++
+template<typename T>
+class testClass
+{
+public:
+    static const int _datai = 5;
+    static const long _datal = 3L;
+    static const char _datac = 'c';
+};
+```
+
+>  1.9.4 自增/自减/解引用 操作符
+
+**自增（++）/解引用（*）**操作符在迭代器的实现上占有非常重要的地位，因为任何一个迭代器**必须**实现前进和取址功能
+
+**有些**迭代器有双向移动功能，因此还需要实现**自减（--）**操作符
+
+>  1.9.5 前闭合后开区间表示法 [)
+
+一对迭代器所标示的是个所谓的前闭后开区间，以[first, last)表示。整个实际范围从first开始，直到last-1
+
+> 1.9.6 function call 操作符（operator()）
+
+许多STL算法都提供了两个版本
+
+- 1.用于一般情况（例如排序时以递增方式排序）
+- 2.用于特殊情况（例如排序时由使用者指定以何种特殊关系进行排序）
+
+第2种情况中，需要用户指定某个条件或某个策略，而条件或策略的背后由一整组操作构成，便需要某种特殊的东西来代表这“一整组操作”，有两种方法：
+
+- 1.**函数指针**。缺点：
+  - 无法持有自己的状态（局部状态）
+  - 无法达到组件技术上的可适配性（无法再将某些修饰条件加诸于其上而改变其状态）
+- 2.**仿函数**：使用起来像函数一样的东西。如你针对某个类进程operator()重载，该类就称为一个仿函数
+
+```c++
+template <class T>
+struct plus
+{
+	T operator()(const T& x, const T& y) const { return x + y; }
+};
+
+int main()
+{
+    //第1对括号产生仿函数的临时对象
+    //第2对括号，以该临时对象，调取其operator()函数
+    cout<< plus<int>()(43,50) << endl;
+}
+```
+
+# 第2章 空间配置器 allocator
+
+不称作”内存分配器“，是因为分配的空间不一定是内存，可以是磁盘或其它辅助存储介质。可以实现一个获取磁盘空间的allocator。不过这里介绍的空间分配器获取的空间是内存 
+
+## 2.1 空间配置器的标准接口
+
+```c++
+allocator::value_type
+allocator::pointer
+allocator::const_pointer
+allocator::reference
+allocator::const_reference
+allocator::size_type
+allocator::difference_type
+//rebind是一个嵌套的class template，class rebind<U> 拥有唯一成员other,是一个typedef，代表allocator<U>
+allocator::rebind
+//构造函数
+allocator::allocator()
+//拷贝构造函数
+allocator::allocator(const allocator&) 
+//泛化的拷贝构造函数
+template <class U> allocator::allocator(const allocator<U>&)
+//析构函数
+allocator::~allocator()
+//返回某个对象的地址，算式 a.address(x) 等同于&x
+pointer allocator::address(reference x) const 
+//返回某个const对象的地址，算式 a.address(x) 等同于&x
+const_pointer allocator::address(const_reference x) const
+//配置空间，足以容纳n个T对象
+//第2个参数是提示，实现上可能会利用它来增进区域性，或完全忽略
+pointer allocator::allocate(size_type n,const void* = 0)
+//归还之前配置的空间
+void allocator::deallocate(pointer p,size_type n)
+//返回可成功配置的最大量
+size_type allocator::max_size() const
+//根据x（调用p所指向类型的构造函数），在p指向的地址构造一个T对象。相当于new((void*)p) T(x)
+void allocator::construct(pointer p,const T& x)
+//等同于p->~T()，析构地址p的对象
+void allocator::destroy(pointer p)
+```
+
+**但**这些结构：
+
+**完全无法应用于SGI STL**，因为SGI STL在这个项目上根本就脱离了STL标准规格，使用一个专属的、拥有次层配置能力的、效率优越的特殊分配器。事实上SGI STL仍然提供了一个标准的分配器接口，只是把它做了一层隐藏，这个标准接口的分配器名为simple_alloc 
+
+## 2.2 具备次配置力（sub-allocation）的SGI空间配置器
+
+SGI STL的配置器与众不同：
+
+- **名称**是alloc（标准为allocator）
+- 不接受任何参数
+
+在程序中显示采用SGI配置器
+
+```c++
+vector<int, std::alloc> iv;
+```
+
+SGI STL未符合标准，但通常不会给我们带来困扰，因为通常使用默认的空间配置器，SGI STL的每个容器已经指定其缺省的空间配置器为alloc，如vector的声明：
+
+```c++
+template<class T, class Alloc = alloc> //缺省使用alloc为配置器
+class vector { ... };
+```
+
+### 2.2.1 SGI 标准的空间配置器，std::allocator
+
+虽然SGI也定义有一个符合部分标准、名为[allocator](../../source/STL/g++/defalloc.h)的配置器，但SGI自己从未用过它，也不建议我们使用。主要原因是效率不佳，只把C++的::operator new和::operator delete做一层薄薄的包装而已 
+
+### 2.2.2 SGI 特殊的空间配置器，std::alloc
 
 
 
