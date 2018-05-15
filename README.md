@@ -4,13 +4,13 @@
 
 > [《剑指offer 第二版》](notes/algorithms/剑指offer.md)
 
+> [LeeCode](https://github.com/guanjunjian/LeetCode/blob/master/README.md)
+
 > [排序算法](notes/algorithms/排序算法.md)：八大排序算法
 
 > [查找算法](notes/algorithms/查找算法.md)：二分查找等
 
 > [数据结构](notes/algorithms/数据结构.md)：树、堆、哈希的相关知识和算法
-
-> [LeeCode](https://github.com/guanjunjian/LeetCode/blob/master/README.md)
 
 ## C/C++
 
