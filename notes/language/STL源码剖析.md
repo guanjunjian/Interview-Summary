@@ -325,6 +325,166 @@ C++的内存分配基本操作是::operator new(),内存释放基本操作是::o
 
 **双层级配置器**：
 
+考虑到小型区块所可能造成的内存碎片问题，SGI设计了双层级分配器： 
+
+- **第一级分配器**
+  -  直接使用malloc()和free()
+- **第二级分配器**：视情况采用不同的策略
+  -  当分配区块超过128bytes时，视为“足够大”，调用第一级分配器
+  - 当分配区块小于128bytes时，视为“过小”，为了降低额外负担，采用复杂的memory pool整理方式，不再求助于第一级分配器
+
+![](../../pics/language/STL源码剖析/img-2-2a-第一级配置器与第二级配置器.png)
+
+整个设计究竟只开放第一级配置器，或是同时开放第二级配置器，取决于**__USE_MALLOC**是否被定义（定义则只开放第一级配置器）
+
+无论alloc被定义为第一级或第二级分配器，SGI还为它再包装一个接口，使分配器的接口能够符合STL规格： 
+
+```c++
+//Alloc传入的是配置器的类型（一级或二级）
+template<class T, class Alloc>
+class simple_alloc {
+
+public:
+    static T *allocate(size_t n)
+                { return 0 == n? 0 : (T*) Alloc::allocate(n * sizeof (T)); }
+    static T *allocate(void)
+                { return (T*) Alloc::allocate(sizeof (T)); }
+    static void deallocate(T *p, size_t n)
+                { if (0 != n) Alloc::deallocate(p, n * sizeof (T)); }
+    static void deallocate(T *p)
+                { Alloc::deallocate(p, sizeof (T)); }
+};
+```
+
+内部四个成员函数其实都是单纯的转调用，调用传递给配置器（一级或二级）的成员函数，**这个接口使分配器的分配单位从bytes转为个别元素的大小**。SGI STL容器全部使用这个simple_alloc接口，如图：
+
+![](../../pics/language/STL源码剖析/img-2-2b-第一级配置器与第二级配置器的包装接口和运用方式.png)
+
+### 2.2.5 第一级配置器 __malloc_alloc_template 剖析
+
+第一级分配器__malloc_alloc_template定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中： 
+
+```c++
+//一般而言是线程安全，并且对于空间的运用比较高效
+//无“template型别参数”，至于”非型别参数“inst，则完全没派上用场
+template <int inst>
+class __malloc_alloc_template {
+
+private:
+//以下函数将用来处理内存不足的情况
+//oom：out of memorys
+static void *oom_malloc(size_t);
+static void *oom_realloc(void *, size_t);
+static void (* __malloc_alloc_oom_handler)();
+
+public:
+
+static void * allocate(size_t n)
+{
+    //第一级配置器直接使用malloc()
+    void *result = malloc(n); 
+    //malloc()无法满足要求时，改用oom_malloc()
+    if (0 == result) result = oom_malloc(n);
+    return result;
+}
+
+static void deallocate(void *p, size_t /* n */)
+{
+    //第一级配置器直接使用free()
+    free(p);
+}
+
+static void * reallocate(void *p, size_t /* old_sz */, size_t new_sz)
+{
+    //第一级配置器直接使用realloc()
+    void * result = realloc(p, new_sz);
+    //realloc()无法满足要求时，改用oom_realloc()
+    if (0 == result) result = oom_realloc(p, new_sz);
+    return result;
+}
+
+//以下仿真C++的set_new_handler()。换句话说，你可以通过它
+//指定你自己的out-of-memory handler，即传入的f
+//不能直接运用C++ new-handler机制，因为它并非使用::operator new来分配内存
+static void (* set_malloc_handler(void (*f)()))()
+{
+    //保存旧的处理函数
+    void (* old)() = __malloc_alloc_oom_handler;
+    __malloc_alloc_oom_handler = f;
+    return(old);
+}
+};
+
+
+//malloc_alloc out-of-memory handling
+//初值设为0，有待客端设定
+//设计“内存不足处理例程”是客端的责任
+template <int inst>
+void (* __malloc_alloc_template<inst>::__malloc_alloc_oom_handler)() = 0;
+
+template <int inst>
+void * __malloc_alloc_template<inst>::oom_malloc(size_t n)
+{
+    void (* my_malloc_handler)();
+    void *result;
+
+    for (;;) {
+        //不断尝试释放、配置、再释放、再配置……
+        my_malloc_handler = __malloc_alloc_oom_handler;
+        if (0 == my_malloc_handler) { __THROW_BAD_ALLOC; }
+        //调用处理例程，企图释放内存
+        (*my_malloc_handler)();
+        //再次尝试尝试配置内存
+        result = malloc(n);
+        if (result) return(result);
+    }
+}
+
+template <int inst>
+void * __malloc_alloc_template<inst>::oom_realloc(void *p, size_t n)
+{
+    void (* my_malloc_handler)();
+    void *result;
+
+    for (;;) {
+        //不断尝试释放、配置、再释放、再配置……
+        my_malloc_handler = __malloc_alloc_oom_handler;
+        if (0 == my_malloc_handler) { __THROW_BAD_ALLOC; }
+        //调用处理例程，企图释放内存
+        (*my_malloc_handler)();
+        //再次尝试尝试配置内存
+        result = realloc(p, n);
+        if (result) return(result);
+    }
+}
+
+//注意，以下直接将参数inst指定为0
+typedef __malloc_alloc_template<0> malloc_alloc;
+```
+
+- 1.第一级配置器以malloc()、free()、realloc()等C函数执行实际的内存分配、释放、重分配操作 
+- 2.实现出类似C++ new-handler的机制
+  - 由于SGI以malloc而非::operator new来配置内存，因此SGI不能直接使用C++的set_new_handler() ，必须仿真一个类似的函数
+  - **C++ new handler机制**：可以要求系统在内存分配需求无法被满足时，调用一个你所指定的函数。换句话说，一旦::operator new无法完成任务，在丢出std::bad_alloc异常状态之前，会先调用由客户指定的处理例程，该处理例程通常即被称为new-handler
+- 3.oom_malloc和oom_realloc：循环调用“内存不足处理例程”，期望在某次调用之后，获得足够的内存而圆满完成任务。如果“内存不足处理例程”并未被客端设定，这两个函数便不客气地调用__THROW_BAD_ALLOC丢出**bad_alloc**异常信息，或利用exit(1)中止程序
+
+### 2.2.6 第二级配置器 __default_alloc_template 剖析
+
+第二级分配器多了一些机制，避免太多小额区块造成内存的碎片，小额区块带来以下问题： 
+
+- 1.产生内存碎片 
+- 2.配置时的额外负担：额外负担是一些区块信息，用以管理内存。区块越小，额外负担所占的比例就越大，越显浪费 
+
+SGI第二级配置器的**做法**：
+
+- 1.**大区块**：区块大于128bytes时
+  - 移交第一级配置器处理
+- 2.**小额区块**：当区块小于等于128bytes时 
+  - 以**内存池管理(也称为次层分配)** 
+    - 每次分配一大块内存，并维护对应的自由链表(free-list)，下次若载有相同大小的内存需求，就直接从free-list中拨出。如果客户释放小额区块，就由分配器回收到free-list中
+    -  **维护有16个free-list**，各自管理大小分别为8，16，24，32，40，48，56，64，72，80，88，96，104，112，120，128bytes的小额区块 
+    - SGI第二级分配器会主动将任何小额区块的内存需求量上调至8的倍数（例如客户要求30bytes，就自动调整为32bytes）
+
 
 
 

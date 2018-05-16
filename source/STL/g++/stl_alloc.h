@@ -131,11 +131,14 @@ __STL_BEGIN_NAMESPACE
 # endif
 #endif
 
+//一般而言是线程安全，并且对于空间的运用比较高效
+//无“template型别参数”，至于”非型别参数“inst，则完全没派上用场
 template <int inst>
 class __malloc_alloc_template {
 
 private:
-
+//以下函数将用来处理内存不足的情况
+//oom：out of memory
 static void *oom_malloc(size_t);
 
 static void *oom_realloc(void *, size_t);
