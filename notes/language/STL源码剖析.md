@@ -1,6 +1,33 @@
 STL源码剖析 笔记
 
-[TOC]
+<!-- GFM-TOC -->
+* [第1章 STL概论与版本简介](#第1章-stl概论与版本简介)
+    * [1.2 STL 六大组件 功能与运用](#12-stl-六大组件-功能与运用)
+    * [1.3 GNU 源代码开放精神](#13-gnu-源代码开放精神)
+    * [1.8 SGI STL 实现版本](#18-sgi-stl-实现版本)
+        * [1.8.1 GNU C++ headers 文件分布](#181-gnu-c++-headers-文件分布)
+        * [1.8.2 SGI STL 文件分布与简介](#182-sgi-stl-文件分布与简介)
+        * [1.8.3 SGI STL 的编译器组态设置](#183-sgi-stl-的编译器组态设置)
+    * [1.9 可能令你困惑的 C++ 语法](#19-可能令你困惑的-c++-语法)
+* [第2章 空间配置器 allocator](#第2章-空间配置器-allocator)
+    * [2.1 空间配置器的标准接口](#21-空间配置器的标准接口)
+    * [2.2 具备次配置力（sub-allocation）的SGI空间配置器](#22-具备次配置力sub-allocation的sgi空间配置器)
+        * [2.2.1 SGI 标准的空间配置器，std::allocator](#221-sgi-标准的空间配置器，std::allocator)
+        * [2.2.2 SGI 特殊的空间配置器，std::alloc](#222-sgi-特殊的空间配置器，std::alloc)
+        * [2.2.3 构造和析构基本工具：construct()和destroy()](#223-构造和析构基本工具construct和destroy)
+        * [2.2.4 空间的配置与释放，std::alloc](#224-空间的配置与释放，std::alloc)
+        * [2.2.5 第一级配置器 __malloc_alloc_template 剖析](#225-第一级配置器-__malloc_alloc_template-剖析)
+        * [2.2.6 第二级配置器 __default_alloc_template 剖析](#226-第二级配置器-__default_alloc_template-剖析)
+        * [2.2.7 空间配置函数 allocate()](#227-空间配置函数-allocate)
+        * [2.2.8 空间释放函数 deallocate()](#228-空间释放函数-deallocate)
+        * [2.2.9 重新填充 refill()](#229-重新填充-refill)
+        * [2.2.10 内存池 chunk_alloc()](#2210-内存池-chunk_alloc)
+    * [2.3 内存基本处理工具](#23-内存基本处理工具)
+        * [2.3.1 uninitialized_copy](#231-uninitialized_copy)
+        * [2.3.2 uninitialized_fill](#232-uninitialized_fill)
+        * [2.3.3 uninitialized_fill_n](#233-uninitialized_fill_n)
+* [第3章 迭代器概念与traits编程技法](#第3章-迭代器概念与traits编程技法)
+<!-- GFM-TOC -->
 
 # 第1章 STL概论与版本简介
 
