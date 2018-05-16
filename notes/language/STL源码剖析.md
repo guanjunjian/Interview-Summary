@@ -275,9 +275,59 @@ class vector { ... };
 
 ### 2.2.1 SGI 标准的空间配置器，std::allocator
 
-虽然SGI也定义有一个符合部分标准、名为[allocator](../../source/STL/g++/defalloc.h)的配置器，但SGI自己从未用过它，也不建议我们使用。主要原因是效率不佳，只把C++的::operator new和::operator delete做一层薄薄的包装而已 
+虽然SGI也定义有一个符合部分标准、名为[allocator](../../source/STL/g++/defalloc.h)（defalloc.h）的配置器，但SGI自己从未用过它，也不建议我们使用。主要原因是效率不佳，只把C++的::operator new和::operator delete做一层薄薄的包装而已 
 
 ### 2.2.2 SGI 特殊的空间配置器，std::alloc
+
+STL allocator将**配置内存**和**构造对象**分开，将**对象析构**和**释放内存**分开
+
+- **alloc::allocate()**负责内存配置，**alloc::deallocate()**负责释放内存
+- **::construct()**负责构造对象，**::destroy()**负责对象析构
+
+STL标准规定分配器定义于`<memory>`中，SGI`<memory>`内含两个文件（负责分离的2阶段操作 ）：
+
+[<memory>](../../source/STL/g++/memory)
+
+```c++
+#include <stl_alloc.h>      //负责内存空间的配置与释放
+#include <stl_construct.h>  //负责对象内容的构造与析构
+```
+
+![](../../pics/language/STL源码剖析/img-2-STL配置器定义图.png)
+
+### 2.2.3 构造和析构基本工具：construct()和destroy()
+
+[<stl_construct.h>](../../source/STL/g++/stl_construct.h)
+
+![](../../pics/language/STL源码剖析/img-2-1-construct和destroy示意.png)
+
+**destroy有两个版本**：
+
+- 1.接收一个指针，准备将该指针所指向的析构掉
+- 2.接收first和last两个迭代器，准备将[first,last)范围内的所有对象析构掉
+  - 有用的析构函数：遍历析构
+  - 无用的析构函数：什么也不做
+
+**注意**：STL规定分配器必须拥有名为construct()和destroy()的两个成员函数，然而SGI特殊的空间分配器std::alloc并未遵守这一规则，所以实际上这部分属于STL allocator，但不属于std::alloc。即，SGI特殊的空间分配器std::alloc不包含”2.2.3  造和析构基本工具：construct()和destroy()“，只包含”2.2.4 空间的配置与释放，std::alloc“
+
+### 2.2.4 空间的配置与释放，std::alloc
+
+空间配置和空间释放由[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)负责
+
+SGI对内存分配与释放的设计哲学如下： 
+
+- 向system heap申请空间
+- 考虑多线程状态（本章的讨论暂不考虑多线程）
+- 考虑内存不足时的应变措施
+- 考虑过多“小型区块”可能造成的内存碎片问题（**SGI设计了双层级分配器**）
+
+C++的内存分配基本操作是::operator new(),内存释放基本操作是::operator delete()。这两个全局函数相当于C的malloc()和free()函数。SGI正是以malloc和free()完成内存的分配与释放
+
+**双层级配置器**：
+
+
+
+
 
 
 
