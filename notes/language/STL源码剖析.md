@@ -12,10 +12,10 @@ STL源码剖析 笔记
 * [第2章 空间配置器 allocator](#第2章-空间配置器-allocator)
     * [2.1 空间配置器的标准接口](#21-空间配置器的标准接口)
     * [2.2 具备次配置力（sub-allocation）的SGI空间配置器](#22-具备次配置力sub-allocation的sgi空间配置器)
-        * [2.2.1 SGI 标准的空间配置器，std::allocator](#221-sgi-标准的空间配置器，std::allocator)
-        * [2.2.2 SGI 特殊的空间配置器，std::alloc](#222-sgi-特殊的空间配置器，std::alloc)
+        * [2.2.1 SGI 标准的空间配置器 std::allocator](#221-sgi-标准的空间配置器 std::allocator)
+        * [2.2.2 SGI 特殊的空间配置器 std::alloc](#222-sgi-特殊的空间配置器 std::alloc)
         * [2.2.3 构造和析构基本工具：construct()和destroy()](#223-构造和析构基本工具construct和destroy)
-        * [2.2.4 空间的配置与释放，std::alloc](#224-空间的配置与释放，std::alloc)
+        * [2.2.4 空间的配置与释放 std::alloc](#224-空间的配置与释放 std::alloc)
         * [2.2.5 第一级配置器 __malloc_alloc_template 剖析](#225-第一级配置器-__malloc_alloc_template-剖析)
         * [2.2.6 第二级配置器 __default_alloc_template 剖析](#226-第二级配置器-__default_alloc_template-剖析)
         * [2.2.7 空间配置函数 allocate()](#227-空间配置函数-allocate)
@@ -300,11 +300,11 @@ template<class T, class Alloc = alloc> //缺省使用alloc为配置器
 class vector { ... };
 ```
 
-### 2.2.1 SGI 标准的空间配置器，std::allocator
+### 2.2.1 SGI 标准的空间配置器 std::allocator
 
 虽然SGI也定义有一个符合部分标准、名为[allocator](../../source/STL/g++/defalloc.h)（defalloc.h）的配置器，但SGI自己从未用过它，也不建议我们使用。主要原因是效率不佳，只把C++的::operator new和::operator delete做一层薄薄的包装而已 
 
-### 2.2.2 SGI 特殊的空间配置器，std::alloc
+### 2.2.2 SGI 特殊的空间配置器 std::alloc
 
 STL allocator将**配置内存**和**构造对象**分开，将**对象析构**和**释放内存**分开
 
@@ -337,7 +337,7 @@ STL标准规定分配器定义于`<memory>`中，SGI`<memory>`内含两个文件
 
 **注意**：STL规定分配器必须拥有名为construct()和destroy()的两个成员函数，然而SGI特殊的空间分配器std::alloc并未遵守这一规则，所以实际上这部分属于STL allocator，但不属于std::alloc。即，SGI特殊的空间分配器std::alloc不包含”2.2.3  造和析构基本工具：construct()和destroy()“，只包含”2.2.4 空间的配置与释放，std::alloc“
 
-### 2.2.4 空间的配置与释放，std::alloc
+### 2.2.4 空间的配置与释放 std::alloc
 
 空间配置和空间释放由[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)负责
 
