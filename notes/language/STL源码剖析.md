@@ -806,9 +806,263 @@ __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs)
 
 ## 2.3 内存基本处理工具
 
+STL定义了5个全局函数，作用于未初始化空间上：
 
+- 1.construct()
+- 2.destroy()
+- 3.uninitialized_copy()，对应于高层函数copy()
+- 4.uninitialized_fill()，对应于高层函数fill()
+- 5.uninitialized_fill_n()，对应于高层函数fill_n()
 
+本节分析后3个函数，如果要使用后3个函数，应该包含[<memory>](../../source/STL/g++/memory)，但SGI把它们实际定义于[<stl_uninitialized.h>](../../source/STL/g++/stl_uninitialized.h)
 
+一些需要提前知道的知识：**POD**
 
+POD意指Plain Old Data，也就是标量类型(scalar types)或传统的C struct类型。POD类型必然拥有trivial ctor/dtor/copy/assignment函数。因此，可以对POD类型采用最有效的初值填写手法，而对non-POD类型采取最保险的做法 
 
+**三个内存基本函数的泛型版本与特化版本的执行流程**：
+
+![](../../pics/language/STL源码剖析/img-2-8-三个内存基本函数的泛型版本与特化版本.png)
+
+### 2.3.1 uninitialized_copy
+
+```c++
+template <class InputIterator, class ForwardIterator>
+inline ForwardIterator
+  uninitialized_copy(InputIterator first, InputIterator last, ForwardIterator result);
+```
+
+**三个参数**：
+
+- 1.迭代器first：指向输入端的起始位置
+- 2.迭代器last：指向输入端的结束位置（前闭后开区间）
+- 3.迭代器result：指向输出端（欲初始化空间）的起始处
+
+uninitialized_copy将内存的配置与对象的构造行为分离开（本函数完成“构造行为”），如果作为输出目的地的[result, result+(last-first))范围内的每一个迭代器i都未初始化，该函数会调用`construct(&*(result+(i-first)),*i)`，产生*i的复制品，放置于输出范围的相对位置上
+
+uninitialized_copy的**用处**：容器的全区间构造函数通常调用该函数来完成，具体过程如下：
+
+- 1.配置内存区块，足以容纳范围内的所有元素
+- 2.使用uninitialized_copy()，在该内存区块上构造元素
+
+uninitialized_copy具有**commit or rollbak语意**：要么构造所有元素，要么不构造任何元素，如果任何一个拷贝构造函数丢出异常，必须能够将所有元素析构掉
+
+**uninitialized_copy源码分析**：
+
+```
+uninitialized_copy
+	---> __uninitialized_copy //判断first是否为POD
+		---> __uninitialized_copy_aux(...,__true_type) //first为POD
+			---> copy(first, last, result);//交给高阶函数执行，STL的copy()
+		---> __uninitialized_copy_aux(...,false_type) //first不是POD
+			---> construct(&*cur, *first);
+uninitialized_copy(const char* first,...) //针对first为char*的特化版本
+uninitialized_copy(const wchar_t* first,...) //针对first为wchar_t*的特化版本
+```
+```c
+template <class InputIterator, class ForwardIterator>
+inline ForwardIterator
+  uninitialized_copy(InputIterator first, InputIterator last,
+                     ForwardIterator result) {
+  //利用value_type()取出result的value type
+  return __uninitialized_copy(first, last, result, value_type(result));
+}
+
+template <class InputIterator, class ForwardIterator, class T>
+inline ForwardIterator
+__uninitialized_copy(InputIterator first, InputIterator last,
+                     ForwardIterator result, T*) {
+  //首先萃取出迭代器result的value type，然后判断该类型是否为POD类型
+  typedef typename __type_traits<T>::is_POD_type is_POD;
+  return __uninitialized_copy_aux(first, last, result, is_POD());
+}
+
+// 如果copy construction等同于assignment，而且destructor是trivial，以下就有效
+// 如果是POD类型，执行流程就会转到该函数
+template <class InputIterator, class ForwardIterator>
+inline ForwardIterator 
+__uninitialized_copy_aux(InputIterator first, InputIterator last,
+                         ForwardIterator result,
+                         __true_type) {
+  return copy(first, last, result);//交给高阶函数执行，STL的copy()
+}
+
+//如果不是POD类型，执行流程会转进该函数
+template <class InputIterator, class ForwardIterator>
+ForwardIterator 
+__uninitialized_copy_aux(InputIterator first, InputIterator last,
+                         ForwardIterator result,
+                         __false_type) {
+  ForwardIterator cur = result;
+  //异常机制保证要么所有对象都构造成功，要么一个都没构造
+  __STL_TRY { //d efine __STL_TRY try
+    for ( ; first != last; ++first, ++cur)
+        //必须一个一个元素地构造，无法批量处理
+        construct(&*cur, *first); 
+    return cur;
+  }
+  //define __STL_UNWIND(action) catch(...) { action; throw; }
+  __STL_UNWIND(destroy(result, cur)); //如果构造出现异常，需要析构
+}
+
+//针对first为char*的特化版本
+inline char* uninitialized_copy(const char* first, const char* last,
+                                char* result) {
+    //采用最优效率的memmove（直接移动内存内容）来执行复制行为
+    memmove(result, first, last - first);
+    return result + (last - first);
+}
+
+//针对first为wchar_t*的特化版本
+inline wchar_t* uninitialized_copy(const wchar_t* first, const wchar_t* last,
+                                   wchar_t* result) {
+   //采用最优效率的memmove（直接移动内存内容）来执行复制行为
+  memmove(result, first, sizeof(wchar_t) * (last - first));
+  return result + (last - first);
+}
+```
+
+### 2.3.2 uninitialized_fill
+
+```c++
+template <class ForwardIterator, class T>
+inline void uninitialized_fill(ForwardIterator first, ForwardIterator last, const T& x);
+```
+
+**三个参数**：
+
+- 1.迭代器first：指向输出端（欲初始化空间）的起始处
+- 2.迭代器last：指向输出端（欲初始化空间）的结束处（前闭后开区间）
+- 3.x：表示初值
+
+uninitialized_fill将内存的配置与对象的构造行为分离开（本函数完成“构造行为”），如果作为输出目的地的[first, last)范围内的每一个迭代器i都未初始化，该函数会调用`construct(&*i,x)`，在i所指之处产生x的复制品
+
+uninitialized_fill具有**commit or rollbak语意**：要么构造所有元素，要么不构造任何元素，如果任何一个拷贝构造函数丢出异常，必须能够将所有元素析构掉
+
+**uninitialized_fill源码分析**：
+
+```
+uninitialized_fill
+	---> __uninitialized_fill //判断first是否为POD
+		---> __uninitialized_fill_aux(...,__true_type) //first为POD
+			---> fill(first, last, x);//交给高阶函数执行，调用STL算法fill()
+		---> __uninitialized_fill_aux(...,false_type) //first不是POD
+			---> construct(&*cur, x);
+```
+```c++
+template <class ForwardIterator, class T>
+inline void uninitialized_fill(ForwardIterator first, ForwardIterator last, 
+                               const T& x) {
+  //利用value_type()取出first的value type
+  __uninitialized_fill(first, last, x, value_type(first));
+}
+
+template <class ForwardIterator, class T, class T1>
+inline void __uninitialized_fill(ForwardIterator first, ForwardIterator last, 
+                                 const T& x, T1*) {
+  //首先萃取出迭代器first的value type，然后判断该类型是否为POD类型
+  typedef typename __type_traits<T1>::is_POD_type is_POD;
+  __uninitialized_fill_aux(first, last, x, is_POD());                 
+}
+
+// 如果是POD类型，执行流程就会转到以下函数
+template <class ForwardIterator, class T>
+inline void
+__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last, 
+                         const T& x, __true_type)
+{
+  fill(first, last, x);//交给高阶函数执行，调用STL算法fill()
+}
+
+//如果不是POD类型，执行流程会转进以下函数
+template <class ForwardIterator, class T>
+void
+__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last, 
+                         const T& x, __false_type)
+{
+  ForwardIterator cur = first;
+  //异常机制保证要么所有对象都构造成功，要么一个都没构造
+  __STL_TRY { //d efine __STL_TRY try
+    for ( ; cur != last; ++cur)
+      //必须一个一个元素构造，无法批量处理  
+      construct(&*cur, x); 
+  }
+  //define __STL_UNWIND(action) catch(...) { action; throw; }
+  __STL_UNWIND(destroy(first, cur)); //如果构造出现异常，需要析构
+}
+```
+
+### 2.3.3 uninitialized_fill_n
+
+```c
+template <class ForwardIterator, class Size, class T>
+inline ForwardIterator uninitialized_fill_n(ForwardIterator first, Size n,const T& x);
+```
+
+**三个参数**：
+
+- 1.迭代器first：指向初始化空间的起始处
+- 2.n：表示欲初始化空间的大小
+- 3.x：表示初值
+
+uninitialized_fill_n将内存的配置与对象的构造行为分离开（本函数完成“构造行为”）。该函数为指定范围内的所有元素设定相同的初值。如果[first, first+n)范围内的每一个迭代器i都未初始化，该函数会调用`construct(&*i,x)`，在i所指之处产生x的复制品
+
+uninitialized_fill_n具有**commit or rollbak语意**：要么构造所有元素，要么不构造任何元素，如果任何一个拷贝构造函数丢出异常，必须能够将所有元素析构掉
+
+**uninitialized_fill_n源码分析**：
+
+```
+uninitialized_fill_n
+	---> __uninitialized_fill_n //判断first是否为POD
+		---> __uninitialized_fill_n_aux(...,__true_type) //first为POD
+			---> fill_n(first, n, x);//交给高阶函数执行
+		---> __uninitialized_fill_n_aux(...,false_type) //first不是POD
+			---> construct(&*cur, x);
+```
+
+```c++
+template <class ForwardIterator, class Size, class T>
+inline ForwardIterator uninitialized_fill_n(ForwardIterator first, Size n,
+                                            const T& x) {
+  //利用value_type()取出first的value type
+  return __uninitialized_fill_n(first, n, x, value_type(first));
+}
+
+//首先萃取出迭代器first的value type，然后判断该类型是否为POD类型
+template <class ForwardIterator, class Size, class T, class T1>
+inline ForwardIterator __uninitialized_fill_n(ForwardIterator first, Size n,
+                                              const T& x, T1*) {
+  //__type_traits<>技巧法，详见3.7节
+  typedef typename __type_traits<T1>::is_POD_type is_POD;
+  return __uninitialized_fill_n_aux(first, n, x, is_POD());             
+}
+
+//如果copy construction等同于assignment，而且destructor是trivial，以下就有效
+//如果是POD类型，执行流程就会转到该函数
+//这是由函数模板的参数推导机制而得
+template <class ForwardIterator, class Size, class T>
+inline ForwardIterator
+__uninitialized_fill_n_aux(ForwardIterator first, Size n,
+                           const T& x, __true_type) {
+  return fill_n(first, n, x);//交给高阶函数执行
+}
+
+//如果不是POD类型，执行流程会转进该函数
+template <class ForwardIterator, class Size, class T>
+ForwardIterator
+__uninitialized_fill_n_aux(ForwardIterator first, Size n,
+                           const T& x, __false_type) {
+  ForwardIterator cur = first;
+  //异常机制保证要么所有对象都构造成功，要么一个都没构造
+  __STL_TRY { //d efine __STL_TRY try
+    for ( ; n > 0; --n, ++cur)
+      construct(&*cur, x);
+    return cur;
+  }
+  //define __STL_UNWIND(action) catch(...) { action; throw; }
+  __STL_UNWIND(destroy(first, cur)); //如果构造出现异常，需要析构
+}
+```
+
+# 第3章 迭代器概念与traits编程技法
 
