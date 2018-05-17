@@ -738,7 +738,57 @@ func(I ite)
 }
 ```
 
- 
+ ![](../../pics/language/STL源码剖析/img-3-1.png)
+
+
+
+
+
+**五种迭代器相应型别**：
+
+> **1.value type**
+
+**作用**：value type是指迭代器所指对象的类别
+
+> **2.difference type**
+
+**作用**：difference type用来表示两个迭代器之间的距离，也可用来表示一个容器的最大容量
+
+**例子**：一个泛型算法提供计数功能，例如STL的count()，其传回值就必须使用迭代器的diffrence type
+
+```c++
+template<class I, class T>
+typename iterator_traits<I>::difference_type count(){}
+```
+
+**特例化**：原生指针和“指向常数对象的指针”的difference_type都为C++内建的**ptrdiff_t**（定义于<cstddef>头文件）
+
+> **3.reference type**
+
+从“迭代器所指之物的内容是否允许改变”的角度看，迭代器分为两种：
+
+- 1.**constant iterators**：不允许改变“所指对象之内容”的迭代器
+  - 如：`const int* pic;`
+- 2.**mutable iterators**：允许改变“所指对象之内容”的迭代器
+  - 如`int* pi;`
+
+函数如果要传回左值，都是以传引用的方式进行
+
+- 当p是一个mutable iterators时，如果value type是T，那么*p的reference type为T&
+- 当p是一个constant iterators时，如果value type是T，那么*p的reference type为const T&
+
+> **4.pointer type**
+
+- 当p是一个mutable iterators时，如果value type是T，那么`*p`的pointer type为`T*`
+- 当p是一个constant iterators时，如果value type是T，那么`*p`的pointer type为`const T*`
+
+> **5.iterator_category**
+
+根据移动特性与实施操作，迭代器被分为五类
+
+- 1.Input
+
+
 
 
 
