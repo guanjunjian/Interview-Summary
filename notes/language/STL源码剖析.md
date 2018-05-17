@@ -470,25 +470,7 @@ allocate()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
 deallocate()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
-```c
-  //p不可以是0
-  static void deallocate(void *p, size_t n)
-  {
-    obj *q = (obj *)p;
-    obj * volatile * my_free_list;
-    
-    //大于128就调用第一级配置器
-    if (n > (size_t) __MAX_BYTES) {
-        malloc_alloc::deallocate(p, n);
-        return;
-    }
-    //寻找对应的free-list
-    my_free_list = free_list + FREELIST_INDEX(n);
-    //调整free-list，回收块区，放于链表头部
-    q -> free_list_link = *my_free_list;
-    *my_free_list = q;
-  }
-```
+[deallocate()实现](STL/deallocate().md)
 
 ![](../../pics/language/STL源码剖析/img-2-6-区块回收-纳入free-list.png)
 
@@ -498,49 +480,9 @@ allocate()发现free list中没有可用块区了时，就调用refill()，准�
 
 **源码分析**：
 
-deallocate()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
+refill()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
-```c++
-//返回一个大小为n的对象，并且有时候会为适当的free-list增加节点
-//假设n已经适当上调至8的倍数
-template <bool threads, int inst>
-void* __default_alloc_template<threads, inst>::refill(size_t n)
-{
-    int nobjs = 20;
-    //调用chunk_alloc()，尝试取得njobs个区块作为free-list的新节点
-    //参数nobjs是pass by reference（引用传递）
-    //该函数下一节详述
-    char * chunk = chunk_alloc(n, nobjs);
-    obj * volatile * my_free_list;
-    obj * result;
-    obj * current_obj, * next_obj;
-    int i;
-    
-    //如果只获得一个区块，这个区块就分配给调用者用，free-list无新节点
-    if (1 == nobjs) return(chunk);
-    //否则准备调整free-list，纳入新节点
-    my_free_list = free_list + FREELIST_INDEX(n);
-
-      //在chunk空间内建立free-list
-      //这一块准备返回给客户
-      result = (obj *)chunk;
-      //以下引导free-list指向新分配的空间（取自内存池）
-      *my_free_list = next_obj = (obj *)(chunk + n);
-      //以下将free-list的各节点串接起来
-      //从1开始，因为第0个将返回给客户
-      for (i = 1; ; i++) {
-        current_obj = next_obj;
-        next_obj = (obj *)((char *)next_obj + n);
-        if (nobjs - 1 == i) {
-            current_obj -> free_list_link = 0;
-            break;
-        } else {
-            current_obj -> free_list_link = next_obj;
-        }
-      }
-    return(result);
-}
-```
+[refill()实现](STL/refill().md)
 
 ### 2.2.10 内存池 chunk_alloc()
 
@@ -565,85 +507,7 @@ chunk_alloc()函数从内存池申请空间，根据`end_free-start_free`判断�
 
 chunk_alloc()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
-```c++
-//假设size已经适当上调至8的倍数
-//注意参数nobjs是pass by reference（引用传递）
-template <bool threads, int inst>
-char*
-__default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs)
-{
-    char * result;
-    size_t total_bytes = size * nobjs;
-    //内存池剩余空间
-    size_t bytes_left = end_free - start_free;
-     
-    if (bytes_left >= total_bytes) {
-        //内存池剩余空间完全满足需求量
-        result = start_free;
-        start_free += total_bytes;
-        return(result);
-    } else if (bytes_left >= size) {
-        //内存池剩余空间不能完全满足需求量，但足够供应一个(含)以上的区块
-        //那么能分配多少区块，就分配多少区块
-        nobjs = bytes_left/size;
-        total_bytes = size * nobjs;
-        result = start_free;
-        start_free += total_bytes;
-        return(result);
-    } else {
-        //内存池剩余空间连一个区块的大小都无法提供
-        //计算需要从heap申请的空间数量，用以补充内存池
-        //注意，这里是2倍total_bytes
-        size_t bytes_to_get = 2 * total_bytes + ROUND_UP(heap_size >> 4);
-        //试着让内存池中的残余零头还有利用价值
-        if (bytes_left > 0) {
-            //内存池中还有一些零头，先配给适当的free-list
-            //首先寻找适当的free-list
-            obj * volatile * my_free_list =
-                        free_list + FREELIST_INDEX(bytes_left);
-            
-            //调整free-list，将内存池中的残余空间编入
-            ((obj *)start_free) -> free_list_link = *my_free_list;
-            *my_free_list = (obj *)start_free;
-        }
-        //调用malloc，分配heap空间，用来补充内存池
-        start_free = (char *)malloc(bytes_to_get);
-        if (0 == start_free) {
-            //heap空间不足，malloc()失败
-            int i;
-            obj * volatile * my_free_list, *p;
-            //试着检视我们手上拥有的东西。这不会造成伤害。我们不打算尝试分配
-            //较小的区块，因为那在多进程机器上容易导致灾难
-            //以下搜寻适当的free-list
-            //所谓适当是指”尚有未用区块，且区块够大“的free-list
-            //在[size,128]这个范围的free list
-            for (i = size; i <= __MAX_BYTES; i += __ALIGN) {
-                my_free_list = free_list + FREELIST_INDEX(i);
-                p = *my_free_list;
-                if (0 != p) {
-                    //free-list内尚有未用区块
-                    //调整free-list以释出未用区块，放入内存池中
-                    *my_free_list = p -> free_list_link;
-                    start_free = (char *)p;
-                    end_free = start_free + i;
-                    //递归调用自身，为了修正nobjs
-                    return(chunk_alloc(size, nobjs));
-                    //注意，任何残余零头终将被编入适当的free-list中备用
-                }
-            }
-            //山穷水尽，到处都没有内存可用 
-            end_free = 0;	
-            //调用第一级分配器，看看out-of-memory机制能否尽点力
-            //可能会抛出异常，或者内存不足的情况获得改善
-            start_free = (char *)malloc_alloc::allocate(bytes_to_get);
-        }
-        heap_size += bytes_to_get;
-        end_free = start_free + bytes_to_get;
-        //递归调用自身，为了修正nobjs
-        return(chunk_alloc(size, nobjs));
-    }
-}
-```
+[chunk_alloc()实现](STL/chunk_alloc().md)
 
 **例子**：
 
@@ -708,68 +572,8 @@ uninitialized_copy
 uninitialized_copy(const char* first,...) //针对first为char*的特化版本
 uninitialized_copy(const wchar_t* first,...) //针对first为wchar_t*的特化版本
 ```
-```c
-template <class InputIterator, class ForwardIterator>
-inline ForwardIterator
-  uninitialized_copy(InputIterator first, InputIterator last,
-                     ForwardIterator result) {
-  //利用value_type()取出result的value type
-  return __uninitialized_copy(first, last, result, value_type(result));
-}
 
-template <class InputIterator, class ForwardIterator, class T>
-inline ForwardIterator
-__uninitialized_copy(InputIterator first, InputIterator last,
-                     ForwardIterator result, T*) {
-  //首先萃取出迭代器result的value type，然后判断该类型是否为POD类型
-  typedef typename __type_traits<T>::is_POD_type is_POD;
-  return __uninitialized_copy_aux(first, last, result, is_POD());
-}
-
-// 如果copy construction等同于assignment，而且destructor是trivial，以下就有效
-// 如果是POD类型，执行流程就会转到该函数
-template <class InputIterator, class ForwardIterator>
-inline ForwardIterator 
-__uninitialized_copy_aux(InputIterator first, InputIterator last,
-                         ForwardIterator result,
-                         __true_type) {
-  return copy(first, last, result);//交给高阶函数执行，STL的copy()
-}
-
-//如果不是POD类型，执行流程会转进该函数
-template <class InputIterator, class ForwardIterator>
-ForwardIterator 
-__uninitialized_copy_aux(InputIterator first, InputIterator last,
-                         ForwardIterator result,
-                         __false_type) {
-  ForwardIterator cur = result;
-  //异常机制保证要么所有对象都构造成功，要么一个都没构造
-  __STL_TRY { //d efine __STL_TRY try
-    for ( ; first != last; ++first, ++cur)
-        //必须一个一个元素地构造，无法批量处理
-        construct(&*cur, *first); 
-    return cur;
-  }
-  //define __STL_UNWIND(action) catch(...) { action; throw; }
-  __STL_UNWIND(destroy(result, cur)); //如果构造出现异常，需要析构
-}
-
-//针对first为char*的特化版本
-inline char* uninitialized_copy(const char* first, const char* last,
-                                char* result) {
-    //采用最优效率的memmove（直接移动内存内容）来执行复制行为
-    memmove(result, first, last - first);
-    return result + (last - first);
-}
-
-//针对first为wchar_t*的特化版本
-inline wchar_t* uninitialized_copy(const wchar_t* first, const wchar_t* last,
-                                   wchar_t* result) {
-   //采用最优效率的memmove（直接移动内存内容）来执行复制行为
-  memmove(result, first, sizeof(wchar_t) * (last - first));
-  return result + (last - first);
-}
-```
+[uninitialized_copy()实现](STL/uninitialized_copy().md)
 
 ### 2.3.2 uninitialized_fill
 
@@ -798,48 +602,8 @@ uninitialized_fill
 		---> __uninitialized_fill_aux(...,false_type) //first不是POD
 			---> construct(&*cur, x);
 ```
-```c++
-template <class ForwardIterator, class T>
-inline void uninitialized_fill(ForwardIterator first, ForwardIterator last, 
-                               const T& x) {
-  //利用value_type()取出first的value type
-  __uninitialized_fill(first, last, x, value_type(first));
-}
 
-template <class ForwardIterator, class T, class T1>
-inline void __uninitialized_fill(ForwardIterator first, ForwardIterator last, 
-                                 const T& x, T1*) {
-  //首先萃取出迭代器first的value type，然后判断该类型是否为POD类型
-  typedef typename __type_traits<T1>::is_POD_type is_POD;
-  __uninitialized_fill_aux(first, last, x, is_POD());                 
-}
-
-// 如果是POD类型，执行流程就会转到以下函数
-template <class ForwardIterator, class T>
-inline void
-__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last, 
-                         const T& x, __true_type)
-{
-  fill(first, last, x);//交给高阶函数执行，调用STL算法fill()
-}
-
-//如果不是POD类型，执行流程会转进以下函数
-template <class ForwardIterator, class T>
-void
-__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last, 
-                         const T& x, __false_type)
-{
-  ForwardIterator cur = first;
-  //异常机制保证要么所有对象都构造成功，要么一个都没构造
-  __STL_TRY { //d efine __STL_TRY try
-    for ( ; cur != last; ++cur)
-      //必须一个一个元素构造，无法批量处理  
-      construct(&*cur, x); 
-  }
-  //define __STL_UNWIND(action) catch(...) { action; throw; }
-  __STL_UNWIND(destroy(first, cur)); //如果构造出现异常，需要析构
-}
-```
+[uninitialized_fill()实现](STL/uninitialized_fill().md)
 
 ### 2.3.3 uninitialized_fill_n
 
@@ -869,49 +633,7 @@ uninitialized_fill_n
 			---> construct(&*cur, x);
 ```
 
-```c++
-template <class ForwardIterator, class Size, class T>
-inline ForwardIterator uninitialized_fill_n(ForwardIterator first, Size n,
-                                            const T& x) {
-  //利用value_type()取出first的value type
-  return __uninitialized_fill_n(first, n, x, value_type(first));
-}
-
-//首先萃取出迭代器first的value type，然后判断该类型是否为POD类型
-template <class ForwardIterator, class Size, class T, class T1>
-inline ForwardIterator __uninitialized_fill_n(ForwardIterator first, Size n,
-                                              const T& x, T1*) {
-  //__type_traits<>技巧法，详见3.7节
-  typedef typename __type_traits<T1>::is_POD_type is_POD;
-  return __uninitialized_fill_n_aux(first, n, x, is_POD());             
-}
-
-//如果copy construction等同于assignment，而且destructor是trivial，以下就有效
-//如果是POD类型，执行流程就会转到该函数
-//这是由函数模板的参数推导机制而得
-template <class ForwardIterator, class Size, class T>
-inline ForwardIterator
-__uninitialized_fill_n_aux(ForwardIterator first, Size n,
-                           const T& x, __true_type) {
-  return fill_n(first, n, x);//交给高阶函数执行
-}
-
-//如果不是POD类型，执行流程会转进该函数
-template <class ForwardIterator, class Size, class T>
-ForwardIterator
-__uninitialized_fill_n_aux(ForwardIterator first, Size n,
-                           const T& x, __false_type) {
-  ForwardIterator cur = first;
-  //异常机制保证要么所有对象都构造成功，要么一个都没构造
-  __STL_TRY { //d efine __STL_TRY try
-    for ( ; n > 0; --n, ++cur)
-      construct(&*cur, x);
-    return cur;
-  }
-  //define __STL_UNWIND(action) catch(...) { action; throw; }
-  __STL_UNWIND(destroy(first, cur)); //如果构造出现异常，需要析构
-}
-```
+[uninitialized_fill_n()实现](STL/uninitialized_fill_n().md)
 
 # 第3章 迭代器概念与traits编程技法
 
