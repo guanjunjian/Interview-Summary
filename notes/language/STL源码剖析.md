@@ -393,7 +393,7 @@ public:
 
 第一级分配器__malloc_alloc_template定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中： 
 
-[分析代码链接](STL/__malloc_alloc_template.md)
+[__malloc_alloc_template实现](STL/__malloc_alloc_template.md)
 
 - 1.第一级配置器以malloc()、free()、realloc()等C函数执行实际的内存分配、释放、重分配操作 
 - 2.实现出类似C++ new-handler的机制
