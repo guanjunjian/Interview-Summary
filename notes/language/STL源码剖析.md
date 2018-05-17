@@ -528,7 +528,7 @@ union obj{
 为了维护链表，每个节点需要额外的指针（指向下一个节点），解决办法：使用union
 
 - 从obj的第一字段观之，obj可被视为一个指针，指向相同形式的另一个obj
-- 从obj的二哥字段观之，obj可视为一个指针，指向实际区块
+- 从obj的第二字段观之，obj可视为一个指针，指向实际区块
 
 ![](../../pics/language/STL源码剖析/img-2-4-自由链表的实现技巧.png)
 
@@ -567,7 +567,7 @@ private:
 
   //返回一个大小为n的对象，并可能加入大小为n的其它区块到free-list
   static void *refill(size_t n);
-  //分配一大块空间，可容纳nobjs个大小为”size“的区块
+  //分配一大块空间，可容纳nobjs个大小为“size”的区块
   //如果分配nobjs个区块有所不便，nobjs可能会降低
   static char *chunk_alloc(size_t size, int &nobjs);
 
@@ -732,12 +732,13 @@ chunk_alloc()函数从内存池申请空间，根据`end_free-start_free`判断�
 - 如果剩余空间充足 
   - 直接调出20个区块返回给free-list
 - 如果剩余空间不足以提供20个区块，但足够供应至少1个区块
-  - 拨出这不足20个区块的空间
+  - 拨出这不足20个区块的空间（能分配多少区块，就分配多少区块）
 - 如果剩余空间连一个区块都无法供应
   - 试着让内存池中的残余零头还有利用价值，分配给适当的free-list
   - 利用malloc()从heap中分配内存（大小为需求量的2倍，加上一个随着分配次数增加而越来越大的附加量），为内存池注入新的可用空间
-  - 如果malloc()获取失败，chunk_alloc()就四处寻找有无”尚有未用且区块足够大“的free-list（大小为[size,128]的free-list）。找到了就挖出一块交出 
-  - 如果上一步仍为失败，那么就调用第一级分配器，第一级分配器有out-of-memory处理机制，或许有机会释放其它的内存拿来此处使用。如果可以，就成功，否则抛出bad_alloc异常 
+    - 如果malloc()获取失败，chunk_alloc()就四处寻找有无”尚有未用且区块足够大“的free-list（大小为[size,128]的free-list）。找到了就挖出一块交出。递归调用自身
+    - 如果上一步仍为失败，那么就调用第一级分配器，第一级分配器有out-of-memory处理机制，或许有机会释放其它的内存拿来此处使用。如果可以，就成功，否则抛出bad_alloc异常 
+  - 如果上面的步骤找到一定的内存空间，则递归调用自身
 
 **源码分析**：
 
@@ -826,7 +827,7 @@ __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs)
 **例子**：
 
 - 1.一开始，客端调用chunk_alloc(32,20)，于是malloc()分配40个32bytes区块，其中第1个交出，另19个交给free-list[3]维护，余20个留给内存池 
-- 2.接下来客户调用chunk_alloc(64,20)，此时free_list[7]空空如也，必须向内存池申请。内存池只能供应(32*20)/64=10个64bytes区块，就把这10个区块返回，第1个交给客户，余9个由free_list[7]维护 
+- 2.接下来客户调用chunk_alloc(64,20)，此时free_list[7]空空如也，必须向内存池申请。内存池只能供应(32*20)/64=10个64bytes区块（步骤1中剩余的），就把这10个区块返回，第1个交给客户，余9个由free_list[7]维护 
 - 3.此时内存池全空。接下来再调用chunk_alloc(96,20)，此时free-list[11]空空如也，必须向内存池申请。而内存池此时也为空，于是以malloc()分配40+n(附加量)个96bytes区块，其中第1个交出，另19个交给free-list[11]维护，余20+n(附加量)个区块留给内存池... 
 
 ![](../../pics/language/STL源码剖析/img-2-7-内存池例子.png)
@@ -1092,4 +1093,119 @@ __uninitialized_fill_n_aux(ForwardIterator first, Size n,
 ```
 
 # 第3章 迭代器概念与traits编程技法
+
+iterator模式定义：提供一种方法，使之能够依序巡防某个容器所含的各个元素，而又无需暴露该容器的内部表述方式
+
+迭代器是一种“智能指针”
+
+STL容器都提供专属迭代器
+
+迭代器最重要的编程工作是对operator*（解引用）和operator->（成员访问）进行重载
+
+## 3.3 迭代器相应类别
+
+**相应类别**：迭代器所指之物的类别是相应类别的一种
+
+**需求**：假设算法中有必要声明一个变量，以“迭代器所对象的类别”为类型，如何是好？C++不支持`typeof()`，而`typeid()`只能获得类型名称，而不能用来声明变量
+
+**解决方法**：
+
+- 1.**函数模板的参数推导机制**
+  - 缺点：无法用于函数的返回类型声明
+- 2.**声明内嵌类型**
+  - 缺点：无法用于非类类型，如原生指针。因为非类类型无法声明内嵌类型
+- 3.**偏特化**
+  - 优点：解决非类类型的“相应类别”萃取
+
+下面对这三个方法详细说明
+
+> **1.函数模板的参数推导机制**
+
+![](../../pics/language/STL源码剖析/img-3-函数模板的参数推导机制.png)
+
+编译器会自动进行template参数推导，于是导出类别T，解决了问题
+
+**缺点**：迭代器所指对象的类别，称为该迭代器的value type。该方法无法将value type用于返回值的类型声明。函数的“模板推导机制”只能推导参数，无法推导函数的返回值类别
+
+> **2.声明内嵌类型**
+
+![](../../pics/language/STL源码剖析/img-3-声明内嵌类型.png)
+
+**注意**：func()的返回类别必须加上关键字typename，因为T是一个模板参数，在它编译器具现化之前，编译器对T一无所知，编译器此时并不知道`MyIter<T>::value_type`代表的是一个类别或是一个成员函数或数据成员。关键字typename的用意在于告诉编译器这是一个类别，如此才能顺利通过编译
+
+**缺点**：并不是所有迭代器都是类类型，原始指针就不是。如果不是类类型，就无法为它定义内嵌类别。但STL绝对必须接受原生指针作为一种迭代器
+
+> **3.偏特化**
+
+解决**非类类型的迭代器**的**相应类别**的萃取
+
+- 指针对迭代器的模板参数为指针，设计特化版本的迭代器
+- 针对**指向常数对象的指针**，设计特化版本的迭代器
+
+## 3.4 Traits编程技法
+
+使用3.3节提到的后两种方法实现`iterator_traits`类，该类专门用来“萃取”迭代器的特性
+
+> 常用的迭代器相应类别
+
+最常用到的迭代器相应类别有五种：value type、difference type、pointer、reference、iterator、iterator catagoly，如果你希望你所开发的容器与STL水乳交融，一定要为你的容器的迭代器定义这五种对应类别。“特性萃取机”traits会很忠实地将原汁原味榨取出来
+
+> Traits的实现
+
+```c++
+//声明内嵌类型
+template <class Iterator>
+struct iterator_traits {
+  typedef typename Iterator::iterator_category iterator_category;
+  typedef typename Iterator::value_type        value_type;
+  typedef typename Iterator::difference_type   difference_type;
+  typedef typename Iterator::pointer           pointer;
+  typedef typename Iterator::reference         reference;
+};
+
+//偏特化：原生指针
+template <class T>
+struct iterator_traits<T*> {
+  typedef random_access_iterator_tag iterator_category;
+  typedef T                          value_type;
+  typedef ptrdiff_t                  difference_type;
+  typedef T*                         pointer;
+  typedef T&                         reference;
+};
+
+//偏特化：指向常数对象的指针
+template <class T>
+struct iterator_traits<const T*> {
+  typedef random_access_iterator_tag iterator_category;
+  typedef T                          value_type;
+  typedef ptrdiff_t                  difference_type;
+  typedef const T*                   pointer;
+  typedef const T&                   reference;
+};
+```
+
+> Traits的使用
+
+```c++
+template<class I>
+typename iterator_traits<I>::value_type  //函数的返回类型
+func(I ite)
+{
+    return *ite;
+}
+```
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
 
