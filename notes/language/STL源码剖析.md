@@ -393,7 +393,7 @@ public:
 
 第一级分配器__malloc_alloc_template定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中： 
 
-[__malloc_alloc_template实现](STL/__malloc_alloc_template.md)
+[__malloc_alloc_template的实现](STL/__malloc_alloc_template.md)
 
 - 1.第一级配置器以malloc()、free()、realloc()等C函数执行实际的内存分配、释放、重分配操作 
 - 2.实现出类似C++ new-handler的机制
@@ -440,7 +440,7 @@ union obj{
 
 第二级分配器__default_alloc_template定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中：
 
-[__default_alloc_template实现](STL/__default_alloc_template.md)
+[__default_alloc_template的实现](STL/__default_alloc_template.md)
 
 ### 2.2.7 空间配置函数 allocate()
 
@@ -455,7 +455,7 @@ union obj{
 
 allocate()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
-[allocate()实现](STL/allocate().md)
+[allocate()的实现](STL/allocate().md)
 
 ![](../../pics/language/STL源码剖析/img-2-5-区块free-list拔出.png)
 
@@ -470,7 +470,7 @@ allocate()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
 deallocate()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
-[deallocate()实现](STL/deallocate().md)
+[deallocate()的实现](STL/deallocate().md)
 
 ![](../../pics/language/STL源码剖析/img-2-6-区块回收-纳入free-list.png)
 
@@ -482,7 +482,7 @@ allocate()发现free list中没有可用块区了时，就调用refill()，准�
 
 refill()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
-[refill()实现](STL/refill().md)
+[refill()的实现](STL/refill().md)
 
 ### 2.2.10 内存池 chunk_alloc()
 
@@ -507,7 +507,7 @@ chunk_alloc()函数从内存池申请空间，根据`end_free-start_free`判断�
 
 chunk_alloc()定义在头文件[<stl_alloc.h>](../../source/STL/g++/stl_alloc.h)中
 
-[chunk_alloc()实现](STL/chunk_alloc().md)
+[chunk_alloc()的实现](STL/chunk_alloc().md)
 
 **例子**：
 
@@ -573,7 +573,7 @@ uninitialized_copy(const char* first,...) //针对first为char*的特化版本
 uninitialized_copy(const wchar_t* first,...) //针对first为wchar_t*的特化版本
 ```
 
-[uninitialized_copy()实现](STL/uninitialized_copy().md)
+[uninitialized_copy()的实现](STL/uninitialized_copy().md)
 
 ### 2.3.2 uninitialized_fill
 
@@ -603,7 +603,7 @@ uninitialized_fill
 			---> construct(&*cur, x);
 ```
 
-[uninitialized_fill()实现](STL/uninitialized_fill().md)
+[uninitialized_fill()的实现](STL/uninitialized_fill().md)
 
 ### 2.3.3 uninitialized_fill_n
 
@@ -633,7 +633,7 @@ uninitialized_fill_n
 			---> construct(&*cur, x);
 ```
 
-[uninitialized_fill_n()实现](STL/uninitialized_fill_n().md)
+[uninitialized_fill_n()的实现](STL/uninitialized_fill_n().md)
 
 # 第3章 迭代器概念与traits编程技法
 
