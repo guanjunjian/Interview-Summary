@@ -895,7 +895,7 @@ struct __type_traits {
 
 > <type_traits.h>
 
-<type_traits.h>对以下类型提供了特化版本
+`<type_traits.h>`对以下类型提供了特化版本
 
 - char、signed char、unsigned char
 - short、unsigned short
@@ -904,6 +904,30 @@ struct __type_traits {
 - float、double、long double
 
 [<type_traits.h>中的特例化](STL/type_traits.h中的特例化.md)
+
+`<type_traits.h>`有如下声明
+
+```c++
+/* 注意：本文件是内部头文件，被其他STL头文件包含
+*  你不应该尝试直接使用该文件
+*/
+```
+
+> __type_traits的例子
+
+[__type_traits例子---uninitialized_fill_n()](STL/__type_traits例子.md)
+
+> 对于SGI STL用户
+
+如果你是SGI STL用户，可以在自己的程序中充分运用__type_traits
+
+假设定义了一个Shap类，如果想要使用`__type_traits`，则必须定义`__type_traits`关于Shape的特化版本
+
+```c++
+template<> struct __type_traits<Shape> {...}
+```
+
+
 
 
 
