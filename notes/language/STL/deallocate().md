@@ -1,6 +1,8 @@
+#### deallocate()
+
 ```c++
   //p不可以是0
-  static void deallocate(void *p, size_t n)
+  static void deallocate()(void *p, size_t n)
   {
     obj *q = (obj *)p;
     obj * volatile * my_free_list;

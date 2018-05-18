@@ -1,3 +1,5 @@
+#### uninitialized_copy()
+
 ```c++
 template <class InputIterator, class ForwardIterator>
 inline ForwardIterator

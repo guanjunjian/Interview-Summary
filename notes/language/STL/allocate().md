@@ -1,3 +1,5 @@
+#### allocate()
+
 ```c++
   static void * allocate(size_t n)
   {

@@ -786,7 +786,53 @@ typename iterator_traits<I>::difference_type count(){}
 
 根据移动特性与实施操作，迭代器被分为五类
 
-- 1.Input
+- 1.Input Iterator：只读迭代器，只能向前移动（operator++）
+- 2.Output Iterator：只写迭代器，只能向前移动（operator++）
+- 3.Forward Iterator：读写迭代器，只能向前移动（operator++）
+- 4.Bidirectional Iterator：双向移动迭代器（operator++、operator--）
+- 5.Random Access Iterator：随机访问迭代器（operator++、oprerator--、p+n、p-n、p[n]、p1-p2、p1<p2）
+
+这些迭代器的**分类与从属关系**如下图：
+
+![](../../pics/language/STL源码剖析/img-3-2.png)
+
+设计算法时，如果可能，尽量针对上图中的某种迭代器提供一个明确定义，并针对更强化的某些迭代器提供另一种定义，这样才能在不同情况下提供最大效率
+
+[以advance()为例](STL/以advance()为例.md)
+
+## 3.5 iterator 的保证
+
+为了符合规范，任何迭代器都应该提供5个内嵌相应类型，以便于traits萃取，否则便是自别于整个STL架构，可能无法与其它STL组件顺利搭配。然而，写代码难免会有遗漏。因此，STL提供了一个iterators class如下，如果每个新设计的迭代器都继承自它，就可保证符合STL所需的规范
+
+```c++
+template <class Category,
+          class T,
+          class Distance = ptrdiff_t,
+          class Pointer = T*,
+          class Reference = T&>
+struct iterator{
+    typedef Category    iterator_category;
+    typedef T           value_type;
+    typedef Distance    difference_type;
+    typedef Pointer     pointer;
+    typedef Reference   reference;
+};
+```
+
+iterator class不含任何成员，存粹只是类型定义，所以继承它不会导致任何额外负担。由于后3个参数皆有默认值，故新的迭代器只需提供前2个参数即可。以下为一个继承示例： 
+
+```c++
+template <class Item>
+struct ListIter : public std::iterator<std::forword_iterator_tag, Item>{
+    ...
+};
+```
+
+**总结**：
+
+- 1.设计适当的相应类型，是迭代器的责任
+- 2.设计适当的迭代器，是容器的责任
+- 3.算法，完全可以独立于容器和迭代器之外自行发展，只要设计时以迭代器为对外接口就行
 
 
 
