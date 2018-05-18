@@ -834,6 +834,77 @@ struct ListIter : public std::iterator<std::forword_iterator_tag, Item>{
 - 2.设计适当的迭代器，是容器的责任
 - 3.算法，完全可以独立于容器和迭代器之外自行发展，只要设计时以迭代器为对外接口就行
 
+## 3.7 SGI STL 的私房菜：__type_traits
+
+STL只对迭代器加以规范，指定出**iterator_traits**。SGI把这种技法进一步扩大到迭代器以外的世界，于是有了**__type_traits**
+
+- **iterator_traits**：负责萃取**迭代器**的特性
+- **__type_traits**：负责萃取**类型**的特性
+
+**__type_traits萃取的类型特性有**：
+
+- 1.是否具备“有用的默认构造函数”（non-trivial default constructor）
+- 2.是否具备“有用的拷贝构造函数”（non-trivial copy constructor）
+- 3.是否具备“有用的赋值操作运算符”（non-trivial assignment operator）
+- 4.是否具备“有用的析构函数”（non-trivial destructor）
+- 5.是否为POD
+
+如果被萃取的类型，前4种特性都是“无用的”，在对这个类别进行构造、拷贝、赋值、析构时，就可以采用最有效的措施（如根本不调用那些“无用的”相关函数），而采用内存直接处理操作如malloc()、memcopy()等等，以获得最高效率
+
+> __type_traits的运用
+
+```c++
+__type_traits<T>::has_trivial_default_constructor
+__type_traits<T>::has_trivial_copy_constructor
+__type_traits<T>::has_trivial_assignment_operator
+__type_traits<T>::has_trivial_destructor trivial_destructor
+__type_traits<T>::is_POD_type
+```
+
+> __type_traits的返回类型
+
+上述式子应该传回这样的东西
+
+```c++
+struct __true_type { };
+struct __false_type { };
+```
+
+> __type_traits的定义
+
+```c++
+template <class type>
+struct __type_traits { 
+   typedef __true_type     this_dummy_member_must_be_first;
+
+   typedef __false_type    has_trivial_default_constructor;
+   typedef __false_type    has_trivial_copy_constructor;
+   typedef __false_type    has_trivial_assignment_operator;
+   typedef __false_type    has_trivial_destructor;
+   typedef __false_type    is_POD_type;
+};
+```
+
+把所有内嵌类型都默认定义为`__false_type`的原因：SGI定义最保守的值（即被萃取的类型具有“有用的”特性），然后再针对每个标量类型设计适当的`__type_traits`特例化版本。`<type_traits.h>`内对所有C++标量类型提供了对应的特化声明
+
+上述`__type_traits`可以接收任何类型的参数，五个typedefs将经由以下管道获得实值：
+
+- 1.**一般实例**：上述各个`has_trivial_xxx`都被定义为`__false_type`
+- 2.经过声明的**特化版本**
+- 3.某些编译器会自动为所有类型提供适当的特化版本（但作者怀疑其精确程度）
+
+> <type_traits.h>
+
+<type_traits.h>对以下类型提供了特化版本
+
+- char、signed char、unsigned char
+- short、unsigned short
+- int、unsigned int
+- long unsigned long
+- float、double、long double
+
+[<type_traits.h>中的特例化](STL/type_traits.h中的特例化.md)
+
 
 
 
