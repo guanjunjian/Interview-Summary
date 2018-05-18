@@ -1,4 +1,4 @@
-#### deallocate()
+## deallocate()
 
 ```c++
   //p不可以是0

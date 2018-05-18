@@ -1,4 +1,4 @@
-#### uninitialized_copy()
+## uninitialized_copy()
 
 ```c++
 template <class InputIterator, class ForwardIterator>
