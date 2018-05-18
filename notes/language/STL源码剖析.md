@@ -1167,9 +1167,131 @@ iterator erase(iterator position) {
 
 ## 4.3 list
 
+### 4.3.1 list概述
 
+**优势**：
 
+- 1.每次插入或删除一个元素，就配置或释放一个元素空间，对空间的运用绝对的精准，一点也不浪费
+- 2.对于任何位置的元素插入或元素移除，list永远是常数时间
 
+### 4.3.2 list的节点
+
+list本身和list的节点是不同的结构，需要分开设计
+
+STL list的节点（node）结构，一个双向链表：
+
+```c++
+template <class T>
+struct __list_node{
+    typedef void* void_pointer;
+    //类型为void*，其实可设为 __list_node<T>*
+    void_pointer prev;  
+    void_pointer next;
+};
+```
+
+![](../../pics/language/STL源码剖析/img-4-list_node.png)
+
+### 4.3.3 list的迭代器
+
+STL list是一个双向链表，迭代器必须具备前移、后移的能力，所以list提供的是一个**Bidirectional Iterators**
+
+**迭代器失效问题**
+
+- 1.插入操作（insert）、接合操作（splice）不会造成原有的list迭代器失效
+- 2.删除操作（erase）只有“指向被删除元素”的那个迭代器失效，其他迭代器不受影响
+
+![](../../pics/language/STL源码剖析/img-4-4.png)
+
+```c++
+template<class T, class Ref, class Ptr>
+struct __list_iterator {
+  typedef __list_iterator<T, T&, T*>             iterator;
+  typedef __list_iterator<T, const T&, const T*> const_iterator;
+  typedef __list_iterator<T, Ref, Ptr>           self;
+
+  //迭代器属于Bidirectional Iterators
+  typedef bidirectional_iterator_tag iterator_category;
+  typedef T value_type;
+  typedef Ptr pointer;
+  typedef Ref reference;
+  //节点指针类型link_type
+  typedef __list_node<T>* link_type;
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+
+  //迭代器内部的指针，指向list的节点
+  link_type node;
+
+  //构造函数
+  __list_iterator(link_type x) : node(x) {}
+  __list_iterator() {}
+  __list_iterator(const iterator& x) : node(x.node) {}
+
+  bool operator==(const self& x) const { return node == x.node; }
+  bool operator!=(const self& x) const { return node != x.node; }
+  //对迭代器取值，取的是节点的数据值
+  reference operator*() const { return (*node).data; }
+
+  //以下是迭代器的成员存取运算子的标准做法
+  pointer operator->() const { return &(operator*()); }
+
+  //前置++，对迭代器累加1，就是前进一个节点
+  self& operator++() { 
+    node = (link_type)((*node).next);
+    return *this;
+  }
+  //后置++
+  self operator++(int) { 
+    self tmp = *this;
+    ++*this;
+    return tmp;
+  }
+
+  //前置--，对迭代器递减1，就是后退一个节点
+  self& operator--() { 
+    node = (link_type)((*node).prev);
+    return *this;
+  }
+  //后置--
+  self operator--(int) { 
+    self tmp = *this;
+    --*this;
+    return tmp;
+  }
+};
+```
+
+### 4.3.4 list的数据结构
+
+SGI list不仅是一个双向链表，还是一个**环状双向链表**。所以它只需要一个指针，便可完整表现整个链表： 
+
+```c++
+template <class T, class Alloc = alloc> //确实使用alloc为配置器
+class list {
+protected:
+    typedef __list_node<T> list_node;
+public:
+    typedef list_node* link_type;
+
+protected:
+    //只要一个指针，便可表示整个环状双向链表
+    //指向尾端的空白节点
+    link_type node; 
+};
+
+iterator begin() { return (link_type)((*node).next); }
+iterator end() { return node; }
+size_type size() const {
+    size_type result = 0;
+    distance(begin(), end(), result);
+    return result;
+}
+```
+
+让指针指向刻意置于尾端的一个空白节点，node便能符合STL对于“前闭后开”`[)`区间的要求，称为last迭代器
+
+![](../../pics/language/STL源码剖析/img-4-5.png)
 
 
 
