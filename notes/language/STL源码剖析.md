@@ -927,13 +927,198 @@ struct __type_traits {
 template<> struct __type_traits<Shape> {...}
 ```
 
+# 第4章 序列式容器
 
+![](../../pics/language/STL源码剖析/img-4-1.png)
 
+上图中的“衍生”并非“派生”，而是内含关系。例如heap内含一个vector，priority-queue内含一个heap，stack和queue都含一个deque，set/map/multiset/multimap都内含一个RB-tree，has_x都内含一个hashtable 
 
+## 4.2 vector
 
+### 4.2.1 vctor 概述
 
+array与vector的**区别**：空间的运用的灵活性
 
+- 1.array是静态空间，一旦配置就不能更改
+- 2.vector是动态空间，随着元素的加入，它的内部机制会自行扩充空间以容纳新元素
 
+### 4.2.2 vector 定义摘要 
+
+STL规定，欲使用vector者必须先包含`<vector>`，但SGI STL将vector实现于更底层的`<stl_vector.h>`
+
+[vector的定义]()
+
+### 4.2.3 vector的迭代器
+
+vector的迭代器就是普通指针，因为：
+
+- 1.vector维护的是一个连续线性空间
+- 2.vector所需要的操作如`*、->、++、--、+、-、+=、-=`，普通指针都具备
+- 3.vector支持随机存取，普通指针拥有这样的能力
+
+因此，vector提供的是Random Access Iterators
+
+> 定义
+
+```c++
+template <class T, class Alloc = alloc>
+class vector {
+public:
+  typedef T value_type;
+  typedef value_type* iterator;
+};
+```
+
+> 例子
+
+```c++
+//ivite的类型为int*
+vector<int>::iterator ivite;
+//svite的类型为Shape*
+vector<int>::iterator svite;
+```
+
+### 4.2.4 vector的数据结构
+
+> 数据结构
+
+**数据结构**：vector采用连续线性空间，以两个迭代器start和finish分别指向配置得来的连续空开中目前已经被使用的范围，以迭代器end_of_storage指向整块连续空间（含备用空间）的尾端
+
+**容量**：为了降低空间配置时的速度成本，vector实际配置的大小可能比客户端需求量更大一些，以备将来可能的扩充。一旦**容量**等于**大小**，便是**满载**，下次再有新增元素，整个vector就得另觅居所
+
+```c++
+class vector {
+  //表示目前使用空间的头
+  iterator start;
+  //表示目前使用空间的尾
+  iterator finish;
+  //表示目前可用空间的尾
+  iterator end_of_storage;
+};
+```
+
+> 大小、容量相关函数
+
+运用start、finish、end_of_storage三个迭代器，提供首尾迭代器、大小、容量、空容器判断、[]运算、最前端元素值、最后端元素值等功能
+
+```c++
+class vector {
+public:
+  iterator begin() { return start; }
+  iterator end() { return finish; } 
+  size_type size() const { return size_type(end() - begin()); }
+  size_type capacity() const { return size_type(end_of_storage - begin()); }
+  bool empty() const { return begin() == end(); }
+  reference operator[](size_type n) { return *(begin() + n); }
+  reference front() { return *begin(); }
+  reference back() { return *(end() - 1); }
+}；
+```
+
+![](../../pics/language/STL源码剖析/img-4-2.png)
+
+### 4.2.5 vector的构造与内存管理 constructor push_back
+
+> constructor
+
+vector提供许多构造函数，其中一个允许我们制定空间大小及初值：
+
+```c++
+//允许指定vector大小n、初值value、容量n
+vector(size_type n, const T& value) { fill_initialize(n, value); }
+
+//填充并予以初始化
+void fill_initialize(size_type n, const T& value) {
+  start = allocate_and_fill(n, value);
+  //大小为n
+  finish = start + n;
+  //容量为n
+  end_of_storage = finish;
+}
+
+iterator allocate_and_fill(size_type n, const T& x) {
+  //配置n个元素空间
+  iterator result = data_allocator::allocate(n);
+  //以x为初值，从result位置开始构造n个元素，参考2.2.3节
+  uninitialized_fill_n(result, n, x);
+  return result;
+}
+```
+
+> push_back
+
+push_back()将新元素插入于vector尾端时，该函数首先检查是否有备用空间
+
+- 如果有，直接在备用空间上构造元素，并调整迭代器finish，使vector变大
+- 如果没有，扩充空间：重新配置、移动数据、释放原空间
+
+**分配过程**：
+
+- 1.**计算新空间**，配置原则：
+  - 如果原大小为0，则配置1个元素大小
+  - 如果原大小不为0，则配置原大小的两倍
+  - 前半段用来放置原数据，后半段准备用来放置新数据
+- 2.进行空间配置
+- 3.将原vector的内容拷贝到新vector
+- 4.构造新元素，并放入vector中
+- 5.释放原vector
+- 6.更新start、finish、end_of_storage迭代器
+
+[push_back()的实现](STL/vector-push_back().md)
+
+**注意**：
+
+- 1.动态增加并不是在原空间之后接续新空间（因为无法保证原空间之后尚有可配置的空间），而是以原大小的两倍**另外**配置一块较大空间
+- 2.对vector的任何操作，一旦引起**空间重新配置**，指向原vector的所有迭代器就都失效了
+
+### 4.2.6 vector的元素操作： pop_back erase clear insert
+
+> pop_back()
+
+```c++
+//将尾元素拿掉，并调整大小
+void pop_back() {
+  //将尾端标记往前移一格，表示将放弃尾端元素
+  --finish;
+  destroy(finish);
+}
+```
+
+> erase()
+
+两个重载版本
+
+**版本1 erase(first,last)**：
+
+![](../../pics/language/STL源码剖析/img-4-3-a.png)
+
+```c++
+//清除[first,last)中的元素
+iterator erase(iterator first, iterator last) {
+  //copy三个参数分别是：源起始位置、源终止位置（不包含）、目的起始位置
+  //这部的操作是将last之后的元素，覆盖到fisrt来
+  //返回值i为上图下部分，vector<T>::finish所指位置
+  iterator i = copy(last, finish, first);
+  //将i之后的元素析构
+  destroy(i, finish);
+  finish = finish - (last - first);
+  return first;
+}
+```
+
+**版本2 erase(position)**：
+
+```c++
+//清除某个位置上的元素
+iterator erase(iterator position) {
+  //如果清除的不是尾元素之前的元素，需要将后面的数据覆盖上来
+  if (position + 1 != end())
+    copy(position + 1, finish, position);
+  --finish;
+  destroy(finish);
+  return position;
+}
+```
 
 
 
