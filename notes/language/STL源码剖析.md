@@ -1147,6 +1147,8 @@ iterator erase(iterator position) {
     - 若新空间分配成功，清除并释放旧vector空间
       - 更新start、finish
 
+[insert()的实现](STL/vector-insert().md)
+
 **insert(position,n,x)**
 
 - (1)备用空间 2 >= 新增元素个数2
@@ -1154,7 +1156,7 @@ iterator erase(iterator position) {
 
 ![](../../pics/language/STL源码剖析/img-4-3b-1.png)
 
-- (1)备用空间 2 >= 新增元素个数2
+- (1)备用空间 3 >= 新增元素个数3
   - (1-2)插入点之后的现有元素个数2 <= 新增元素个数3
 
 ![](../../pics/language/STL源码剖析/img-4-3b-2.png)
@@ -1162,6 +1164,12 @@ iterator erase(iterator position) {
 - (2)备用空间2 < 新增元素个数3
 
 ![](../../pics/language/STL源码剖析/img-4-3b-3.png)
+
+## 4.3 list
+
+
+
+
 
 
 
