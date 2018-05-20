@@ -1367,6 +1367,48 @@ protected:
 
 ## 4.4 deque
 
+### 4.4.1 deque概述
+
+deque是一种双向开口的连续线性空间，可以在头尾两端分别做元素的插入和删除操作
+
+**deque与vector的差异**：
+
+- 1.deque允许于常数时间内对起头端进行元素的插入或移除操作 
+- 2.deque没有所谓容量观念，因为它是动态地以分段连续空间组合而成，随时可以增加一段新的空间并链接起来（deque没有必要提供所谓的空间保留功能） 
+- 3.vector的迭代器是普通指针，但deque的迭代器不是，因此deque迭代器效率较低
+
+**对deque进行排序的建议**：为了最高效率，可将deque先完整复制到一个vector，将vector排序后（利用STL sort算法），再复制回deque
+
+### 4.4.2 deque的中控器
+
+deque系由一段一段的定量连续空间构成，一旦有必要在deque的前端或尾端增加新空间，便配置一段定量连续空间，串接在整个deque的头端或尾端。
+
+- **好处**：避开了“重新配置、复制、释放”的轮回（但map满了，仍然有这个过程）
+- **坏处**：复杂的迭代器架构
+
+deque采用一块所谓的map（注意，不是STL的map容器）作为主控，这里所谓的map是一小块连续空间，其中每个元素（此处称为一个节点，node）都是指针，指向另一端（较大的）连续线性空间，称为**缓冲区**。缓冲区才是deque的存储空间本身。SGI STL允许指定缓冲区大小，默认为0表示将使用512字节缓冲区
+
+```c++
+//BufSiz默认为0，表示512字节
+template <class T, class Alloc = alloc, size_t BufSiz = 0> 
+class deque {
+public:                         // Basic types
+  typedef T value_type;
+  typedef value_type* pointer;
+protected:                      // Internal typedefs
+  //元素的指针的指针
+  typedef pointer* map_pointer;
+  
+  //指向map，map是块连续空间，
+  //其内的每个元素都是一个指针（称为节点），指向一块缓冲区
+  //map是一个T**，即指针的指针
+  map_pointer map;
+  //map可以容纳多少指针  
+  size_type map_size;
+```
+
+![](G:\OneDrive\Github\Interview-Summary\pics\language\STL源码剖析\img-4-10.png)
+
 
 
 
