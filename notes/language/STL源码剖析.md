@@ -1017,7 +1017,7 @@ public:
 
 ![](../../pics/language/STL源码剖析/img-4-2.png)
 
-### 4.2.5 vector的构造与内存管理 constructor push_back
+### 4.2.5 vector的构造
 
 > constructor
 
@@ -1045,7 +1045,15 @@ iterator allocate_and_fill(size_type n, const T& x) {
 }
 ```
 
-> push_back
+### 4.2.6 vector的元素操作
+
+- 1.push_back
+- 2.pop_back
+- 3.erase
+- 4.clear
+- 5.insert
+
+> **1.push_back**
 
 push_back()将新元素插入于vector尾端时，该函数首先检查是否有备用空间
 
@@ -1071,9 +1079,7 @@ push_back()将新元素插入于vector尾端时，该函数首先检查是否有
 - 1.动态增加并不是在原空间之后接续新空间（因为无法保证原空间之后尚有可配置的空间），而是以原大小的两倍**另外**配置一块较大空间
 - 2.对vector的任何操作，一旦引起**空间重新配置**，指向原vector的所有迭代器就都失效了
 
-### 4.2.6 vector的元素操作： pop_back erase clear insert
-
-> pop_back()
+> **2.pop_back()**
 
 ```c++
 //将尾元素拿掉，并调整大小
@@ -1084,7 +1090,7 @@ void pop_back() {
 }
 ```
 
-> erase()
+> **3.erase()**
 
 两个重载版本
 
@@ -1120,7 +1126,13 @@ iterator erase(iterator position) {
 }
 ```
 
-> insert()
+> **4.clear()**
+
+```c++
+void clear() { erase(begin(), end()); }  
+```
+
+>  **5.insert()**
 
 **实现过程**：
 
@@ -1281,6 +1293,7 @@ protected:
 };
 
 iterator begin() { return (link_type)((*node).next); }
+//end()就是那个空白节点
 iterator end() { return node; }
 size_type size() const {
     size_type result = 0;
@@ -1292,6 +1305,67 @@ size_type size() const {
 让指针指向刻意置于尾端的一个空白节点，node便能符合STL对于“前闭后开”`[)`区间的要求，称为last迭代器
 
 ![](../../pics/language/STL源码剖析/img-4-5.png)
+
+### 4.3.5 list的构造
+
+> 空间配置
+
+list缺省使用alloc作为空间分配器，并据此另外定义了一个list_node_allocator，为的是更方便以节点大小为配置单位： 
+
+```c++
+template <class T, class Alloc = alloc>
+class list {
+protected:
+    typedef simple_alloc<list_node, Alloc> list_node_allocator;
+...
+};
+```
+
+> 构造函数
+
+list提供许多构造函数，其中一个是默认构造函数，允许我们不指定任何参数做出一个空的list
+
+```c++
+public:
+list() { empty_initialize(); }
+
+protected:
+  void empty_initialize() { 
+    node = get_node();
+    node->next = node;
+    node->prev = node;
+  }
+```
+
+### 4.3.6 list的元素操作
+
+- 节点操作
+  - 分配一个节点：[get_node()](STL/list-get_node().md)
+  - 释放一个节点：[put_node()](STL/list-put_node().md)
+  - 产生（配置并构造）一个节点：[create_node()](STL/list-create_node.md)
+  - 销毁（析构并释放）一个节点：[destroy_node()](STL/list-destroy_node.md)
+  - 节点插入：
+    - [insert(position,x)](STL/list-insert().md)：在迭代器position之前插入一个节点x
+    - [puch_back()](STL/list-push_back().md)：插入一个节点，作为尾节点
+    - [push_front()](STL/list-push_front().md)：插入一个节点，作为头节点
+  - 节点移除：
+    - [erase(position)](STL/list-erase().md)：移除迭代器position所指节点，返回原position下一个节点的迭代器
+    - [pop_front()](STL/list-pop_front().md)：移除头节点
+    - [pop_back()](STL/list-pop_back().md)：移除尾节点
+    - [remove(value)](STL/list-remove().md)：将数值为value的所有元素移除
+    - [unique()](STL/list-unique().md)：移除数值相同的连续节点，注意，只有“连续而相同的元素”，才会被移除剩一个
+- 链表操作
+  - [list()](STL/list-list().md)：list构造函数，创建一个空链表
+  - [clear()](STL/list-clear().md)：清除所有节点（整个链表）
+  - [transfer(position,first,last)](STL/list-transfer().md)：内部接口，迁移操作，将[first,last)内的所有元素移动到position之前
+    - [first,last)区间可以是同一list，也可以是不同list
+    - 该函数并非公开接口，list提供的接合操作是splice()
+  - [splice()](STL/list-splice().md)：链表拼接，将一个list中的连续范围的元素移动到另一个（或同一个）list的某个定点，有三个重载形式。内部调用transfer()
+  - [merge()](STL/list-merge().md)：将一个链表合并到另一个链表，两个链表的内容需先经过递增排序，合并后链表也是递增排序的
+  - [reverse()](STL/list-reverse().md)：将链表逆向重置
+  - [sort()](STL/list-sort().md)：list不能使用STL算法sort()，必须使用自己的sort()成员函数，因为STL算法sort()只接受RamdonAccessIterator。本函数采用快排
+
+## 4.4 deque
 
 
 
