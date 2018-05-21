@@ -179,7 +179,7 @@ heap可分为max-heap和min-heap，默认情况下，STL提供max-heap。下面�
 
 **函数执行条件**：该函数接受两个迭代器，用来表现一个heap底层容器（vector）的头尾
 
-注意：pop_heap之后需要push_back取走所求元素
+**注意**：pop_heap之后需要push_back取走所求元素
 
 ![](../../pics/language/STL源码剖析/img-4-22.png)
 
