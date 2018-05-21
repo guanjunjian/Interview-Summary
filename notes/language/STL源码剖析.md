@@ -1407,11 +1407,66 @@ protected:                      // Internal typedefs
   size_type map_size;
 ```
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\STL源码剖析\img-4-10.png)
+![](../../pics/language/STL源码剖析/img-4-10.png)
 
+### 4.4.3 deque的迭代器
 
+deque是分段连续空间，维持其“整体连续”假象的任务，落在了迭代器的operator++和operator--两个运算身上
 
+迭代器必须完成的工作：
 
+- 1.必须能够指出分段连续空间（即缓冲区）在哪 
+- 2.必须能够判断自己是否已经处于其所在缓冲器的边缘。如果是，一旦前进或后退时就必须跳跃至下一个或上一个缓冲区
+- 3.为了能够正确跳跃，迭代器必须随时掌握中控器map 
 
+```c++
+template <class T, class Ref, class Ptr, size_t BufSiz>
+struct __deque_iterator {   //未继承std::iterator
+  typedef __deque_iterator<T, T&, T*, BufSiz>             iterator;
+  typedef __deque_iterator<T, const T&, const T*, BufSiz> const_iterator;
+  //buffer_size()用来决定缓冲区大小
+  static size_t buffer_size() {
+  //__deque_buf_size是一个全局函数，对该函数的解释如下：
+  //如果BufSiz不为0，传回BufSiz（个缓冲区），表示buffer size由用户自定义
+  //如果BufSiz为0，表示buffer size使用默认值，那么
+  //  如果sizeof(T)小于512，则传回 512/sizeof(T) （个缓冲区）
+  //  如果sizeof(T)不小于512，则传回1 （个缓冲区）
+  return __deque_buf_size(BufSiz, sizeof(T)); 
+  }
 
+  //未继承std::iterator，所以必须自行撰写5个必要的迭代器相应类型
+  typedef random_access_iterator_tag iterator_category; // (1)
+  typedef T value_type;                                 // (2)
+  typedef Ptr pointer;                                  // (3)
+  typedef Ref reference;                                // (4)
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;                    // (5)
+  typedef T** map_pointer;
+
+  typedef __deque_iterator self;
+
+  //保持与容器的联结
+  T* cur;           //此迭代器所指缓冲区中的当前元素
+  T* first;         //此迭代器所指缓冲区的头
+  T* last;          //此迭代器所指缓冲区的尾(含备用空间)
+  map_pointer node; //指向中控器map
+...
+};
+```
+
+![](../../pics/language/STL源码剖析/img-4-11.png)
+
+- [set_node()](STL/deque-set_node())：更新迭代器指向的缓冲区
+- [operator*()](STL/deque-解引用函数.md)
+- [operator->()](STL/deque-成员访问.md)
+- [operator-()](STL/deque-operator-().md)
+- [operator++()](STL/deque-operator++().md)和[operator++(int)](STL/deque-operator++(int).md)
+- [operator--()](STL/deque-operator--().md)和[operator--(int)](STL/deque-operator--(int).md)
+- [operator+=()](STL/deque-operator+=().md)
+- [operator+()](STL/deque-operator+().md)
+- [operator-=()](STL/deque-operator-=().md)
+- [operator[]()]((STL/deque-operator[].md))
+- [operator==()](STL/deque-operator==().md)
+- [operator!=()](STL/deque-operator!=().md)
+- [operator<()](STL/deque-operator<().md)
 

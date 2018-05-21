@@ -23,4 +23,4 @@ protected:
   }
 ```
 
-![](G:\OneDrive\Github\Interview-Summary\pics\language\STL源码剖析\img-4-8a.png)
+![](../../../pics/language/STL源码剖析/img-4-8a.png)
