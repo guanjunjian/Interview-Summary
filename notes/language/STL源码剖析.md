@@ -1538,12 +1538,12 @@ protected:
     typedef simple_alloc<pointer,Alloc> map_allocator;
 ```
 
-> 构造函数
+> [构造函数](STL/deque-构造函数.md)
 
 提供一个构造函数
 
 ```c++
-  deque(size_type n, const value_type& value)
+  deque(int n, const value_type& value)
     : start(), finish(), map(0), map_size(0)
   {
     fill_initialize(n, value);
@@ -1557,8 +1557,6 @@ deque()
 	---> fill_initialize() //负责生产并安排好deque的结构，并将初值设定妥当
 		---> create_map_and_nodes() //负责产生并安排好deque的结构
 ```
-
-
 
 
 
