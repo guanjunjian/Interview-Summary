@@ -1463,7 +1463,7 @@ struct __deque_iterator {   //未继承std::iterator
 - [operator++()](STL/deque-operator++().md)和[operator++(int)](STL/deque-operator++(int).md)
 - [operator--()](STL/deque-operator--().md)和[operator--(int)](STL/deque-operator--(int).md)
 - [operator+(n)](STL/deque-operator+(n).md)
-- [operator+=(n)](STL/deque-operator+=(n).md)
+- [operator+=(n)](STL/deque-operator+=(n).md)：实现随机存取，迭代器可直接跳跃n个距离
 - [operator-(n)](STL/deque-operator-(n).md)
 - [operator-=(n)](STL/deque-operator-=(n).md)
 - [`operator[]()`](STL/deque-operator[]().md)
