@@ -1465,7 +1465,7 @@ struct __deque_iterator {   //未继承std::iterator
 - [operator+=()](STL/deque-operator+=().md)
 - [operator-()](STL/deque-operator-().md)
 - [operator-=()](STL/deque-operator-=().md)
-- [`operator[]()`]((STL/deque-operator[].md))
+- [`operator[]()`](STL/deque-operator[].md)
 - [operator==()](STL/deque-operator==().md)
 - [operator!=()](STL/deque-operator!=().md)
 - [operator<()](STL/deque-小于函数.md)
