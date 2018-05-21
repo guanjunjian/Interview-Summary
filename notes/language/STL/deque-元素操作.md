@@ -386,17 +386,22 @@ deque<T, Alloc, BufSize>::insert_aux(iterator pos, const value_type& x) {
     pos = start + index;
     iterator pos1 = pos;
     ++pos1;
+    //元素移动
     copy(front2, pos1, front1);
   }
-  else {
+  else { //插入点之后的元素个数较少
+    //在最尾端加入与最后元素同值的元素
     push_back(back());
+    //标记记号，然后进行元素移动
     iterator back1 = finish;
     --back1;
     iterator back2 = back1;
     --back2;
     pos = start + index;
+    //元素移动
     copy_backward(pos, back2, back1);
   }
+  //在插入点上设定新值
   *pos = x_copy;
   return pos;
 }
