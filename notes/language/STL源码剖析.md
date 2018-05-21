@@ -1459,12 +1459,13 @@ struct __deque_iterator {   //未继承std::iterator
 - [set_node()](STL/deque-set_node().md)：更新迭代器指向的缓冲区
 - [operator*()](STL/deque-解引用函数.md)
 - [operator->()](STL/deque-成员访问函数.md)
+- [operator-(x)](STL/deque-operator-(x).md)：计算两个迭代器之间的距离
 - [operator++()](STL/deque-operator++().md)和[operator++(int)](STL/deque-operator++(int).md)
 - [operator--()](STL/deque-operator--().md)和[operator--(int)](STL/deque-operator--(int).md)
-- [operator+()](STL/deque-operator+().md)
-- [operator+=()](STL/deque-operator+=().md)
-- [operator-()](STL/deque-operator-().md)
-- [operator-=()](STL/deque-operator-=().md)
+- [operator+(n)](STL/deque-operator+(n).md)
+- [operator+=(n)](STL/deque-operator+=(n).md)
+- [operator-(n)](STL/deque-operator-(n).md)
+- [operator-=(n)](STL/deque-operator-=(n).md)
 - [`operator[]()`](STL/deque-operator[]().md)
 - [operator==()](STL/deque-operator==().md)
 - [operator!=()](STL/deque-operator!=().md)
