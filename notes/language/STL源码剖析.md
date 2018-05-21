@@ -1396,7 +1396,7 @@ public:                         // Basic types
   typedef T value_type;
   typedef value_type* pointer;
 protected:                      // Internal typedefs
-  //元素的指针的指针
+  //元素的指针的指针，指向的map的指针类型
   typedef pointer* map_pointer;
   
   //指向map，map是块连续空间，
@@ -1470,4 +1470,103 @@ struct __deque_iterator {   //未继承std::iterator
 - [operator==()](STL/deque-operator==().md)
 - [operator!=()](STL/deque-operator!=().md)
 - [operator<()](STL/deque-小于函数.md)
+
+### 4.4.4 deque的数据结构
+
+- 1.start、finish两个迭代器，分别指向第一缓冲区的第一个元素和最后缓冲区的最后一个元素（的下一个位置）
+- 2.map_size记住目前的map大小，一旦map提供的节点不足，就重新配置一块更大的map
+
+```c++
+template <class T, class Alloc = alloc, size_t BufSiz = 0> 
+class deque {
+public:                         // Basic types
+  typedef T value_type;
+  typedef value_type* pointer;
+  typedef const value_type* const_pointer;
+  typedef value_type& reference;
+  typedef const value_type& const_reference;
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+    
+  typedef __deque_iterator<T, T&, T*, BufSiz>              iterator;
+  typedef __deque_iterator<T, const T&, const T&, BufSiz>  const_iterator;
+
+protected:                      // Internal typedefs
+  //元素的指针的指针，指向的map的指针类型
+  typedef pointer* map_pointer;
+
+protected:                      // Data members
+  iterator start;   //表现第一个节点
+  iterator finish;  //表现最后一个节点
+
+  map_pointer map;  //指向map，map是块连续空间
+                    //其每个元素都是个指针，指向一个节点（缓冲区）
+  size_type map_size; //map内有多少个指针
+
+```
+
+> [deque-数据结构相关函数](STL/deque数据结构相关函数.md)
+
+- begin()：返回start迭代器
+- end()：返回finish迭代器
+- operator[]：调用迭代器的operator[]
+- front()：解引用start迭代器，获取start所指向的元素
+- back()：解引用finish迭代器的上一个迭代器，获取finish上一个元素
+- size()：计算元素个数
+- max_size()：可容纳最大元素个数，返回的是无限大`size_t(-1)`
+- empty()：判断容器是否为空
+
+### 4.4.5 deque的构造
+
+> 例子
+
+```c++
+deque<int,alloc,8> ideq(20,9);
+```
+
+其缓冲区大小为8（个元素，32字节），并令其保留20个元素空间，每个元素初值为9
+
+> 空间配置器
+
+deque自行定义了两个专属的空间配置器
+
+```c++
+protected:
+    //专属的空间分配器，每次分配一个元素大小，为分配元素准备
+    typedef simple_alloc<value_type,Alloc> data_allocator;
+    //专属的空间分配器，每次分配一个指针大小，为分配map中的指针准备
+    typedef simple_alloc<pointer,Alloc> map_allocator;
+```
+
+> 构造函数
+
+提供一个构造函数
+
+```c++
+  deque(size_type n, const value_type& value)
+    : start(), finish(), map(0), map_size(0)
+  {
+    fill_initialize(n, value);
+  }
+```
+
+调用流程：
+
+```
+deque()
+	---> fill_initialize() //负责生产并安排好deque的结构，并将初值设定妥当
+		---> create_map_and_nodes() //负责产生并安排好deque的结构
+```
+
+
+
+
+
+
+
+
+
+
+
+### 4.4.6 deque的元素操作
 
