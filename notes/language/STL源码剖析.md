@@ -1456,7 +1456,7 @@ struct __deque_iterator {   //未继承std::iterator
 
 ![](../../pics/language/STL源码剖析/img-4-11.png)
 
-- [set_node()](STL/deque-set_node())：更新迭代器指向的缓冲区
+- [set_node()](STL/deque-set_node().md)：更新迭代器指向的缓冲区
 - [operator*()](STL/deque-解引用函数.md)
 - [operator->()](STL/deque-成员访问.md)
 - [operator++()](STL/deque-operator++().md)和[operator++(int)](STL/deque-operator++(int).md)
