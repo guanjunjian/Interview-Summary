@@ -105,3 +105,160 @@ priority_queue不提供遍历功能，因此不提供迭代器
 
 ### 4.9.2 slist的节点
 
+![](../../pics/language/STL源码剖析/img-4-25.png)
+
+**节点相关的结构**：
+
+```c++
+//单向链表的节点基本结构
+struct __slist_node_base
+{
+    __slist_node_base *next;
+};
+
+//单向链表的节点结构
+template <class T>
+struct __slist_node : public __slist_node_base
+{
+    T data;
+}
+```
+
+**节点相关的全局函数**：
+
+```c++
+//已知某一节点prev_node，将新节点new_node插入其后
+inline __slist_node_base* __slist_make_link(
+    __slist_node_base *prev_node,
+    __slist_node_base *new_node)
+{
+    //令new节点的下一节点为prev节点的下一节点
+    new_node->next = prev_node->next;
+    prev_node->next = new_node; //令prev节点的下一节点指向new节点
+    return new_node;
+}
+
+//单向链表的大小（元素个数）
+inline size_t __slist_size(__slist_node_base *node)
+{
+    size_t result = 0;
+    for(;node != 0;node = node->next)
+        ++result;   //一个个累计
+    return result;
+}
+```
+
+### 4.9.3 slist的迭代器
+
+![](../../pics/language/STL源码剖析/img-4-25-后.png)
+
+**迭代器的定义如下**： 
+
+```c++
+//单向链表的迭代器基本结构
+struct __slist_iterator_base
+{
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+  typedef forward_iterator_tag iterator_category;   //单向
+
+  __slist_node_base* node;  //指向节点基本结构
+
+  __slist_iterator_base(__slist_node_base* x) : node(x) {}
+
+  void incr() { node = node->next; }    //前进一个节点
+
+  bool operator==(const __slist_iterator_base& x) const {
+    return node == x.node;
+  }
+  bool operator!=(const __slist_iterator_base& x) const {
+    return node != x.node;
+  }
+};
+
+//单向链表的迭代器结构
+template <class T, class Ref, class Ptr>
+struct __slist_iterator : public __slist_iterator_base
+{
+  typedef __slist_iterator<T, T&, T*>             iterator;
+  typedef __slist_iterator<T, const T&, const T*> const_iterator;
+  typedef __slist_iterator<T, Ref, Ptr>           self;
+
+  typedef T value_type;
+  typedef Ptr pointer;
+  typedef Ref reference;
+  typedef __slist_node<T> list_node;
+
+  __slist_iterator(list_node* x) : __slist_iterator_base(x) {}
+  __slist_iterator() : __slist_iterator_base(0) {}
+  __slist_iterator(const iterator& x) : __slist_iterator_base(x.node) {}
+
+  reference operator*() const { return ((list_node*) node)->data; }
+  pointer operator->() const { return &(operator*()); }
+
+  self& operator++()
+  {
+    incr(); //前进一个节点
+    return *this;
+  }
+  self operator++(int)
+  {
+    self tmp = *this;
+    incr(); //前进一个节点
+    return tmp;
+  }
+};
+```
+
+**注意**:比较两个slist迭代器是否相同时，由于`__slist_iterator`并未对`operator==`实施重写，所以会调用`__slist_iterator_base::operator==`。根据其中定义，两个slist迭代器是否相等，视其`__slist_node_base* node`是否相等
+
+### 4.9.4 slist的数据结构
+
+```c++
+emplate <class T, class Alloc = alloc>
+class slist
+{
+public:
+  typedef T value_type;
+  typedef value_type* pointer;
+  typedef const value_type* const_pointer;
+  typedef value_type& reference;
+  typedef const value_type& const_reference;
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+  
+  //定义迭代器类型
+  typedef __slist_iterator<T, T&, T*>             iterator;
+  typedef __slist_iterator<T, const T&, const T*> const_iterator;
+
+private:
+  typedef __slist_node<T> list_node;
+  typedef __slist_node_base list_node_base;
+  typedef __slist_iterator_base iterator_base;
+  //定义空间配置器
+  typedef simple_alloc<list_node, Alloc> list_node_allocator;
+    
+private:
+  //头部，注意，它不是指针，是实物
+  list_node_base head;
+```
+
+### 4.9.5 slist的元素操作
+
+- 1.slist()：构造函数
+- 2.~slist()：析构函数
+- 3.begin()
+- 4.end()
+- 5.size()
+- 6.empty()
+- 7.swap()
+- 8.front()
+- 9.push_front()
+- 10.pop_front()
+
+[slist的元素操作](STL/slist的元素操作.md)
+
+**注意**：end()的画法
+
+![](../../pics/language/STL源码剖析/img-4-28-后.png)
+
