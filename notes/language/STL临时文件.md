@@ -1,212 +1,107 @@
-## 4.5 stack
+## 4.8 priority_queue
 
-### 4.5.1 stack概述
+### 4.8.1 priority_queue概述
 
-- 先进后出
+priority_queue是一个拥有权值观念的queue，它允许加入新元素、移除旧元素、审视元素值等功能。只允许在底端加入元素，并从顶端取出元素
 
-- stack不允许有遍历行为
+**排序次序**：priority_queue带有权值观念，其内的元素并非依照被推入的次序排序，而是自动按照元素的权值排列（通常权值以实值表示）。
 
-### 4.5.2 stack定义完整列表
+**缺省情况**：缺省时priority_queue使用max-heap
 
-- SGI STL以deque作为缺省情况下的stack底部结构 
-- stack系以底部容器完成其所有工作，而具有这种“修改某物接口，形成另一种风格”的性质者，称为adapter（适配器）。其不归为container，而归为conatiner adapter
-- 相关函数：
-  - empty()
-  - size()
-  - top()
-  - push()
-  - pop()
+![](../../pics/language/STL源码剖析/img-4-24.png)
 
-stack的定义如下：
+### 4.8.2 priority_queue定义完整列表
+
+缺省时，以vector为底部容器，以heap为处理规则
+
+STL priority_queue归类为container adapter
+
+相关函数：
+
+- priority_queue()：构造函数，利用make_heap()建堆
+- empty()
+- size()
+- top()：利用vector的front()
+- push()：先push_back()、再push_heap()
+- pop()：先pop_heap()，再pop_back()
 
 ```c++
-template <class T, class Sequence = deque<T> >
-class stack {
-  //以下__STL_NULL_TMPL_ARGS会展开为 <>
-  friend bool operator== __STL_NULL_TMPL_ARGS (const stack&, const stack&);
-  friend bool operator< __STL_NULL_TMPL_ARGS (const stack&, const stack&);
+template <class T, class Sequence = vector<T>, 
+          class Compare = less<typename Sequence::value_type> >
+class  priority_queue {
 public:
   typedef typename Sequence::value_type value_type;
   typedef typename Sequence::size_type size_type;
   typedef typename Sequence::reference reference;
   typedef typename Sequence::const_reference const_reference;
 protected:
-  Sequence c;   //底层容器
+  Sequence c;       //底层容器
+  Compare comp;     //元素大小比较标准
 public:
-  //以下完全利用Sequence c的操作，完成stack的操作
+  priority_queue() : c() {}
+  explicit priority_queue(const Compare& x) :  c(), comp(x) {}
+
+  //以下用到的make_heap()、push_heap()、pop_heap()都是泛型算法
+  //构造一个priority queue，首先根据传入的迭代器区间初始化底层容器c，然后调用
+  //make_heap()使用底层容器建堆
+  template <class InputIterator>
+  priority_queue(InputIterator first, InputIterator last, const Compare& x)
+    : c(first, last), comp(x) { make_heap(c.begin(), c.end(), comp); }
+  template <class InputIterator>
+  priority_queue(InputIterator first, InputIterator last) 
+    : c(first, last) { make_heap(c.begin(), c.end(), comp); }
+
   bool empty() const { return c.empty(); }
   size_type size() const { return c.size(); }
-  reference top() { return c.back(); }
-  const_reference top() const { return c.back(); }
-  //deque是两头可进出，stack是后进后出
-  void push(const value_type& x) { c.push_back(x); }
-  void pop() { c.pop_back(); }
+  const_reference top() const { return c.front(); }
+  void push(const value_type& x) {
+    //先利用底层容器的push_back()将新元素推入末端，再重排heap
+    __STL_TRY {
+      c.push_back(x); 
+      push_heap(c.begin(), c.end(), comp);
+    }
+    __STL_UNWIND(c.clear());
+  }
+  void pop() {
+    //从heap内取出一个元素。但不是真正弹出，而是重排heap，然后以底层容器的pop_back()
+    //取得被弹出的元素
+    __STL_TRY {
+      pop_heap(c.begin(), c.end(), comp);
+      c.pop_back();
+    }
+    __STL_UNWIND(c.clear());
+  }
 };
-
-template <class T, class Sequence>
-bool operator==(const stack<T, Sequence>& x, const stack<T, Sequence>& y) {
-  return x.c == y.c;
-}
-
-template <class T, class Sequence>
-bool operator<(const stack<T, Sequence>& x, const stack<T, Sequence>& y) {
-  return x.c < y.c;
-}
 ```
 
-### 4.5.3 stack没有迭代器
+### 4.8.3 priority_queue没有迭代器
 
-stack不提供走访功能，因此不提供迭代器
+priority_queue不提供遍历功能，因此不提供迭代器
 
-### 4.5.4 以list作为stack的底层容器
+## 4.9 slist
 
-只要底层容器实现了empty、size、back、push_back、pop_back函数，都可以作为stack的底层容器。如list
+### 4.9.1 slist概述
 
-```c++
-stack<int,list<int>> istack; 
-```
+**STL list与slist的差别**：
 
-## 4.6 queue
+- 1.list在标准规定之内，slist不在标准规定之内
 
-### 4.6.1 queue概述
+- 2.list是双向链表，slist是单向链表。因此list的迭代器为Bidirectional Iterator，slist为单向的Forward Iterator
 
-- 先进先出
-- queue不允许有遍历行为
+**STL list与slist相同点**：它们insert、erase、slice函数等操作不会造成原有的迭代器失效（指向被erase的那个迭代器是会失效的）
 
-### 4.6.2 queue定义完整列表
+**slist的优点**：消耗空间更小，某些操作更快
 
-- SGI STL以deque作为缺省情况下的queue底部结构
--  queue称为adapter（适配器）。其不归为container，而归为conatiner adapter
-- 相关函数
-  - empty()
-  - size()
-  - front()
-  - back()
-  - push()
-  - pop()
+**slist的缺点**：
 
-```c++
-template <class T, class Sequence = deque<T> >
-class queue {
-  //以下__STL_NULL_TMPL_ARGS会展开为 <>
-  friend bool operator== __STL_NULL_TMPL_ARGS (const queue& x, const queue& y);
-  friend bool operator< __STL_NULL_TMPL_ARGS (const queue& x, const queue& y);
-public:
-  typedef typename Sequence::value_type value_type;
-  typedef typename Sequence::size_type size_type;
-  typedef typename Sequence::reference reference;
-  typedef typename Sequence::const_reference const_reference;
-protected:
-  Sequence c;   //底层容器
-public:
-  //以下完全利用Sequence c的操作，完成stack的操作
-  bool empty() const { return c.empty(); }
-  size_type size() const { return c.size(); }
-  reference front() { return c.front(); }
-  const_reference front() const { return c.front(); }
-  reference back() { return c.back(); }
-  const_reference back() const { return c.back(); }
-  deque是两头可进出，queue是尾端紧、首部出
-  void push(const value_type& x) { c.push_back(x); }
-  void pop() { c.pop_front(); }
-};
+- 1.功能受到许多限制
+- 2.插入操作（insert）会将新元素插入于指定位置之前，但slist没有任何方便的办法可以回头定位出前一个位置，因此必须从头找起。除了slist起点附近的区域外，在其他位置采用insert或erase操作函数，效率很低
+  - 解决方法：slist提供了insert_after()和erase_after()，即在指定迭代器之后执行相应操作
 
-template <class T, class Sequence>
-bool operator==(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
-  return x.c == y.c;
-}
+**接口特色**：（基于效率考虑）
 
-template <class T, class Sequence>
-bool operator<(const queue<T, Sequence>& x, const queue<T, Sequence>& y) {
-  return x.c < y.c;
-}
-```
+- 1.提供了insert_after()和erase_after()，即在指定迭代器之后执行相应操作
+- 2.只提供push_front()，不提供push_back()
 
-### 4.6.3 queue没有迭代器
-
-queue不提供遍历功能，因此不提供迭代器
-
-### 4.6.4 以list作为queue的底层容器
-
-只要底层容器实现了empty、size、front、back、push_back、pop_front函数，都可以作为stack的底层容器。如list
-
-```c++
-queue<int,list<int> > iqueue;
-```
-
-## 4.7 heap
-
-### 4.7.1 heap概述
-
-heap并不归属与STL容器组件，它是个幕后英雄，扮演priority queue的助手 
-
-heap是一颗完全二叉树（整颗二叉树除了底层的叶节点外，是填满的；最底层的叶节点由左至右不得有空隙），完全二叉树使用数组实现，因此使用一个vector作为heap的结构，然后通过一组xxx_heap算法，使其符合heap的性质 
-
-**隐式表述法**：将数组的第0个元素保留（设为无限大值或无限小值），当完全二叉树中的某个节点位于数组的i处时：
-
-- 左子节点：2i
-- 右子节点：2i+1
-- 父节点：i/2（取整）
-
-**heap可分为**：
-
-- max-heap（默认情况）：传入的比较函数为“小于函数”，因为比较时是`comp(父节点值，子节点值)`。在**上溯程序**时，将较大值往上推
-- min-heap：传入的比较函数为“大于函数”
-
-下面按照max-heap来讨论
-
-### 4.7.2 heap算法
-
-- 1.push_heap()
-- 2.pop_heap()
-- 3.sort_heap()
-- 4.make_heap()
-
-> **1.[push_heap()](STL/heap-push_heap().md)**
-
-为满足max-heap的条件（每个节点的键值都大于等于其子节点键值），我们执行一段**上溯程序**：将新节点拿来与其父节点比较，如果其键值比父节点大，就父子对换位置。如此一一直上溯，直到不需要对换或到根节点为止
-
-**函数执行条件**：
-
-- 1.该函数接受两个迭代器，用来表现一个heap底部容器（vector）的头尾
-- 2.新元素插入到底部容器的最尾部（调用push_back()）
-
-![](../../pics/language/STL源码剖析/img-4-21.png)
-
-> **2.[pop_heap()](STL/heap-pop_heap().md)**
-
-操作分为
-
-- 1.pop取走根节点，放入vector的尾端节点，尾端节点原值放入临时变量
-- 2.临时变量从根开始，进行下述的**下溯程序**
-
-为满足max-heap的条件（每个节点的键值都大于等于其子节点键值），我们执行一段所谓的**下溯程序**：将空间节点和其较大子节点“对调”，并持续下放，直至叶节点为止。然后将上面说到的**被割舍元素**（原heap中，vector最后一个元素）的值设定给这个“已经到达叶层的空洞节点”，再对它指向一次**上溯程序**
-
-**函数执行条件**：该函数接受两个迭代器，用来表现一个heap底层容器（vector）的头尾
-
-**注意**：pop_heap之后需要push_back取走所求元素
-
-![](../../pics/language/STL源码剖析/img-4-22.png)
-
-> **3.[sort_heap](STL/heap-sort_heap().md)**
-
-**算法思路**：持续对整个heap做pop_heap操作，每次将操作范围从后向前缩减一个元素（因为pop_heap会把键值最大的元素放在底层容器的最尾端），当整个程序执行完毕时，便有了一个递增序列。**但**排序后的heap就不再是一个合法的heap
-
-**函数执行条件**：该函数接受两个迭代器，用来表现一个heap底层容器（vector）的头尾
-
-![](../../pics/language/STL源码剖析/img-4-23-1.png)
-
-![](../../pics/language/STL源码剖析/img-4-23-2.png)
-
-> **4.[make_heap()](STL/heap-make_heap())**
-
-**算法作用**：将一段现有的数据转换为一个heap
-
-**算法思路**：从最后一个有子节点的节点（最后一个非叶节点）开始（从0开始，（len-2）/2），执行**pop_heap()**中提到的**下溯程序**，直到根节点。最后还要执行一次**上溯程序**
-
-### 4.7.3 heap没有迭代器
-
-heap不提供遍历功能，因此不提供迭代器
-
-
+### 4.9.2 slist的节点
 
