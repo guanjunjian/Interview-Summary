@@ -168,7 +168,7 @@ heap可分为max-heap和min-heap，默认情况下，STL提供max-heap。下面�
 
 ![](../../pics/language/STL源码剖析/img-4-21.png)
 
-> **2.[pop_heap()](STL/pop_heap().md)**
+> **2.[pop_heap()](STL/heap-pop_heap().md)**
 
 操作分为
 
@@ -182,4 +182,24 @@ heap可分为max-heap和min-heap，默认情况下，STL提供max-heap。下面�
 **注意**：pop_heap之后需要push_back取走所求元素
 
 ![](../../pics/language/STL源码剖析/img-4-22.png)
+
+> **3.[sort_heap](STL/heap-sort_heap().md)**
+
+**算法思路**：持续对整个heap做pop_heap操作，每次将操作范围从后向前缩减一个元素（因为pop_heap会把键值最大的元素放在底层容器的最尾端），当整个程序执行完毕时，便有了一个递增序列。**但**排序后的heap就不再是一个合法的heap
+
+**函数执行条件**：该函数接受两个迭代器，用来表现一个heap底层容器（vector）的头尾
+
+![](../../pics/language/STL源码剖析/img-4-23-1.png)
+
+![](../../pics/language/STL源码剖析/img-4-23-2.png)
+
+> **4.[make_heap()](STL/heap-make_heap())**
+
+**算法作用**：将一段现有的数据转换为一个heap
+
+**算法思路**：从最后一个有孩子的节点开始（从0开始，（len-2）/2），执行**pop_heap()**中提到的**下溯程序**，直到根节点
+
+
+
+
 
