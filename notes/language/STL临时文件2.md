@@ -189,7 +189,7 @@ X
 
 ### 5.2.3 RB-tree的节点设计
 
-为了有更大的弹性，节点分为两层
+为了有更大的弹性，节点分为两层：`__rb_tree_node`继承于`__rb_tree_node_base`
 
 minimum()和maximum()函数可以让RB-tree搜索极值变得很容易
 
@@ -241,5 +241,200 @@ struct __rb_tree_node : public __rb_tree_node_base
 
 ![](../../pics/language/STL源码剖析/img-5-15f-后.png)
 
-### 5.
+### 5.2.4 RB-tree的迭代器
+
+RB-tree迭代器实现为两层：`__rb_tree_iterator`继承于`__rb_tree_base_iterator`
+
+![](../../pics/language/STL源码剖析/img-5-16.png)
+
+RB-tree迭代器属于双向迭代器，但不具备随机定位能力 
+
+前进操作operator++()调用了基类迭代器的increment()，后退操作operator--()调用了基类迭代器的decrement()。前进或后退的举止行为完全依据二叉搜索树的节点排列法则 
+
+**__rb_tree_base_iterator**：
+
+```c++
+//迭代器基类
+struct __rb_tree_base_iterator
+{
+  typedef __rb_tree_node_base::base_ptr base_ptr;
+  typedef bidirectional_iterator_tag iterator_category;
+  typedef ptrdiff_t difference_type;
+
+  base_ptr node;    //节点基类类型的指针，将迭代器连接到RB-tree的节点
+
+  //实际上就是中序遍历的“下一个节点”问题，
+  //但需要考虑RB-tree头节点的特殊情况，参考状况（4）
+  void increment()
+  {
+    //状况（1）：如果node右子树不为空，则找到右子树的最左子节点
+    if (node->right != 0) {
+      node = node->right;
+      while (node->left != 0)
+        node = node->left;
+    }
+    else {
+      //状况（2）：如果node右子树为空，
+      //需要找到某个节点，该节点是其父节点的左孩子
+      base_ptr y = node->parent;
+      while (node == y->right) {
+        node = y;
+        y = y->parent;
+      }
+      //状况（3）：找到了某个节点node，该节点是其父节点y的左孩子，
+      //如果node的右孩子不是其父节点y，
+      //则increment的结果为找到节点node的父节点y
+      if (node->right != y)
+        node = y;
+      //状况（4）：找到了某个节点node，该节点是其父节点y的左孩子，
+      //如果node的右孩子是其父节点y，
+      //则increment的结果为找到节点node，
+      //当迭代器指向根节点，而根节点无右子节点时，对迭代器进行increment，
+      //会进入状况（4），结果为end()，详情看下图
+    }
+  }
+  
+  //实际上就是中序遍历的“上一个节点”问题，
+  //但需要考虑RB-tree头节点的特殊情况，参考状况（1）
+  void decrement()
+  {
+    //状况（1）：这种情况发生于node为header时（亦即node为end()时）
+    //header右子节点即mostright，指向max节点
+    //当迭代器为end()时，若对它进行decrement，会进入状态（1），结果为max
+    if (node->color == __rb_tree_red &&
+        node->parent->parent == node)
+      node = node->right;            //
+    else if (node->left != 0) {
+     //状况（2）：如果左子树不为空，则找到左子树的最右子节点
+      base_ptr y = node->left;
+      while (y->right != 0)
+        y = y->right;
+      node = y;
+    }
+    else {
+      //状况（3）：如果左子树为空，则到某个节点node，该节点node是其父节点y的右孩子，
+      //则decrement的结果为该节点的父节点y
+      base_ptr y = node->parent;
+      while (node == y->left) {
+        node = y;
+        y = y->parent;
+      }
+      node = y;
+    }
+  }
+};
+```
+
+![](../../pics/language/STL源码剖析/img-5-17.png)
+
+**__rb_tree_iterator**：
+
+```c++
+//迭代器类
+template <class Value, class Ref, class Ptr>
+struct __rb_tree_iterator : public __rb_tree_base_iterator
+{
+  typedef Value value_type;
+  typedef Ref reference;
+  typedef Ptr pointer;
+  typedef __rb_tree_iterator<Value, Value&, Value*>             iterator;
+  typedef __rb_tree_iterator<Value, const Value&, const Value*> const_iterator;
+  typedef __rb_tree_iterator<Value, Ref, Ptr>                   self;
+  typedef __rb_tree_node<Value>* link_type; //指向RB-tree节点的指针类型
+
+  __rb_tree_iterator() {}
+  __rb_tree_iterator(link_type x) { node = x; }
+  __rb_tree_iterator(const iterator& it) { node = it.node; }
+
+  //解引用操作为获取所指RB-tree节点的value
+  reference operator*() const { return link_type(node)->value_field; }
+#ifndef __SGI_STL_NO_ARROW_OPERATOR
+  pointer operator->() const { return &(operator*()); }
+#endif /* __SGI_STL_NO_ARROW_OPERATOR */
+
+  //调用父类的increment()，函数会修改node成员，使其指向后一个RB-tree节点
+  self& operator++() { increment(); return *this; }
+  self operator++(int) {
+    self tmp = *this;
+    increment();
+    return tmp;
+  }
+    
+  //调用父类的decrement()，函数会修改node成员，使其指向前一个RB-tree节点
+  self& operator--() { decrement(); return *this; }
+  self operator--(int) {
+    self tmp = *this;
+    decrement();
+    return tmp;
+  }
+};
+```
+
+### 5.2.5 RB-tree的数据结构
+
+```c++
+class rb_tree {
+protected:
+  typedef void* void_pointer;
+  typedef __rb_tree_node_base* base_ptr;
+  typedef __rb_tree_node<Value> rb_tree_node;
+  typedef simple_alloc<rb_tree_node, Alloc> rb_tree_node_allocator;
+  typedef __rb_tree_color_type color_type;
+public:
+  typedef Key key_type;
+  typedef Value value_type;
+  typedef value_type* pointer;
+  typedef const value_type* const_pointer;
+  typedef value_type& reference;
+  typedef const value_type& const_reference;
+  typedef rb_tree_node* link_type;
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+  //...
+protected:
+  size_type node_count; // keeps track of size of tree
+  link_type header;  
+  Compare key_compare;
+  //...
+public:
+  typedef __rb_tree_iterator<value_type, reference, pointer> iterator;
+  //...
+};
+```
+
+### 5.2.6 RB-tree的构造
+
+
+
+### 5.2.7 RB-tree的元素操作
+
+- **节点操作**
+  - [涉及内存管理的操作](STL/RB-tree涉及内存管理的操作.md)
+    - 分配节点：get_node()
+    - 释放节点：put_node()
+    - 创建节点：create_node()
+    - 拷贝节点：clone_node()
+    - 销毁节点：destroy_node()
+  - [获取节点成员的操作](STL/RB-tree_获取节点成员的操作.md)
+    - left()
+    - right()
+    - parent()
+    - value()
+    - key()
+    - color()
+- **RB-tree操作** 
+  - 创建空RB-tree：rb_tree()
+    - 初始化：init()
+  - 获取root节点：root()
+  - 获取最左子节点：leftmost()
+  - 获取最右子节点：rightmost()
+  - 获取起始节点：begin()
+  - 获取末尾节点：end()
+  - 是否为空：empty()
+  - 大小：size()
+  - **插入节点**：
+    - 节点值独一无二：insert_unique()
+    - 允许节点值重复：insert_equal()
+  - **元素搜索**： 
+    - find()
 
