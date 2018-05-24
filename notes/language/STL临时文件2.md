@@ -189,3 +189,57 @@ X
 
 ### 5.2.3 RB-tree的节点设计
 
+为了有更大的弹性，节点分为两层
+
+minimum()和maximum()函数可以让RB-tree搜索极值变得很容易
+
+RB-tree的各种操作时常需要上溯其父节点,因此有parent指针
+
+```c++
+typedef bool __rb_tree_color_type;
+const __rb_tree_color_type __rb_tree_red = false;   //红色为0
+const __rb_tree_color_type __rb_tree_black = true;  //黑色为1
+
+//RB-tree节点的基类
+struct __rb_tree_node_base
+{
+  typedef __rb_tree_color_type color_type;
+  typedef __rb_tree_node_base* base_ptr;
+
+  color_type color; //颜色
+  base_ptr parent;  //指向父节点的指针
+  base_ptr left;    //指向左子节点的指针
+  base_ptr right;   //指向右子节点的指针
+
+  //静态函数，获取以x为根节点的RB-tree最小节点的指针
+  static base_ptr minimum(base_ptr x)
+  {
+    while (x->left != 0) x = x->left;
+    return x;
+  }
+
+  //静态函数，获取以x为根节点的RB-tree最大节点的指针
+  static base_ptr maximum(base_ptr x)
+  {
+    while (x->right != 0) x = x->right;
+    return x;
+  }
+};
+
+//RB-tree节点类
+template <class Value>
+struct __rb_tree_node : public __rb_tree_node_base
+{
+  typedef __rb_tree_node<Value>* link_type;
+  Value value_field;    //RB-tree节点的value
+};
+```
+
+**键和值都包含在value_field中** 
+
+下面是RB-tree的节点图表，其中`__rb_tree_node::value_field`填为10
+
+![](../../pics/language/STL源码剖析/img-5-15f-后.png)
+
+### 5.
+
