@@ -73,7 +73,7 @@ __insert(base_ptr x_, base_ptr y_, const Value& v) {
   link_type y = (link_type) y_;
   link_type z;
 
-  //x != 0是什么意思？最后一个条件是新值v的键小于节点y的键
+  //如果新值v的键小于节点y的键，将新值作为y的左孩子
   if (y == header || x != 0 || key_compare(KeyOfValue()(v), key(y))) {
     z = create_node(v);
     left(y) = z;                //  当 y == header 时，leftmost() = z 
@@ -84,7 +84,7 @@ __insert(base_ptr x_, base_ptr y_, const Value& v) {
     else if (y == leftmost())   //如果y为最左节点
       leftmost() = z;           // 维护 leftmost() 指向最左节点
   }
-  else {
+  else { //新值v的键值大于节点y的键，将新值作为y的右孩子
     z = create_node(v);       
     right(y) = z;               //令新节点成为插入点的父节点y的右子节点
     if (y == rightmost())       //如果y为最左节点
@@ -101,6 +101,14 @@ __insert(base_ptr x_, base_ptr y_, const Value& v) {
   return iterator(z);
 }
 ```
+
+> __rb_tree_rebalance()
+
+调整RB-tree：旋转及改变颜色
+
+> __rb_tree_left()
+
+> __rb_tree_right()
 
 
 

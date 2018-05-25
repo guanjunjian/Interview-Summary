@@ -492,6 +492,6 @@ public:
   - **[插入节点](STL/RB-tree-插入节点.md)**：
     - 节点值独一无二：insert_unique()
     - 允许节点值重复：insert_equal()
-  - **元素搜索**： 
+  - **[元素搜索](STL/RB-tree-元素搜索.md)**： 
     - find()
 
