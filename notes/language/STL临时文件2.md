@@ -409,13 +409,13 @@ public:
 ### 5.2.7 RB-tree的元素操作
 
 - **节点操作**
-  - [涉及内存管理的操作](STL/RB-tree涉及内存管理的操作.md)
+  - [涉及内存管理的操作](STL/RB-tree-涉及内存管理的操作.md)
     - 分配节点：get_node()
     - 释放节点：put_node()
     - 创建节点：create_node()
     - 拷贝节点：clone_node()
     - 销毁节点：destroy_node()
-  - [获取节点成员的操作](STL/RB-tree_获取节点成员的操作.md)
+  - [获取节点成员的操作](STL/RB-tree-获取节点成员的操作.md)
     - left()
     - right()
     - parent()

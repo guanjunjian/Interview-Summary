@@ -1,4 +1,4 @@
-## RB-tree涉及内存管理的操作
+## RB-tree-涉及内存管理的操作
 
 - 分配节点：get_node()
 - 释放节点：put_node()
