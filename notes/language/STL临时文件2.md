@@ -373,6 +373,8 @@ struct __rb_tree_iterator : public __rb_tree_base_iterator
 ### 5.2.5 RB-tree的数据结构
 
 ```c++
+template <class Key, class Value, class KeyOfValue, class Compare,
+          class Alloc = alloc>
 class rb_tree {
 protected:
   typedef void* void_pointer;
@@ -404,6 +406,62 @@ public:
 
 ### 5.2.6 RB-tree的构造
 
+> RB-tree的空间配置器
+
+```c++
+class rb_tree {
+protected:
+  //...
+  typedef __rb_tree_node<Value> rb_tree_node;
+  typedef simple_alloc<rb_tree_node, Alloc> rb_tree_node_allocator;
+  //...
+};
+```
+
+> RB-tree的构造
+
+RB-tree的构造方式有两种：
+
+- 1.现有的RB-tree复制一个新的RB-tree
+- 2.产生一颗空树
+
+**产生空树**：
+
+```c++
+/*
+template <class Key, class Value, class KeyOfValue, class Compare,
+          class Alloc = alloc>
+
+Key、Value、KeyOfValue、Compare、Alloc(这里使用默认alloc）
+*/
+rb_tree<int,int,identity<int>,less<int>> itree;
+```
+
+**rb_tree()**：
+
+```c++
+class rb_tree {
+  //...
+  void init() {
+    //产生一个节点空间，令header指向它
+    header = get_node(); 
+    //令header为红色，用于区分header与root（root为黑色）
+    color(header) = __rb_tree_red; 
+                                   
+    root() = 0;
+    //令header的左子节点为自己
+    leftmost() = header;
+    //令header的右子节点为自己
+    rightmost() = header;
+  }
+public:
+  
+  rb_tree(const Compare& comp = Compare())
+    : node_count(0), key_compare(comp) { init(); }
+  //...
+};
+```
+
 
 
 ### 5.2.7 RB-tree的元素操作
@@ -422,9 +480,7 @@ public:
     - value()
     - key()
     - color()
-- **RB-tree操作** 
-  - 创建空RB-tree：rb_tree()
-    - 初始化：init()
+- **[RB-tree元素操作](STL/RB-tree-元素操作.md)**
   - 获取root节点：root()
   - 获取最左子节点：leftmost()
   - 获取最右子节点：rightmost()
@@ -432,7 +488,8 @@ public:
   - 获取末尾节点：end()
   - 是否为空：empty()
   - 大小：size()
-  - **插入节点**：
+  - 可容纳的最大值：max_size()
+  - **[插入节点](STL/RB-tree-插入节点.md)**：
     - 节点值独一无二：insert_unique()
     - 允许节点值重复：insert_equal()
   - **元素搜索**： 
