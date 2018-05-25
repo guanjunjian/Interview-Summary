@@ -495,3 +495,177 @@ public:
   - **[元素搜索](STL/RB-tree-元素搜索.md)**： 
     - find()
 
+## 5.3 set
+
+**特性**：
+
+- 1.所有元素都会根据元素的键值自动被排序
+- 2.不同时拥有实值和键值，键值就是实值，实值就是键值
+- 3.set不允许两个元素有相同的键值（multiset允许）
+- 4.迭代器不能改变set的元素值（因为需要根据元素值排序），因此set的迭代器是一种constant iterators
+- 5.当客户端对它进行元素新增操作或删除操作时，操作之前的所有迭代器，在操作完之后都依然有效（被删除的那个元素的迭代器除外）
+
+**底层机制**：标准STL set以RB-tree为底层机制，几乎所有的set操作行为，都只是转调用RB-tree的操作行为而已
+
+**set定义:**
+
+```c++
+template <class Key, class Compare = less<Key>, class Alloc = alloc>
+class set {
+public:
+    ...
+    //键值和实值类型相同，比较函数也是同一个
+    typedef Key key_type;
+    typedef Key value_type;
+    typedef Compare key_compare;
+    typedef Compare value_compare;
+private:
+    /*以下的identity为RB-tree中使用的KeyofValue，用以获取key
+    identity定义于<stl_function.h>
+    
+    template <class T>
+    struct identity : public unary_function<T, T> {
+       const T& operator()(const T& x) const { return x; }
+     };
+    */
+    typedef rb_tree<key_type, value_type, 
+                  identity<value_type>, key_compare, Alloc> rep_type;
+    rep_type t;  // 内含一棵RB-tree，使用RB-tree来表现set
+public:
+    //...
+    //iterator定义为RB-tree的const_iterator，表示set的迭代器无法执行写操作
+    typedef typename rep_type::const_iterator iterator;
+    //...
+};
+```
+
+**[set相关操作](STL/set-相关操作.md)**
+
+- 所有的set的操作行为，RB-tree都已提供，set只是转调用
+- 插入操作调用的是RB-tree的insert_unique()
+
+## 5.4 map
+
+**特性**：
+
+- 1.所有元素都会根据元素的键值自动排序
+- 2.map的所有元素都是pair，同时拥有实值和键值
+- 3.map不允许两个元素拥有相同的键值
+- 4.不可以改变元素的键值（因为根据键值进行排序），可以改变元素的实值，因此map的迭代器既不是constant iterators，也不是mutable iterators
+- 5.当客户端对它进行元素新增操作或删除操作时，操作之前的所有迭代器，在操作完之后都依然有效（被删除的那个元素的迭代器除外）
+
+**底层机制**：标准STL map以RB-tree为底层机制，几乎所有的map操作行为，都只是转调用RB-tree的操作行为而已
+
+![](../../pics/language/STL源码剖析/img-5-20.png)
+
+**pair的定义**：
+
+```c++
+//<stl_pair.h>
+template <class T1, class T2>
+struct pair {
+  typedef T1 first_type;
+  typedef T2 second_type;
+
+  T1 first; //注意，它是public
+  T2 second; //注意，它是public
+  pair() : first(T1()), second(T2()) {}
+  pair(const T1& a, const T2& b) : first(a), second(b) {}
+};
+```
+
+**map定义**：
+
+```c++
+template <class Key, class T, class Compare = less<Key>, class Alloc = alloc>
+class map {
+public:
+  typedef Key key_type;     //键值类型
+  typedef T data_type;      //实值类型
+  typedef T mapped_type;    
+  typedef pair<const Key, T> value_type;    //键值对，RB-tree节点中的value类型
+  typedef Compare key_compare;  //键值比较函数
+
+  //...
+
+private:
+  /*
+  select1st<value_type>是RB-tree中使用的KeyofValue
+  */
+  typedef rb_tree<key_type, value_type, 
+                  select1st<value_type>, key_compare, Alloc> rep_type;
+  rep_type t;  // 内含一棵RB-tree，使用RB-tree来表现map
+public:
+  //...
+  //迭代器和set不同，允许修改实值
+  typedef typename rep_type::iterator iterator;
+  ...
+
+  //下标操作
+  T& operator[](const key_type& k) {
+    return (*((insert(value_type(k, T()))).first)).second;
+  }
+
+  //插入操作，使用的是RB-tree的insert_unique()
+  pair<iterator,bool> insert(const value_type& x) { return t.insert_unique(x); }
+
+  //...
+};
+```
+
+**[map相关操作](STL/map-相关操作.md)**
+
+- 所有的map的操作行为，RB-tree都已提供，map只是转调用
+- 插入操作调用的是RB-tree的insert_unique()
+
+**insert()**：
+
+- 返回值是一个pair，由一个迭代器和一个bool值组成，后者表示插入成功与否，成功的话前者即指向被插入的那个元素
+
+```c++
+  pair<iterator,bool> insert(const value_type& x) { return t.insert_unique(x); }
+```
+
+**operator[]**：
+
+用法有两种：
+
+- 左值：`simap[string("jjhou")] = 1;`
+- 右值：`int number = simap[string("jjhou")];`
+
+```c++
+  T& operator[](const key_type& k) {
+    return (*((insert(value_type(k, T()))).first)).second;
+  }
+
+//分解为：
+//1.根据键值和实值做出一个元素，
+//由于实值未知，所以T()产生一个与实值类型相同的临时对象代替，
+value_type(k, T())
+//2.把这个元素插入到map里面去，
+//返回一个pair，第一个元素指向插入妥当的新元素，
+//或指向插入失败点（键值重复）的旧元素
+//如果作为左值，以此“实值待填”的元素将位置卡好
+//如果作为右值，此时的插入操作返回的pair的第一个元素（迭代器）指向键值符合的旧元素
+insert(value_type(k, T()))
+//3.取出pair的第一个元素，这是一个迭代器，指向被插入的元素
+(insert(value_type(k, T()))).first
+//4.解引用迭代器，获得一个map元素，是一个由键值和实值组成的pair
+*(insert(value_type(k, T()))).first
+//5.取map元素pair的第二个元素
+(*(insert(value_type(k, T()))).first).second
+//6.最后以T& 引用传递方式传回
+```
+
+## 5.5 multiset
+
+multiset的特性及用法和set完全相同，唯一的差别在于它允许键值重复，插入操作采用的是底层机制RB-tree的insert_equal()而非insert_unique() 
+
+## 5.6 multimap
+
+multimap的特性及用法和map完全相同，唯一的差别在于它允许键值重复，插入操作采用的是底层机制RB-tree的insert_equal()而非insert_unique() 
+
+## 5.7 hashtable
+
+
+
