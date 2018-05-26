@@ -1005,3 +1005,95 @@ insert_equal()
                                      //2.如果没找到键值相同的节点，则在节点串的首部插入新节点
 ```
 
+> **判断bucket位置 bkt_num()**
+
+```c++
+  //版本1：接受实值和bucket个数
+  size_type bkt_num(const value_type& obj, size_t n) const 
+  {
+    return bkt_num_key(get_key(obj), n); //调用版本4
+  }
+  //版本2：只接受实值
+  size_type bkt_num(const value_type& obj) const 
+  {
+    return bkt_num_key(get_key(obj)); //调用版本3
+  }
+
+  //版本3：只接受键值
+  size_type bkt_num_key(const key_type& key) const //版本3
+  {
+    return bkt_num_key(key, buckets.size()); //调用版本4
+  }
+  //版本1：接受键值和bucket个数
+  size_type bkt_num_key(const key_type& key, size_t n) const //版本4
+  {
+    return hash(key) % n; //返回key和buckets数目取模的结果
+  }
+```
+
+> 整体删除 clear()
+
+**步骤**：
+
+- 1.删除list中每个节点
+- 2.将bucket置空
+
+```c++
+template <class V, class K, class HF, class Ex, class Eq, class A>
+void hashtable<V, K, HF, Ex, Eq, A>::clear()
+{
+  //遍历每一个bucket
+  for (size_type i = 0; i < buckets.size(); ++i) {
+    node* cur = buckets[i];
+    while (cur != 0) {
+      node* next = cur->next;
+      delete_node(cur); //释放当前节点
+      cur = next;       //继续处理下一节点
+    }
+    buckets[i] = 0; //将bucket的节点串设为空
+  }
+  num_elements = 0; //将hashtable的元素个数设为0
+}
+```
+
+> 复制 copy_from()
+
+**步骤**：
+
+- 1.清除自己的节点
+- 2.根据ht的bucket数量为自己预留空间。如果本身空间已经足够就不进行处理，否则会增大
+- 3.从自己的buckets vector尾端开始，插入n个源，值为Null（此时bucket vector为空，所以所谓的尾端，就是起始处）
+- 4.遍历hashtable的每一个bucket，复制每一个bucket中的节点
+
+```c++
+template <class V, class K, class HF, class Ex, class Eq, class A>
+void hashtable<V, K, HF, Ex, Eq, A>::copy_from(const hashtable& ht)
+{
+  //先清除自己的节点
+  buckets.clear();
+  //根据ht的bucket数量为自己预留空间
+  //如果本身空间已经足够就不进行处理，否则会增大
+  buckets.reserve(ht.buckets.size());
+  //从自己的buckets vector尾端开始，插入n个源，值为Null
+  //此时bucket vector为空，所以所谓的尾端，就是起始处
+  buckets.insert(buckets.end(), ht.buckets.size(), (node*) 0);
+  __STL_TRY {
+    //遍历bt的每一个bucket，复制每一个bucket中的节点
+    for (size_type i = 0; i < ht.buckets.size(); ++i) {
+      if (const node* cur = ht.buckets[i]) {
+        node* copy = new_node(cur->val);
+        buckets[i] = copy;
+       
+        //针对同一个list，复制每一个节点
+        for (node* next = cur->next; next; cur = next, next = cur->next)        {
+          copy->next = new_node(next->val);
+          copy = copy->next;
+        }
+      }
+    }
+    num_elements = ht.num_elements; //更新节点数
+  }
+  __STL_UNWIND(clear());
+}
+```
+
