@@ -694,5 +694,314 @@ multimap的特性及用法和map完全相同，唯一的差别在于它允许键
 
 如果散列函数计算出新元素的位置为H，而该位置实际上已经被使用，那么我们就依序尝试`H+1^2`、`H+2^2`、`H+3^2`、`H+4^2`、...`H+i^2`，而不是像线性探测那样依次尝试`H+1`、`H+2`、`H+3`、`H+4`...`H+i`
 
-二次探测解决了**基本聚集**，但存在**二次聚集**（secondary clustering）：两个元素经散列函数计算出的位置若相同
+二次探测解决了**基本聚集**，但存在**二次聚集**（secondary clustering）：两个元素经散列函数计算出的位置若相同，则插入时所探测的位置也相同，形成某种浪费
+
+- 解决方法：双散列法（double hashing）
+
+> 开链
+
+**做法**：在每一个表格元素中维护一个list。散列函数为我们分配一个list，然后在该list身上执行元素的插入、搜索、删除等操作。针对list进行的搜索时一种线性操作
+
+表格的负载系数大于1
+
+SGI STL的hash table采用的是开链法
+
+### 5.7.2 hashtable的桶（buckets）与节点（nodes）
+
+SGI STL的hash table采用的是开链法
+
+遵循SGI的命名，称hash table表格内的元素位桶（buckets），表格内的每个单元，涵盖的是节点（一个或多个）
+
+![](../../pics/language/STL源码剖析/img-5-24.png)
+
+**hash bale的节点定义**：
+
+bucket所维护的linked list不是STL的list或slist，而是自行维护的hash table node
+
+```c++
+template <class Value>
+struct __hashtable_node
+{
+    __hashtable_node *next;
+    Value val;
+};
+```
+
+### 5.7.3 hashtable的迭代器
+
+```c++
+template <class Value, class Key, class HashFcn,
+          class ExtractKey, class EqualKey, class Alloc>
+struct __hashtable_iterator {
+  typedef hashtable<Value, Key, HashFcn, ExtractKey, EqualKey, Alloc>
+          hashtable;
+  typedef __hashtable_iterator<Value, Key, HashFcn, 
+                               ExtractKey, EqualKey, Alloc>
+          iterator;
+  typedef __hashtable_const_iterator<Value, Key, HashFcn, 
+                                     ExtractKey, EqualKey, Alloc>
+          const_iterator;
+  typedef __hashtable_node<Value> node;
+
+  typedef forward_iterator_tag iterator_category;
+  typedef Value value_type;
+  typedef ptrdiff_t difference_type;
+  typedef size_t size_type;
+  typedef Value& reference;
+  typedef Value* pointer;
+
+  node* cur;        //迭代器目前所指的节点
+  hashtable* ht;    //指向相应的hashtable（因为可能需要从一个bucket跳到下一个bucket）
+
+  __hashtable_iterator(node* n, hashtable* tab) : cur(n), ht(tab) {}
+  __hashtable_iterator() {}
+  reference operator*() const { return cur->val; }
+  pointer operator->() const { return &(operator*()); }
+  iterator& operator++();
+  iterator operator++(int);
+  bool operator==(const iterator& it) const { return cur == it.cur; }
+  bool operator!=(const iterator& it) const { return cur != it.cur; }
+};
+```
+
+bashtable迭代器必须维系着整个“bucket vector”的关系，并记录着所指的节点
+
+**前进操作**
+
+- 首先尝试从目前所指向的节点出发，前进一个节点（利用节点的next即可轻易完成）
+- 如果目前节点正巧是list的尾端，就调至下一个bucket身上，指向下一个bucket的list的头部节点
+
+```c++
+template <class V, class K, class HF, class ExK, class EqK, class A>
+__hashtable_iterator<V, K, HF, ExK, EqK, A>&
+__hashtable_iterator<V, K, HF, ExK, EqK, A>::operator++()
+{
+  const node* old = cur;
+  cur = cur->next;  //如果存在，就是它。否则进入以下if流程
+  if (!cur) {
+    //根据元素值，定位出下一个bucket，其起头处就是我们的目的地
+    size_type bucket = ht->bkt_num(old->val);
+    while (!cur && ++bucket < ht->buckets.size())
+      cur = ht->buckets[bucket];
+  }
+  return *this;
+}
+
+template <class V, class K, class HF, class ExK, class EqK, class A>
+inline __hashtable_iterator<V, K, HF, ExK, EqK, A>
+__hashtable_iterator<V, K, HF, ExK, EqK, A>::operator++(int)
+{
+  iterator tmp = *this;
+  ++*this;
+  return tmp;
+}
+```
+
+hashtable的迭代器没有后退操作，hashtable也没有定义所谓的逆向迭代器 
+
+### 5.7.4 hashtable的数据结构
+
+buckets聚合体以vector完成
+
+```c++
+template <class Value, class Key, class HashFcn,
+          class ExtractKey, class EqualKey, class Alloc = alloc>
+class hashtable;
+
+...
+
+template <class Value, class Key, class HashFcn,
+          class ExtractKey, class EqualKey,
+          class Alloc> //先前声明时，已给出Alloc默认值alloc
+class hashtable {
+public:
+  typedef HashFcn hasher;
+  typedef EqualKey key_equal;
+  ...
+private:
+  //以下3者都是function  objects
+  hasher hash;
+  key_equal equals;
+  ExtractKey get_key;
+
+  typedef __hashtable_node<Value> node;  //hashtable节点类型
+  typedef simple_alloc<node, Alloc> node_allocator;
+
+  vector<node*,Alloc> buckets; //hashtable的桶数组，以vector完成
+  size_type num_elements;      //元素个数
+  ...
+};
+```
+
+对模板参数的解释：
+
+- Value：节点的实值类型
+- Key：节点的键值类型
+- HashFcn：散列函数的函数类型
+- ExtractKey：从节点中取出键值的方法（函数或仿函数）
+- EqualKey：判断键值相同与否的方法（函数或仿函数）
+- Alloc：空间配置器，缺省使用std::alloc
+
+<stl_hash_fun.h>中定义了数个现场的散列函数（仿函数）
+
+散列函数计算bucket的位置，SGI将这项任务赋予bkt_num()，由它调用散列函数取得一个可以执行取模运算的值
+
+SGI STL以质数来设计表格大小，并且先将28个质数（逐渐呈现大约2倍的关系）计算好，以备随时访问，同时提供一个函数，用来查询在这28个质数中，“最接近某数并大于某数”的质数： 
+
+```c++
+//注意，long至少有32位
+static const int __stl_num_primes = 28;
+static const unsigned long __stl_prime_list[__stl_num_primes] =
+{
+  53,         97,           193,         389,       769,
+  1543,       3079,         6151,        12289,     24593,
+  49157,      98317,        196613,      393241,    786433,
+  1572869,    3145739,      6291469,     12582917,  25165843,
+  50331653,   100663319,    201326611,   402653189, 805306457, 
+  1610612741, 3221225473ul, 4294967291ul
+};
+
+//该函数被next_size()所调用
+//以下函数找出上述28个质数中，最接近并大于或等于n的那个质数
+inline unsigned long __stl_next_prime(unsigned long n)
+{
+  const unsigned long* first = __stl_prime_list;
+  const unsigned long* last = __stl_prime_list + __stl_num_primes;
+  const unsigned long* pos = lower_bound(first, last, n);
+  return pos == last ? *(last - 1) : *pos;
+}
+
+//总共可以有多少buckets，返回值为4294967291
+size_type max_bucket_count() const
+  { return __stl_prime_list[__stl_num_primes - 1]; } 
+```
+
+### 5.7.5 hashtable的构造
+
+> 配置节点和释放节点
+
+- new_node()
+- delete_node()
+
+```c++
+  node* new_node(const value_type& obj)
+  {
+    node* n = node_allocator::allocate();
+    n->next = 0;
+    __STL_TRY {
+      construct(&n->val, obj);
+      return n;
+    }
+    __STL_UNWIND(node_allocator::deallocate(n));
+  }
+
+  void delete_node(node* n)
+  {
+    destroy(&n->val);
+    node_allocator::deallocate(n);
+  }
+```
+
+> 构造函数
+
+**使用例子**：
+
+对模板参数的解释：
+
+- Value：节点的实值类型
+- Key：节点的键值类型
+- HashFcn：散列函数的函数类型
+- ExtractKey：从节点中取出键值的方法（函数或仿函数）
+- EqualKey：判断键值相同与否的方法（函数或仿函数）
+- Alloc：空间配置器，缺省使用std::alloc
+
+```c++
+//
+hashtable<int, int, hash<int>, identity<int>, equal_to<int>, alloc> iht(50, hash<int>(), equal_to<int>());
+```
+
+**调用过程**：
+
+```
+hashtable()
+	---> initialize_buckets()
+		---> next_size()
+```
+
+**代码**：
+
+```c++
+
+  hashtable(size_type n,
+            const HashFcn&    hf,
+            const EqualKey&   eql)
+    : hash(hf), equals(eql), get_key(ExtractKey()), num_elements(0)
+  {
+    initialize_buckets(n);
+  }
+
+  void initialize_buckets(size_type n)
+  {
+    //传入50，返回53
+    const size_type n_buckets = next_size(n);
+    //保留53个元素空间
+    buckets.reserve(n_buckets);
+    //将53个元素空间都设为nullptr（因为没有元素）
+    buckets.insert(buckets.end(), n_buckets, (node*) 0);
+    num_elements = 0;
+  }
+  //返回最接近n并大于或等于n的质数
+  size_type next_size(size_type n) const { return __stl_next_prime(n); 
+```
+
+### 5.7.6 hasttable的元素操作
+
+> **[重建表操作 resize()](STL/hashtable-resize().md)**
+
+**表格重建的判断原则**：拿元素个数（把新增元素计入后）和bucket vector的大小比较，如果前者大于后者，则重建表格。因此可知，list的最大容量与vector的大小相同
+
+**操作**：
+
+- 1.处理每一个旧的bucket
+- 2.指向bucket中list的起始节点
+- 3.找到节点对应新的bucket号
+- 4.令目前处理的旧bucket起始节点为first的下一个节点
+- 5.将当前节点链入新的bucket的list中（放于list头）
+- 6.继续处理旧bucket的下一个节点
+
+![](../../pics/language/STL源码剖析/img-5-25.png)
+
+> **[不允许重复插入 insert_unique()](STL/hashtable-insert_unique().md)**
+
+**使用例子**：
+
+```c++
+iht.insert_unique(59);
+iht.insert_unique(60);
+```
+
+```c++
+insert_unique()
+    ---> resize()  //判断是否需要重建表格，如果需要就扩充
+    ---> insert_unique_noresize()  //1.计算应位于哪个bucket
+                                   //2.遍历到节点串查找是否存在键值重复的节点,如果有则什么都不做，返回pair，第一个元素指向重复的元素的迭代器，第二个元素为false
+                                   //3.将新节点插入串首
+                                   //4.返回插入节点的迭代器和成功组成的pair
+```
+
+> **[允许重复插入 insert_equal()](STL/hashtable-insert_equal().md)**
+
+**使用例子**：
+
+```c++
+ith.insert_equal(59);
+ith.insert_equal(59);
+```
+
+```c++
+insert_equal()
+    ---> resize()  //判断是否需要重建表格，如果需要就扩充
+    ---> insert_equal_noresize(obj)  //1.如果找到键值相同的节点，直接构建新节点，并将其插入到键值相同的节点后，返回
+                                     //2.如果没找到键值相同的节点，则在节点串的首部插入新节点
+```
 
