@@ -957,7 +957,13 @@ hashtable()
 ### 5.7.6 hashtable的元素操作
 
 - 重建表操作：resize()
-- 
+- 不允许重复插入：insert_unique()
+- 允许重复插入：insert_equal()
+- 判断bucket位置：bkt_num()
+- 整体删除：clear()
+- 复制：copy_from()
+- 查找元素：find()
+- 统计某键值的元素个数：count()
 
 > **[重建表操作 resize()](STL/hashtable-resize().md)**
 
@@ -1034,7 +1040,7 @@ insert_equal()
   }
 ```
 
-> 整体删除 clear()
+> **整体删除 clear()**
 
 **步骤**：
 
@@ -1059,7 +1065,7 @@ void hashtable<V, K, HF, Ex, Eq, A>::clear()
 }
 ```
 
-> 复制 copy_from()
+> **复制 copy_from()**
 
 **步骤**：
 
@@ -1132,3 +1138,121 @@ void hashtable<V, K, HF, Ex, Eq, A>::copy_from(const hashtable& ht)
 }
 ```
 
+### 5.7.7 hash function
+
+<stl_hash_fun.h>定义数个现成的hash function，全是仿函数
+
+hash function是计算元素位置的函数，SGI将这项任务赋予先前提到过的bkt_num()，再由它来调用这里提供的hash function，取得一个可以对hash table进行模运算的值。针对char、int、long等整数类型，大部分的hash functions什么也没做，只是忠实返回原值。对于字符串(const char*)类型，设计了一个转换函数
+
+**对于各种类型的hash function**：
+
+- char：大部分的hash functions什么也没做，只是忠实返回原值
+- int：大部分的hash functions什么也没做，只是忠实返回原值
+- long：大部分的hash functions什么也没做，只是忠实返回原值
+- (const char*)：__stl_hash_string处理
+- string：无法处理，用户必须自行为它们定义hash function
+- double：无法处理，用户必须自行为它们定义hash function
+- float：无法处理，用户必须自行为它们定义hash function
+
+```c++
+inline size_t __stl_hash_string(const char* s)
+{
+  unsigned long h = 0; 
+  for ( ; *s; ++s)
+    h = 5*h + *s;
+  
+  return size_t(h);
+}
+
+//以下所有的__STL_TEMPLATE_NULL定义为template<>
+__STL_TEMPLATE_NULL struct hash<char*>
+{
+  size_t operator()(const char* s) const { return __stl_hash_string(s); }
+};
+
+__STL_TEMPLATE_NULL struct hash<const char*>
+{
+  size_t operator()(const char* s) const { return __stl_hash_string(s); }
+};
+
+__STL_TEMPLATE_NULL struct hash<char> {
+  size_t operator()(char x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<unsigned char> {
+  size_t operator()(unsigned char x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<signed char> {
+  size_t operator()(unsigned char x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<short> {
+  size_t operator()(short x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<unsigned short> {
+  size_t operator()(unsigned short x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<int> {
+  size_t operator()(int x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<unsigned int> {
+  size_t operator()(unsigned int x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<long> {
+  size_t operator()(long x) const { return x; }
+};
+__STL_TEMPLATE_NULL struct hash<unsigned long> {
+  size_t operator()(unsigned long x) const { return x; }
+};
+```
+
+**直接以SGI hashtable处理string的错误现象**：
+
+```c++
+#include <hash_set>
+#include <iostream>
+#include <string>
+using namespace std;
+
+int main()
+{
+    //hash<string>无定义
+    hashtable<string,string,hash<string>,identity<string>,equal_to<string>
+        ,alloc> iht(50,hash<string>(),equal_to<string>());
+    
+    iht.size(); //0
+    iht.bucket_count(); //53
+    iht.insert_unique(string("jjhou")); //error
+    
+    //hashtable无法处理的类型，hash_set当然也无法处理
+    hash_set<string> shs;
+    hash_set<double> dhs;
+    
+    shs.insert(string("jjhou")); //error
+    dhs.insert(15.0); //error
+}
+```
+
+## 5.8 hash_set
+
+hash_set以hashtable为底层机制，由于hash_set所供应的操作接口hashtable都提供了，所以几乎所有的hash_set操作行为，都只是转调用hashtable的操作行为而已 
+
+**set与hash_set的区别**：
+
+- **自动排序**：RB-tree有自动排序功能而hashtable没有，因此set的元素有自动排序而hash_set没有
+- **类型支持**：hashtable有一些无法处理的类型（除非用户为那些类别编写hash function），凡是hashtable无法处理的，hash_set也无法处理
+
+## 5.9 hash_map
+
+hash_map以hashtable为底层机制，由于hash_map所供应的操作接口hashtable都提供了，所以几乎所有的hash_map操作行为，都只是转调用hashtable的操作行为而已 
+
+**map与hash_map的区别**：
+
+- **自动排序**：RB-tree有自动排序功能而hashtable没有，因此map的元素有自动排序而hash_map没有
+- **类型支持**：hashtable有一些无法处理的类型（除非用户为那些类别编写hash function），凡是hashtable无法处理的，hash_map也无法处理
+
+## 5.10 hash_multiset
+
+hash_multiset和hash_set实现上的唯一差别在于，前者的元素插入操作采用底层机制hashtable的insert_equal()，后者则是采用insert_unique() 
+
+## 5.11 hash_multimap
+
+hash_multimap和hash_map实现上的唯一差别在于，前者的元素插入操作采用底层机制hashtable的insert_equal()，后者则是采用insert_unique() 
