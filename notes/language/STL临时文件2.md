@@ -1256,3 +1256,4 @@ hash_multiset和hash_set实现上的唯一差别在于，前者的元素插入�
 ## 5.11 hash_multimap
 
 hash_multimap和hash_map实现上的唯一差别在于，前者的元素插入操作采用底层机制hashtable的insert_equal()，后者则是采用insert_unique() 
+
