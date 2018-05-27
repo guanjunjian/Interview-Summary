@@ -954,7 +954,10 @@ hashtable()
   size_type next_size(size_type n) const { return __stl_next_prime(n); 
 ```
 
-### 5.7.6 hasttable的元素操作
+### 5.7.6 hashtable的元素操作
+
+- 重建表操作：resize()
+- 
 
 > **[重建表操作 resize()](STL/hashtable-resize().md)**
 
@@ -985,7 +988,7 @@ insert_unique()
     ---> resize()  //判断是否需要重建表格，如果需要就扩充
     ---> insert_unique_noresize()  //1.计算应位于哪个bucket
                                    //2.遍历到节点串查找是否存在键值重复的节点,如果有则什么都不做，返回pair，第一个元素指向重复的元素的迭代器，第二个元素为false
-                                   //3.将新节点插入串首
+                                   //3.将新节点插入list头部
                                    //4.返回插入节点的迭代器和成功组成的pair
 ```
 
@@ -1094,6 +1097,38 @@ void hashtable<V, K, HF, Ex, Eq, A>::copy_from(const hashtable& ht)
     num_elements = ht.num_elements; //更新节点数
   }
   __STL_UNWIND(clear());
+}
+```
+
+> **查找元素 find()**
+
+```c++
+  iterator find(const key_type& key) 
+  {
+    //首先寻找落在哪一个bucket内
+    size_type n = bkt_num_key(key);
+    node* first;
+    //从bucket list的头开始，一一对比每个元素的键值，对比成功就跳出
+    for ( first = buckets[n];
+          first && !equals(get_key(first->val), key);
+          first = first->next)
+      {}
+    return iterator(first, this);
+} 
+```
+
+> **统计某键值的元素个数 count()**
+
+```c++
+  size_type count(const key_type& key) const
+  {
+    const size_type n = bkt_num_key(key);
+    size_type result = 0;
+    //从bucket list的头开始，一一对比每个元素的键值，对比成功就加1
+    for (const node* cur = buckets[n]; cur; cur = cur->next)
+      if (equals(get_key(cur->val), key))
+        ++result;
+    return result;
 }
 ```
 
