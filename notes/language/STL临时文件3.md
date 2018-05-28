@@ -72,9 +72,11 @@ T accumulate(InputIterator first, InputIterator last, T init,
 }
 ```
 
-## 6.4 基本算法 <stl_algobase.h>
+## 6.4 基本算法 
 
-> equal() 
+定义于`<stl_algobase.h>`
+
+### 6.4.1 equal() 
 
 如果两个序列在[first,last)区间内相等，equal返回true
 
@@ -100,7 +102,7 @@ inline bool equal(InputIterator1 first1, InputIterator1 last1,
 }
 ```
 
-> fill()
+### 6.4.2 fill()
 
 将[first,last)内的所有元素改填新值
 
@@ -112,7 +114,7 @@ void fill(ForwardIterator first, ForwardIterator last, const T& value) {
 }
 ```
 
-> fill_n()
+### 6.4.3 fill_n()
 
 将[first,last)内的前n个元素改填新值，返回的迭代器指向被填入的最后一个元素的下一个位置
 
@@ -125,7 +127,7 @@ OutputIterator fill_n(OutputIterator first, Size n, const T& value) {
 }
 ```
 
-> iter_swap()
+### 6.4.4 iter_swap()
 
 将两个ForwardIterator所指向的对象对调
 
@@ -151,7 +153,7 @@ value_type(const Iterator&) {
 }
 ```
 
-> max()
+### 6.4.5 max()
 
 取两个对象中的较大值
 
@@ -167,7 +169,7 @@ inline const T& max(const T& a, const T& b, Compare comp) {
 }
 ```
 
-> min()
+### 6.4.6min()
 
 取两个对象中的较小值
 
@@ -183,7 +185,7 @@ inline const T& min(const T& a, const T& b, Compare comp) {
 }
 ```
 
-> swap()
+### 6.4.7 swap()
 
 交换两个对象的内容
 
@@ -196,7 +198,7 @@ inline void swap(T& a, T& b) {
 }
 ```
 
-> copy()
+### 6.4.8 copy()
 
 SGI STL的copy算法用尽各种办法，包括函数重载、类型特性、偏特化等编程技巧来尽可能地加强效率
 
@@ -210,7 +212,7 @@ copy将输入区间`[first,last)`内的元素复制到输出区间`[result,resul
 
 **空容器copy问题**：copy会为输出区间内的元素赋予新值，而不是产生新的元素。它不能改变输出区间的迭代器个数。换句话说，copy不能直接用来将元素插入空容器中。如果想将元素插入序列之内，要么使用序列容器的insert成员函数，要么使用copy算法并搭配insert_iterator 
 
-**copy()函数**：
+> **copy()函数**
 
 有三个版本：
 
@@ -244,7 +246,7 @@ inline wchar_t* copy(const wchar_t* first, const wchar_t* last,
 }
 ```
 
-**__copy_dispatch()**：
+> **__copy_dispatch()**
 
 有三个版本：
 
@@ -295,7 +297,7 @@ struct __copy_dispatch<const T*, T*>
 };
 ```
 
-**__copy(）函数**：
+> **__copy(）函数**
 
 ```c++
 //InputIterator版本
@@ -319,7 +321,7 @@ __copy(RandomAccessIterator first, RandomAccessIterator last,
 }
 ```
 
-**__copy_t()函数**：
+> **__copy_t()函数**：
 
 ```c++
 //无用赋值操作符版
@@ -336,7 +338,7 @@ inline T* __copy_t(const T* first, const T* last, T* result, __false_type) {
 }
 ```
 
-**__copy_d()函数**：
+> **__copy_d()函数**
 
 ```c++
 template <class RandomAccessIterator, class OutputIterator, class Distance>
@@ -350,7 +352,237 @@ __copy_d(RandomAccessIterator first, RandomAccessIterator last,
 }
 ```
 
-> copy_backward() 
+### 6.4.9 copy_backward() 
+
+copy_backward将`[first,last)`区间的每一个元素，以逆行的方向复制到以result-1为起点，方向亦为逆行的区间上。换句话说，copy_backward算法会执行赋值操作`*(result-1) = *(last - 1),*(result-2) = *(last - 2),...`以此类推，返回一个迭代器：`result-(last-first)` 
+
+![](../../pics/language/STL源码剖析/img-6-4.png)
+
+## 6.7 其他算法 
+
+定义于`<stl_algo.h>`
+
+### 6.7.1 merge()
+
+应用于有序区间
+
+**作用**：将两个经过排序的集合S1和S2合并起来置于另一段空间。所得结果也是一个有序序列
+
+**返回值**：返回一个迭代器，指向最后结果序列的最后一个元素的下一个位置
+
+```c++
+//版本1
+template <class InputIterator1, class InputIterator2, class OutputIterator>
+OutputIterator merge(InputIterator1 first1, InputIterator1 last1,
+                     InputIterator2 first2, InputIterator2 last2,
+                     OutputIterator result) {
+  while (first1 != last1 && first2 != last2) {
+    if (*first2 < *first1) {
+      *result = *first2;
+      ++first2;
+    }
+    else {
+      *result = *first1;
+      ++first1;
+    }
+    ++result;
+  }
+  //最后剩余元素以copy复制到目的端，以下两个序列一定至少有一个为空
+  return copy(first2, last2, copy(first1, last1, result));
+}
+
+//版本2，使用comp进行比较
+template <class InputIterator1, class InputIterator2, class OutputIterator,
+          class Compare>
+OutputIterator merge(InputIterator1 first1, InputIterator1 last1,
+                     InputIterator2 first2, InputIterator2 last2,
+                     OutputIterator result, Compare comp) {
+  while (first1 != last1 && first2 != last2) {
+    if (comp(*first2, *first1)) {
+      *result = *first2;
+      ++first2;
+    }
+    else {
+      *result = *first1;
+      ++first1;
+    }
+    ++result;
+  }
+  return copy(first2, last2, copy(first1, last1, result));
+}
+```
+
+![](../../pics/language/STL源码剖析/img-6-6c.png)
+
+### 6.7.2 partition
+
+partition会将区间[first,last)中的元素重新排序。所有被一元条件运算pred判定为true的元素，都会被放在区间的前段，被判定为false的元素都会被放在区间的后段。该算法不保证元素的原始相对位置。如果需要保持相对位置，调用stable_partition
+
+```c++
+template <class BidirectionalIterator, class Predicate>
+BidirectionalIterator partition(BidirectionalIterator first,
+                                BidirectionalIterator last, Predicate pred) {
+  while (true) {
+    while (true)
+      if (first == last)
+        return first;
+      else if (pred(*first))
+        ++first;
+      else
+        break;
+    --last;
+    while (true)
+      if (first == last)
+        return first;
+      else if (!pred(*last))
+        --last;
+      else
+        break;
+    iter_swap(first, last);
+    ++first;
+  }
+}
+```
+
+![](../../pics/language/STL源码剖析/img-6-6d.png)
+
+### 6.7.3 remove()
+
+**作用**：移除[first,last)之中所有与value相等的元素，并不真正从容器中删除那些元素（容器大小并不改变），而是将每一个不与value相等的元素轮番赋值给first之后的空间
+
+**返回值**：ForwardIterator标示出重新整理后的最后元素的下一个位置
+
+**例子**：{0,1,0,2,0,3,0,4}-->remove(0)--->{1,2,3,4,0,3,0,4}，返回值ForwardIterator指向第5个位置
+
+对于array不适合remove()，而应使用remove_copy()
+
+```c++
+template <class ForwardIterator, class T>
+ForwardIterator remove(ForwardIterator first, ForwardIterator last,
+                       const T& value) {
+  first = find(first, last, value); //找到第1个相等元素
+  ForwardIterator next = first;
+  //原地利用remove_copy()
+  return first == last ? first : remove_copy(++next, last, first, value);
+}
+```
+
+### 6.7.4 remove_copy()
+
+**作用**：移除[first,last)区间内所有与value相等的元素。不真正从容器中删除那些元素（原容器大小没有改变），而是将结果赋值到一个以result标示其实位置的容器身上（新容器与原容器可以重叠）
+
+**返回值**：OutputIterator指出被复制的最后元素的下一个位置
+
+```c++
+template <class InputIterator, class OutputIterator, class T>
+OutputIterator remove_copy(InputIterator first, InputIterator last,
+                           OutputIterator result, const T& value) {
+  for ( ; first != last; ++first)
+    if (*first != value) {
+      *result = *first;
+      ++result;
+    }
+  return result;
+}
+```
+
+### 6.7.5 replace()
+
+**作用**：将[first,last)区间内的所有old_value都以new_value取代
+
+```c++
+template <class ForwardIterator, class T>
+void replace(ForwardIterator first, ForwardIterator last, const T& old_value,
+             const T& new_value) {
+  for ( ; first != last; ++first)
+    if (*first == old_value) *first = new_value;
+}
+```
+
+### 6.7.6 reverse()
+
+**作用**：将序列[first,last)的元素在原容器中颠倒重排
+
+为双向迭代器和随机迭代器设计了不同版本
+
+```c++
+//分派函数
+template <class BidirectionalIterator>
+inline void reverse(BidirectionalIterator first, BidirectionalIterator last) {
+  __reverse(first, last, iterator_category(first));
+}
+
+//双向迭代器版本
+template <class BidirectionalIterator>
+void __reverse(BidirectionalIterator first, BidirectionalIterator last, 
+               bidirectional_iterator_tag) {
+  while (true)
+    if (first == last || first == --last)
+      return;
+    else
+      iter_swap(first++, last);
+}
+
+//随机迭代器版本
+template <class RandomAccessIterator>
+void __reverse(RandomAccessIterator first, RandomAccessIterator last,
+               random_access_iterator_tag) {
+  //只有随机迭代器才能做到 first < last 判断
+  while (first < last) iter_swap(first++, --last);
+}
+```
+
+### 6.7.7 search()
+
+**作用**：在序列一[first1,last1)中查找序列二[first2,last2)的首次出现点
+
+**返回值**：如果序列一内部存在于序列二完全匹配的子序列，返回迭代器last1
+
+```c++
+template <class ForwardIterator1, class ForwardIterator2>
+inline ForwardIterator1 search(ForwardIterator1 first1, ForwardIterator1 last1,
+                               ForwardIterator2 first2, ForwardIterator2 last2)
+{
+  return __search(first1, last1, first2, last2, distance_type(first1),
+                  distance_type(first2));
+}
+
+template <class ForwardIterator1, class ForwardIterator2,
+          class BinaryPredicate, class Distance1, class Distance2>
+ForwardIterator1 __search(ForwardIterator1 first1, ForwardIterator1 last1,
+                          ForwardIterator2 first2, ForwardIterator2 last2,
+                          BinaryPredicate binary_pred, Distance1*, Distance2*) {
+  Distance1 d1 = 0;
+  distance(first1, last1, d1);
+  Distance2 d2 = 0;
+  distance(first2, last2, d2);
+
+  if (d1 < d2) return last1;
+
+  ForwardIterator1 current1 = first1;
+  ForwardIterator2 current2 = first2;
+
+  while (current2 != last2)
+    if (binary_pred(*current1, *current2)) {
+      ++current1;
+      ++current2;
+    }
+    else {
+      if (d1 == d2)
+        return last1;
+      else {
+        current1 = ++first1;
+        current2 = first2;
+        --d1;
+      }
+    }
+  return first1;
+}
+```
+
+
+
+
 
 
 
