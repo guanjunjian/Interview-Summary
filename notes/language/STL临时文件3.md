@@ -358,7 +358,53 @@ copy_backward将`[first,last)`区间的每一个元素，以逆行的方向复�
 
 ![](../../pics/language/STL源码剖析/img-6-4.png)
 
-## 6.7 其他算法 
+## 6.5 Set相关算法
+
+STL提供了四种与set相关的算法：并集、交集、差集、对称差集
+
+**要求**：排序区间。因此以hashtable为底层地址的hash_set无法使用这四个算法
+
+> **set_union()**
+
+set_union()可构造S1、S2的并集，即`S1 ∪ S2`，此集合内含S1或S2的每一个元素
+
+S1、S2及并集都是以排序区间表示
+
+返回值为迭代器，指向输出区间的尾端
+
+每个元素都不需要唯一，如果某个值在S1中出现n次，在S2中出现m次，那么该值在输出区间中会出现`max(m,n)`次
+
+> **set_intersection()**
+
+set_intersection()可构造S1、S2的交集，即`S1 ∩ S2`，此集合内含同时出现于S1和S2的每一个元素
+
+S1、S2及并集都是以排序区间表示
+
+返回值为迭代器，指向输出区间的尾端
+
+每个元素都不需要唯一，如果某个值在S1中出现n次，在S2中出现m次，那么该值在输出区间中会出现`min(m,n)`次
+
+> **set_difference()**
+
+set_difference()可构造S1、S2的交集，即`S1 - S2`，此集合内含出现于S1但不出现于S2的每一个元素
+
+S1、S2及并集都是以排序区间表示
+
+返回值为迭代器，指向输出区间的尾端
+
+每个元素都不需要唯一，如果某个值在S1中出现n次，在S2中出现m次，那么该值在输出区间中会出现`max(n-m,0)`次
+
+> **set_symmetirc_difference()**
+
+set_symmetirc_difference()可构造S1、S2的交集，即`(S1 - S2) ∪ (S2 - S1)`，此集合内含"出现于S1但不出现于S2"以及“出现于S2但不出现于S1”的每一个元素
+
+S1、S2及并集都是以排序区间表示
+
+返回值为迭代器，指向输出区间的尾端
+
+每个元素都不需要唯一，如果某个值在S1中出现n次，在S2中出现m次，那么该值在输出区间中会出现`|n-m|`次
+
+## 6.7 其他算法
 
 定义于`<stl_algo.h>`
 
@@ -580,7 +626,98 @@ ForwardIterator1 __search(ForwardIterator1 first1, ForwardIterator1 last1,
 }
 ```
 
+### 6.7.8 sort()
 
+**要求**：算法接受两个RandomAccessIterators
+
+**不可用容器**
+
+- 1.所有以RB-tree为底层结构的关系型容器（有自动排序功能，不需要）
+- 2.stack、queue、priority-queue有特别的出口，不允许对元素排序
+- 3.list的迭代器为BidirectionalIterators，对其排序使用其类成员函数sort
+- 4.slist的迭代器为ForwordIterators，对其排序使用其类成员函数sort
+
+**可用容器**：vector、deque
+
+**sort的大致思想**：
+
+- 1.数据量大时，Quick Sort，分段递归排序
+- 2.在`1.`的分段递归排序中，如果**数据量**小于某个阈值，改用Insertion Sort
+- 3.在`1.`的分段递归排序中，如果**递归层次**过深，改用Heap Sort
+
+> **Insert Sort**
+
+时间复杂度：O(N^2)
+
+数据量很少时，效果较好（避免Quick Sort的递归调用带来过大的额外负担）
+
+![](../../pics/language/STL源码剖析/img-6-12.png)
+
+> **Quick Sort**
+
+Quick Sort是目前已知最快的排序算法，平均复杂度为O(NlogN)，最坏情况O(N^2)
+
+**Quick Sort算法的思想**：（假设S代表被处理的序列）
+
+- 1.如果S的元素个数为0或1，结束
+- 2.取S中的任何一个元素，当作枢轴（pivot）v
+- 3.将S分隔为L、R两段，使L内的每一个元素都小于或等于v，R内的每一个元素都大于或等于v
+- 4.对L、R递归使用Quick Sort
+
+**Quck Sort的精神**：将大区间分隔为小区间，分段排序。因此最坏情况发生在分割时产生出一个空的子空间，那就完全没有达到分割的预期效果
+
+**Median-of-Three（三点中值）**：枢轴值最理想文档的方式是取整个序列的头、尾、中央三个位置的 元素，以其中值作为枢轴，这种做法称为“Median-of-Three Partition”或"Median-of-Three-QuicSort"。为了能够快速取得中央位置的元素，迭代器必须为RandomAccessIterators
+
+**Partitioning（分割）**最有成效的方法：
+
+- 1.令头端迭代器first向尾部移动，尾部迭代器向头部移动
+- 2.当*first大于或等于枢轴时就停下来
+- 3.当*last小于或等于枢轴时就停下来
+- 4.检查两个迭代器是否交错
+  - 不交错，将两者元素互换，然后各自调整一个位置（向中央逼近），继续相同的行为
+  - 交错，表示整个序列已经调整完毕，以first为轴，分为左右两段
+
+> **threshold（阈值）**
+
+究竟多小的序列才应该改用Insertion Sort，并无定论，5~20可能导致差不多的结果，实际的最佳值因设备而异
+
+> **final Insertion sort**
+
+令某个大小以下的序列滞留在“几近排序但尚未完成”的状态，最后再以一次Insertion Sort将所有这些“几近排序但尚未竟全功”的子序列做一次完整的排序，其效率一般认为会比“将所有子序列彻底排序”更好
+
+> **introsort**
+
+Introspective Sorting（内省式排序），简称**introsort**
+
+**思想**：
+
+- 1.大部分情况与"Median-of-Three-QuicSort"完全相同
+- 2.当分割行为有恶化为二次行为的倾向时，能够自我检测，转而改用Heap Sort
+
+**效率**：效率维持在Heap Sort的O(NlogN)，又比一开始就使用Heap Sort来得好
+
+### 6.7.9 for_each()
+
+```c++
+template <class InputIterator, class Function>
+Function for_each(InputIterator first, InputIterator last, Function f) {
+  for ( ; first != last; ++first)
+    f(*first);
+  return f;
+}
+```
+
+### 6.7.10 lower_bound() 和 upper_bound()
+
+应用于有序区间
+
+二分查找的一种版本
+
+**lower_bound 作用**：试图在已排序的[first,last)中寻找元素value。如果[first,last)具有与value相等的元素，便返回一个迭代器，指向其中第一个元素。如果没有这样的元素，返回“假设这样的元素存在时应该出现的位置”，即一个“不小于value”的元素
+
+**upper_bound 作用**：试图在已经排序的[first,last)中寻找元素value。它返回“在不破坏顺序的情况下，可插入value的最后一个合适位置”
+
+![](../../pics/language/STL源码剖析/img-6-7.png)
 
 
 
