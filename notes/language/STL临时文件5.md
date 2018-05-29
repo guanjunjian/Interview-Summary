@@ -554,7 +554,7 @@ compose2(const Operation1& op1, const Operation2& op2, const Operation3& op3) {
 }
 ```
 
-## 8.4.4 用于函数指针 ptr_fun
+### 8.4.4 用于函数指针 ptr_fun
 
 ptr_fun配接器使我们能够将一般函数当做仿函数使用
 
