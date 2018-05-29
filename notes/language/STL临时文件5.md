@@ -554,6 +554,211 @@ compose2(const Operation1& op1, const Operation2& op2, const Operation3& op3) {
 }
 ```
 
+## 8.4.4 用于函数指针 ptr_fun
+
+ptr_fun配接器使我们能够将一般函数当做仿函数使用
+
+- `ptr_fun(Result (*x)(Arg))`将一元函数转换成一元仿函数
+- `ptr_fun(Result (*x)(Arg1, Arg2))`将二元函数转换成二元仿函数
+
+> **ptr_fun(Result (*x)(Arg))**
+
+```c++
+//以下配接器其实就是把一个一元函数指针包起来
+//当仿函数被使用时，就调用该函数指针
+template <class Arg, class Result>
+class pointer_to_unary_function : public unary_function<Arg, Result> {
+protected:
+  Result (*ptr)(Arg);  //函数指针
+public:
+  pointer_to_unary_function() {}
+  explicit pointer_to_unary_function(Result (*x)(Arg)) : ptr(x) {}
+  //通过函数指针执行函数
+  Result operator()(Arg x) const { return ptr(x); }
+};
+
+//辅助函数
+template <class Arg, class Result>
+inline pointer_to_unary_function<Arg, Result> ptr_fun(Result (*x)(Arg)) {
+  //返回一个仿函数对象
+  return pointer_to_unary_function<Arg, Result>(x);
+}
+```
+
+> **ptr_fun(Result (*x)(Arg1, Arg2))**
+
+```c++
+//以下配接器其实就是把一个二元函数指针包起来
+//当仿函数被使用时，就调用该函数指针
+template <class Arg1, class Arg2, class Result>
+class pointer_to_binary_function : public binary_function<Arg1, Arg2, Result> {
+protected:
+    Result (*ptr)(Arg1, Arg2);  //函数指针
+public:
+    pointer_to_binary_function() {}
+    explicit pointer_to_binary_function(Result (*x)(Arg1, Arg2)) : ptr(x) {}
+    //通过函数指针执行函数
+    Result operator()(Arg1 x, Arg2 y) const { return ptr(x, y); }
+};
+
+template <class Arg1, class Arg2, class Result>
+inline pointer_to_binary_function<Arg1, Arg2, Result> 
+ptr_fun(Result (*x)(Arg1, Arg2)) {
+  //返回一个仿函数对象
+  return pointer_to_binary_function<Arg1, Arg2, Result>(x);
+}
+```
+
+### 8.4.5 用于成员函数指针 mem_fun mem_fun_ref
+
+这两种配接器使我们能够将成员函数当做仿函数使用
+
+当容器元素的类型是X&或X*时，可以实现多态
+
+![](../../pics/language/STL源码剖析/img-8-8.png)
+
+该族群一个有8个仿函数
+
+- 1.无任何参数 vs 有一个参数
+- 2.通过指针调用 vs 通过引用调用
+- 3.const成员函数 vs 非const成员函数
+
+```c++
+//1. 无任何参数 通过指针调用 非const成员函数
+template <class S, class T>
+class mem_fun_t : public unary_function<T*, S> {
+public:
+  explicit mem_fun_t(S (T::*pf)()) : f(pf) {}
+  //通过指针调用
+  S operator()(T* p) const { return (p->*f)(); }
+private:
+  S (T::*f)(); //无任何参数 非const成员函数
+};
+
+//2. 无任何参数 通过指针调用 const成员函数
+template <class S, class T>
+class const_mem_fun_t : public unary_function<const T*, S> {
+public:
+  explicit const_mem_fun_t(S (T::*pf)() const) : f(pf) {}
+  //通过指针调用
+  S operator()(const T* p) const { return (p->*f)(); }
+private:
+  S (T::*f)() const; //无任何参数 const成员函数
+};
+
+//3. 无任何参数 通过引用调用 非const成员函数
+template <class S, class T>
+class mem_fun_ref_t : public unary_function<T, S> {
+public:
+  explicit mem_fun_ref_t(S (T::*pf)()) : f(pf) {}
+  //通过引用调用
+  S operator()(T& r) const { return (r.*f)(); }
+private:
+  S (T::*f)(); //无任何参数 非const成员函数
+};
+
+//4. 无任何参数 通过引用调用 const成员函数
+template <class S, class T>
+class const_mem_fun_ref_t : public unary_function<T, S> {
+public:
+  explicit const_mem_fun_ref_t(S (T::*pf)() const) : f(pf) {}
+  //通过引用调用
+  S operator()(const T& r) const { return (r.*f)(); }
+private:
+  S (T::*f)() const; //无任何参数 const成员函数
+};
+
+//5. 有一个参数 通过指针调用 非const成员函数
+template <class S, class T, class A>
+class mem_fun1_t : public binary_function<T*, A, S> {
+public:
+  explicit mem_fun1_t(S (T::*pf)(A)) : f(pf) {}
+  //通过指针调用
+  S operator()(T* p, A x) const { return (p->*f)(x); }
+private:
+  S (T::*f)(A); //有一个参数 非const成员函数
+};
+
+//6. 有一个参数 通过指针调用 const成员函数
+template <class S, class T, class A>
+class const_mem_fun1_t : public binary_function<const T*, A, S> {
+public:
+  explicit const_mem_fun1_t(S (T::*pf)(A) const) : f(pf) {}
+  //通过指针调用
+  S operator()(const T* p, A x) const { return (p->*f)(x); }
+private:
+  S (T::*f)(A) const; //有一个参数 const成员函数
+};
+
+//7. 有一个参数 通过引用调用 非const成员函数
+template <class S, class T, class A>
+class mem_fun1_ref_t : public binary_function<T, A, S> {
+public:
+  explicit mem_fun1_ref_t(S (T::*pf)(A)) : f(pf) {}
+  //通过引用调用
+  S operator()(T& r, A x) const { return (r.*f)(x); }
+private:
+  S (T::*f)(A); //有一个参数 非const成员函数
+};
+
+//8. 有一个参数 通过引用调用 const成员函数
+template <class S, class T, class A>
+class const_mem_fun1_ref_t : public binary_function<T, A, S> {
+public:
+  explicit const_mem_fun1_ref_t(S (T::*pf)(A) const) : f(pf) {}
+  //通过引用调用
+  S operator()(const T& r, A x) const { return (r.*f)(x); }
+private:
+  S (T::*f)(A) const; //有一个参数 const成员函数
+};
+```
+
+所有的复杂都只存在于仿函数内部，我们可以忽略它们，直接使用更上层的辅助函数mem_fun和mem_fun_ref
+
+辅助函数：
+
+```c++
+template <class S, class T>
+inline mem_fun_t<S,T> mem_fun(S (T::*f)()) { 
+  return mem_fun_t<S,T>(f);
+}
+
+template <class S, class T>
+inline const_mem_fun_t<S,T> mem_fun(S (T::*f)() const) {
+  return const_mem_fun_t<S,T>(f);
+}
+
+template <class S, class T>
+inline mem_fun_ref_t<S,T> mem_fun_ref(S (T::*f)()) { 
+  return mem_fun_ref_t<S,T>(f);
+}
+
+template <class S, class T>
+inline const_mem_fun_ref_t<S,T> mem_fun_ref(S (T::*f)() const) {
+  return const_mem_fun_ref_t<S,T>(f);
+}
+
+template <class S, class T, class A>
+inline mem_fun1_t<S,T,A> mem_fun1(S (T::*f)(A)) { 
+  return mem_fun1_t<S,T,A>(f);
+}
+
+template <class S, class T, class A>
+inline const_mem_fun1_t<S,T,A> mem_fun1(S (T::*f)(A) const) {
+  return const_mem_fun1_t<S,T,A>(f);
+}
+
+template <class S, class T, class A>
+inline mem_fun1_ref_t<S,T,A> mem_fun1_ref(S (T::*f)(A)) { 
+  return mem_fun1_ref_t<S,T,A>(f);
+}
+
+template <class S, class T, class A>
+inline const_mem_fun1_ref_t<S,T,A> mem_fun1_ref(S (T::*f)(A) const) {
+  return const_mem_fun1_ref_t<S,T,A>(f);
+}
+```
+
 
 
 
