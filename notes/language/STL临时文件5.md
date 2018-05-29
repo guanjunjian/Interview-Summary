@@ -365,5 +365,199 @@ public:
 
 ![](../../pics/language/STL源码剖析/img-8-5.png)
 
+## 8.4 function adapters
+
+每个function adapters内藏了一个数据成员，其类型等同于它所要配接的对象（一个“可配接的仿函数”）
+
+**例子**：
+
+![](../../pics/language/STL源码剖析/img-8-7.png)
+
+**function adpaters汇总**：
+
+![](../../pics/language/STL源码剖析/img-8-6.png)
+
+### 8.4.1 对返回值进行逻辑否定 not1 not2
+
+- **not1**：对一个参数的仿函数的结果进行否定
+- **not2**：对两个参数的仿函数的结果进行否定
+
+> **not1**
+
+```c++
+//unary_negate配接器用来表示某个Adapter Predicate的逻辑负值
+template <class Predicate>
+class unary_negate
+  : public unary_function<typename Predicate::argument_type, bool> {
+protected:
+  Predicate pred; //内部成员
+public:
+  explicit unary_negate(const Predicate& x) : pred(x) {}
+  bool operator()(const typename Predicate::argument_type& x) const {
+    return !pred(x);
+  }
+};
+
+//辅助函数，利用模板函数的自动推断，使得我们得以方便使用unary_negate<Pred>
+template <class Predicate>
+inline unary_negate<Predicate> not1(const Predicate& pred) {
+  return unary_negate<Predicate>(pred);
+}
+```
+
+> **not2**
+
+```c++
+//binary_negate配接器用来表示某个Adapter Predicate的逻辑负值
+template <class Predicate> 
+class binary_negate 
+  : public binary_function<typename Predicate::first_argument_type,
+                           typename Predicate::second_argument_type,
+                           bool> {
+protected:
+  Predicate pred; //内部成员
+public:
+  explicit binary_negate(const Predicate& x) : pred(x) {}
+  bool operator()(const typename Predicate::first_argument_type& x, 
+                  const typename Predicate::second_argument_type& y) const {
+    return !pred(x, y); 
+  }
+};
+
+//辅助函数，利用模板函数的自动推断，使得我们得以方便使用binary_negate<Pred>
+template <class Predicate>
+inline binary_negate<Predicate> not2(const Predicate& pred) {
+  return binary_negate<Predicate>(pred);
+}
+```
+
+### 8.4.2 对参数进行绑定 bind1st bind2nd
+
+- **bind1st**：`bind1st(less<int>,12)`将12绑定为`less<int>`的第1个参数，即变成`less<int>(12,x)`，使用`bind1st(less<int>,12)`时只需传入第2个参数即可
+- **bind2nd**：`bind2nd(less<int>,12)`将12绑定为`less<int>`的第2个参数，即变成`less<int>(x,12)`，使用`bind2nd(less<int>,12)`时只需传入第1个参数即可
+
+> **bind1st** 
+
+```c++
+template <class Operation> 
+class binder1st
+  : public unary_function<typename Operation::second_argument_type,
+                          typename Operation::result_type> {
+protected:
+  Operation op;
+  typename Operation::first_argument_type value;
+public:
+  binder1st(const Operation& x,
+            const typename Operation::first_argument_type& y)
+      : op(x), value(y) {}
+  typename Operation::result_type
+  operator()(const typename Operation::second_argument_type& x) const {
+    return op(value, x);  //将value绑定为参数1
+  }
+};
+
+//辅助函数
+template <class Operation, class T>
+inline binder1st<Operation> bind1st(const Operation& op, const T& x) {
+  typedef typename Operation::first_argument_type arg1_type;
+  return binder1st<Operation>(op, arg1_type(x));
+}
+```
+
+> **bind2nd**
+
+```c++
+template <class Operation> 
+class binder2nd
+  : public unary_function<typename Operation::first_argument_type,
+                          typename Operation::result_type> {
+protected:
+  Operation op;
+  typename Operation::second_argument_type value;
+public:
+  binder2nd(const Operation& x,
+            const typename Operation::second_argument_type& y) 
+      : op(x), value(y) {}
+  typename Operation::result_type
+  operator()(const typename Operation::first_argument_type& x) const {
+    return op(x, value); //将value绑定为参数2
+  }
+};
+
+//辅助函数
+template <class Operation, class T>
+inline binder2nd<Operation> bind2nd(const Operation& op, const T& x) {
+  typedef typename Operation::second_argument_type arg2_type;
+  return binder2nd<Operation>(op, arg2_type(x));
+}
+```
+
+### 8.4.3 用于函数合成 compose1 compose2
+
+本节的两个配接器并未纳入STL标准，是SGI STL的私产品
+
+- **compose1**：已知两个可配接的单参数仿函数f()，g()，compose1用来产生一个h(),使`h(x) = f(g(x))`
+- **compose2**：已知一个可匹配的双参数仿函数f和两个可配接的单参数仿函数g1，g2，compose2用来产生一个h(),使`h(x) = f(g1(x),g2(x))`
+
+> **compose1**
+
+```c++
+template <class Operation1, class Operation2>
+class unary_compose : public unary_function<typename Operation2::argument_type,
+                                            typename Operation1::result_type> {
+protected:
+  Operation1 op1;  //内部成员
+  Operation2 op2;  //内部成员
+public:
+  unary_compose(const Operation1& x, const Operation2& y) : op1(x), op2(y) {}
+  typename Operation1::result_type
+  //注意这里是op2的参数类型
+  operator()(const typename Operation2::argument_type& x) const {
+    return op1(op2(x)); 
+  }
+};
+
+//辅助函数
+template <class Operation1, class Operation2>
+inline unary_compose<Operation1, Operation2> compose1(const Operation1& op1, 
+                                                      const Operation2& op2) {
+  return unary_compose<Operation1, Operation2>(op1, op2);
+}
+```
+
+> **compose2**
+
+```c++
+template <class Operation1, class Operation2, class Operation3>
+class binary_compose
+  : public unary_function<typename Operation2::argument_type,
+                          typename Operation1::result_type> {
+protected:
+  Operation1 op1;
+  Operation2 op2;
+  Operation3 op3;
+public:
+  binary_compose(const Operation1& x, const Operation2& y, 
+                 const Operation3& z) : op1(x), op2(y), op3(z) { }
+  typename Operation1::result_type
+  //从这里可知op2和op3的参数类型必须相同
+  operator()(const typename Operation2::argument_type& x) const {
+    return op1(op2(x), op3(x));
+  }
+};
+
+//辅助函数
+template <class Operation1, class Operation2, class Operation3>
+inline binary_compose<Operation1, Operation2, Operation3> 
+compose2(const Operation1& op1, const Operation2& op2, const Operation3& op3) {
+  return binary_compose<Operation1, Operation2, Operation3>(op1, op2, op3);
+}
+```
+
+
+
+
+
+
 
 
