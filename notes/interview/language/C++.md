@@ -35,7 +35,6 @@ extern有两个作用：
 
 -	[C/C++中extern关键字详解](https://www.cnblogs.com/yc_sunniwell/archive/2010/07/14/1777431.html)
 
-
 ---
 
 ## 2.static关键字作用
@@ -835,6 +834,33 @@ private:
   - 这里可以注意到虚继承和一般继承时，超级基类的构造方法
     - 虚基类，有最终的派生类直接调用超级基类的构造函数
     - 一般继承：由直接基类构造超级基类，派生类中有两份超级基类对象
+
+```c++
+template<typename T>
+class SealedT
+{
+    // 注意：不是 friend class T;
+    friend T;
+
+private:
+    SealedT() {}
+};
+
+// 注意：是虚继承
+class Demo2 : virtual SealedT<Demo2>
+{
+
+};
+
+class Test2: public Demon2{};
+
+int main()
+{
+    Demo2*      pd2 = new Demo2;
+//  Test2*      pt2 = new Test2;        // 错误：不能访问间接虚基类
+}  
+```
+
 - 4.使用 虚继承 + 受保护的基类构造函数（这个不行）
 
 ```c++
