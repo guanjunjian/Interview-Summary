@@ -1238,11 +1238,13 @@ int main()
 
 C++四种类型转换：static_cast, dynamic_cast, const_cast, reinterpret_cast
 
+使用类型转换，得到的是被转换对象的副本（Effective C++ P119）
+
 `cast-name<type>(expression);`
 
 > 1).static_cast
 
-static_cast能进行基础类型之间的转换，有如下几种用法：
+static_cast能进行基础类型之间的转换（用来强迫隐式转换），有如下几种用法：
 
 - a.能隐式转换，包括：
   - 基本内置数据类型之间的转换：如把int转换成char，把int转换成enum。这种转换的安全性也要开发人员来保证
