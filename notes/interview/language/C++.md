@@ -12,8 +12,6 @@ C++
 
 - 3).extern C的作用？用法？
 
-
-
 extern可以置于变量或者函数前，以标示变量或者函数的定义在别的文件中，提示编译器遇到此变量和函数时在其他模块中寻找其定义。此外extern也可用来进行链接指定。
 
 extern有两个作用：
@@ -65,7 +63,7 @@ C++的static有两种用法：面向过程程序设计中的static和面向对�
 
 - 1).静态数据成员：
   - 静态数据成员在程序中也只有一份拷贝，静态数据成员是该类的所有对象所共有的
-  - 不能在类声明中定义
+  - 不能在类声明中定义（int类型的可以，包括char、long一类）
   - ＜数据类型＞＜类名＞::＜静态数据成员名＞=＜值＞  `int Myclass::Sum=0;`
   - 出现在变量定义不能指定关键字static
 
@@ -85,7 +83,7 @@ C++的static有两种用法：面向过程程序设计中的static和面向对�
 
 ## 3.volatile关键字作用
 
-- 1).访问寄存器要比访问内存要块，因此CPU会优先访问该数据在寄存器中的存储结果，但是内存中的数据可能已经发生了改变，而寄存器中还保留着原来的结果。为了避免这种情况的发生将该变量声明为volatile，告诉CPU每次都从内存去读取数据。
+- 1).访问寄存器要比访问内存要块，因此CPU会优先访问该数据在寄存器中的存储结果，但是内存中的数据可能已经发生了改变，而寄存器中还保留着原来的结果。为了避免这种情况的发生将该变量声明为volatile，告诉CPU每次都**从内存去读取数据**。
 - 2).一个参数可以即是const又是volatile的吗？可以，一个例子是只读状态寄存器，是volatile是因为它可能被意想不到的被改变，是const告诉程序不应该试图去修改他
 
 ---
@@ -177,12 +175,13 @@ struct A
   A(double d,int i){}
   A(float f,int i,const char* c){}
   //...等等系列的构造函数版本
-}；
+};
 struct B:A
 {
   using A::A;
+  //类成员的初始化表达式，为派生类成员设定一个默认初始值
   int d{0};
-}；
+};
 ```
 
 [C++ using关键字作用总结](http://www.cnblogs.com/ustc11wj/archive/2012/08/11/2637316.html)
@@ -227,7 +226,6 @@ mutable的意思是“可变的，易变的”，跟C++中的const是反义词
 用法：
 
 - 1.const成员函数：在C++中，mutable也是为了突破const的限制而设置的。被mutable修饰的变量，将永远处于可变的状态，即使在一个const函数中
-- 2.lambda：mutable指示符：用来说用是否可以修改捕获的变量
 
 ```c++
 class TestMutable
@@ -241,6 +239,19 @@ public:
 private:
     mutable int i;
 };
+```
+
+- 2.lambda：mutable指示符：用来说用是否可以修改捕获的变量
+
+```c++
+void fcn3()
+{
+　　size_t v1=42; //局部变量
+　　//f可以改变它所捕获的变量的值
+　　auto f=[v1] () mutable {return ++v1;};
+　　v1=0;
+　　auto j=f(); //j为43
+}
 ```
 
 ## 11.noexcept
@@ -319,7 +330,7 @@ class MyClass
 - 2.阻止虚函数的进一步重载
 
 ```c++
-class TaskManager {/*..*/} final; 
+class TaskManager final {/*..*/} ; 
 class  B: A
 {
 pulic:
@@ -329,7 +340,7 @@ pulic:
 
 **override**
 
-- 1.确保在派生类中声明的重载函数跟基类的虚函数有相同的签名
+- 1.确保在派生类中声明的重写函数跟基类的虚函数有相同的签名
 
 ```c++
 virtual void func(double) override;
@@ -420,7 +431,41 @@ int i = 42;
 
 ## 16.typeid
 
-如果表达式的类型是类类型且至少包含有一个虚函数，则typeid操作符返回表达式的动态类型，需要在运行时计算；否则，typeid操作符返回表达式的静态类型，在编译时就可以计算
+如果表达式的类型是类类型，且类至少包含有一个虚函数，则typeid操作符返回表达式的动态类型，需要在运行时计算；否则，typeid操作符返回表达式的静态类型，在编译时就可以计算
+
+```c++
+class A {
+public:
+	virtual void fun() {};
+};
+class B :public A{};
+
+int main()
+{
+	A* pa = new B();
+    //输出class B
+	cout << typeid(*pa).name();
+	system("pause");
+	return 0;
+}
+
+----------------------------------------
+
+class A {
+public:
+	//virtual void fun() {};
+};
+class B :public A{};
+
+int main()
+{
+	A* pa = new B();
+    //输出class A
+	cout << typeid(*pa).name();
+	system("pause");
+	return 0;
+}
+```
 
 ---
 
@@ -433,6 +478,12 @@ int i = 42;
 - 3).返回值：new返回的是指定对象的指针，而malloc返回的是void*，因此malloc的返回值一般都需要进行类型转化
 - 4).库和操作符：new是一个操作符可以重载，malloc是一个库函数
 - 5).扩容：malloc分配的内存不够的时候，可以用realloc扩容。扩容原理：如果原先的内存无法改变大小，realloc将分配另一块正确大小的内存，并把原先那块内存的内容复制到新的块上
+
+```
+realloc原型是extern void *realloc(void *mem_address, unsigned int newsize);
+指针名=（数据类型*）realloc（要改变内存大小的指针名，新的大小）
+```
+
 - 6).异常：new如果分配失败了会抛出bad_malloc的异常（可以用new(nothrow)来不抛出），而malloc失败了会返回NULL。因此对于new，正确的姿势是采用try…catch语法，而malloc则应该判断指针的返回值。为了兼容很多c程序员的习惯，C++也可以采用new nothrow的方法禁止抛出异常而返回NULL；
 - 7).动态数组：new和new[]的区别，new[]一次分配所有内存，多次调用构造函数，分别搭配使用delete和delete[]，同理，delete[]多次调用析构函数，销毁数组中的每个对象。而malloc则只能sizeof(int) * n；
 
