@@ -327,7 +327,7 @@ class MyClass
 **final**
 
 - 1.阻止类的进一步派生
-- 2.阻止虚函数的进一步重载
+- 2.阻止虚函数的进一步重写
 
 ```c++
 class TaskManager final {/*..*/} ; 
@@ -770,6 +770,7 @@ C++标准指明析构函数不能、也不应该抛出异常。C++异常处理�
   - 如果是自赋值，则不作任何处理，直接返回 *this；如果不是自赋值，首先释放实例自身已有内存，然后再分配新的内存
 
 ```c++
+//方法1
 Widget& Widget::operator=(cosnt Widget& rhs)
 {
     if (this == &rhs) return *this; // identity test: if a self-assignment, do nothing
@@ -777,6 +778,22 @@ Widget& Widget::operator=(cosnt Widget& rhs)
     delete pb;
     pb = new Bitmap(*rhs.pb);
     return *this;
+}
+
+//方法2
+Widget& Widget::operator=(const Widget& rhs){
+    Bitmap *pOrig = pb;               // remember original pb
+    pb = new Bitmap(*rhs.pb);         // make pb point to a copy of *pb
+    delete pOrig;                     // delete the original pb
+    return *this;
+}
+
+//方法3
+//参数为pass by reference
+Widget& Widget::operator=(const Widget &rhs){
+    Widget temp(rhs);
+    swap(temp);               // swap *this's data with
+    return *this;             // the copy's
 }
 ```
 
@@ -841,10 +858,65 @@ int main()
 **总结**
 
 - 1.为类的非静态成员数据的类型大小之和．
-- 2.由编译器额外加入的成员变量的大小，用来支持语言的某些特性（如：指向虚函数的指针、虚基指针）．
+- 2.由编译器额外加入的成员变量的大小，用来支持语言的某些特性（如：指向虚函数的指针、虚基指针，在VS中，虚函数表指针和虚基类指针是不同的两个指针，但继承多个虚基类时，派生类使用的是同一个虚基类指针）．
 - 3.为了优化存取效率，进行的边缘调整（对齐）
 - 4.与类中的构造函数，析构函数以及其他的成员函数无关．
 - [sizeof() 类大小，空类大小](https://blog.csdn.net/liu_qiqi/article/details/9344627)
+
+```c++
+class Base1
+{
+public:
+	virtual void fun1() {}
+};
+
+class Base2
+{
+public:
+	virtual void fun2() {}
+};
+
+class Derived :public virtual Base1, public virtual Base2
+{
+public:
+	void fun1() override {}
+	void fun2() override {}
+	void virtual fun3() {}
+};
+
+/*
+1>class Derived	size(16):
+1>	+---
+1> 0	| {vfptr}   //由fun3导致的
+1> 4	| {vbptr}   //由Base1和Base2的虚继承导致的
+1>	+---
+1>	+--- (virtual base Base1)
+1> 8	| {vfptr}  //由fun1导致的
+1>	+---
+1>	+--- (virtual base Base2)
+1>12	| {vfptr}  //由fun2导致的
+1>	+---
+1>
+1>Derived::$vftable@Derived@:
+1>	| &Derived_meta
+1>	|  0
+1> 0	| &Derived::fun3
+1>
+1>Derived::$vbtable@:
+1> 0	| -4
+1> 1	| 4 (Derivedd(Derived+4)Base1)
+1> 2	| 8 (Derivedd(Derived+4)Base2)
+1>
+1>Derived::$vftable@Base1@:
+1>	| -8
+1> 0	| &Derived::fun1
+1>
+1>Derived::$vftable@Base2@:
+1>	| -12
+1> 0	| &Derived::fun2
+1>
+*/
+```
 
 ## 6. sizeof派生类 //TODO
 
@@ -883,33 +955,34 @@ private:
 
 - 3.使用 虚继承 + 私有基类构造函数 + 友元类
   - 这里可以注意到虚继承和一般继承时，超级基类的构造方法
-    - 虚基类，有最终的派生类直接调用超级基类的构造函数
+    - 虚基类，由最终的派生类直接调用超级基类的构造函数
     - 一般继承：由直接基类构造超级基类，派生类中有两份超级基类对象
 
 ```c++
 template<typename T>
 class SealedT
 {
-    // 注意：不是 friend class T;
-    friend T;
+	// 注意：不是 friend class T;
+	friend T;
 
 private:
-    SealedT() {}
+	SealedT() {}
 };
 
 // 注意：是虚继承
-class Demo2 : virtual SealedT<Demo2>
+class Demo2 :public virtual SealedT<Demo2>
 {
-
 };
 
-class Test2: public Demon2{};
+class Test2 : public Demo2 
+{
+};
 
 int main()
 {
-    Demo2*      pd2 = new Demo2;
-//  Test2*      pt2 = new Test2;        // 错误：不能访问间接虚基类
-}  
+	Demo2*      pd2 = new Demo2;
+	//  Test2*      pt2 = new Test2;        // 错误：不能间接构造虚基类SealedT
+}
 ```
 
 - 4.使用 虚继承 + 受保护的基类构造函数（这个不行）
@@ -959,7 +1032,7 @@ int main(int argc, char* argv[])
 
 - 派生类构造函数默认调用
 - 派生类构造函数初始化列表（此时可以调用基类的非默认构造函数）
-- 默认构造函数函数体（此时只能调用基类的默认构造函数）
+- 派生类默认构造函数函数体（此时只能调用基类的默认构造函数）
 - 除此之外，还有以下情况：
 
 ```c++

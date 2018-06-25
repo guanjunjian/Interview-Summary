@@ -372,7 +372,7 @@ ZooAnimal franny = yogi; //这里会发生切割行为
 
 ```c++
 RedPanda little_red;
-Raccon little_critter = litter_red;
+Raccoon little_critter = litter_red;
 ```
 
 在这种情况下，为了完成正确的little_critter初值设定，编译器必须合成一个拷贝构造函数
