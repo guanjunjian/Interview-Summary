@@ -1377,7 +1377,7 @@ static_cast能进行基础类型之间的转换（用来强迫隐式转换），
 - b.基类向派生类的转换（指针/对象）
   - 基类需要实现虚函数（typeid），非虚继承
   - 由于没有动态类型检查，所以是不安全的
-  - 是对象时需要隐式转换
+  - 是对象时需要隐式转换，如果不支持隐式转换，是无法进行的
 - c.把void指针转换成目标类型的指针
   - 不安全
 
@@ -1413,7 +1413,7 @@ string str(pc);
 - c.dynamic_cast 主要用在继承体系中的安全向下转型（基类指针转向派生类指针）
 - d.它能安全地将指向基类的指针转型为指向派生类的指针或引用，并获知转型动作成功是否。转型失败会返回null（转型对象为指针时）或抛出异常（转型对象为引用时）
 - e.dynamic_cast 会动用运行时信息（RTTI）来进行类型安全检查，因此 dynamic_cast 存在一定的效率损失
-	 d.dynamic_cast 只有在基类带有虚函数的情况下才允许将基类转换为子类（因为要检查typeid，而动态类型的typeid是在虚函数表中的）	
+- d.dynamic_cast 只有在基类带有虚函数的情况下才允许将基类转换为子类（因为要检查typeid，而动态类型的typeid是在虚函数表中的）	
 
 > 旧式的强制类型转换
 
@@ -1443,8 +1443,6 @@ const int operator++(int){
     return temp;
 }
 ```
-
-
 
 ---
 
@@ -1479,7 +1477,7 @@ const int operator++(int){
 
 - 重载overload：是函数名相同，参数列表不同，重载只是在类的内部存在（相同的作用域）。但是不能靠返回类型来判断。
 - 重写override：也叫做覆盖。**子类重新定义父类中有相同名称和参数的虚函数。**函数特征相同。但是具体实现不同，主要是在继承关系中出现的 。
-- 重定义 (redefining)也叫做隐藏:子类重新定义父类中有相同名称的**非虚函数** ( 参数列表可以不同 ) 
+- 重定义 (redefining)也叫做隐藏:子类重新定义父类中有相同名称的**函数** ( 参数列表可以不同 ) 
 
 **重写需要注意：**
 
@@ -1536,12 +1534,11 @@ public:
 class B :public A {
 public:
 	using A::fun; //使用了using
-	int fun(int a) {}  //这是重载而不是重写,此时A::fun()不会被隐藏，因为使用了using
+	int fun(int a) {}  //这是重载而不是重写,此时A::fun()不会被隐藏，因为使用了using，且fun()为虚函数，fun(int)为非虚函数
 };
 
 int main(int argc, char* argv[])
 {
-	
 	B b;
 	b.fun();
 	system("pause");
@@ -1692,11 +1689,11 @@ class A<int, T2>{
 ```c
 //重载函数1
 template <class T1, class T2>
-void f(){}
+void f(T1 t1, T2 t2){}
 
 //重载函数2
 template <class T2>
-void f(){}
+void f(int t1, T2 t2){}
 ```
 
 [C++模板的偏特化与全特化](http://harttle.land/2015/10/03/cpp-template.html)
@@ -1760,7 +1757,7 @@ T addValue(const T& x)
 
 ## 2.C++函数调用的压栈过程
 
-[「十九」《C和指针》笔记](https://guanjunjian.github.io/2017/01/09/study-19-pointers-on-c-summary/#第18章-运行时环境)
+[「十九」《C和指针》笔记](https://guanjunjian.github.io/2017/01/09/study-pointers-on-c-summary/#第18章-运行时环境)
 
 ## 3.sizeof和strlen的区别？（运算符与函数、计算的对象、编译时运行时）
 
@@ -1784,7 +1781,8 @@ int main()
   
     const char *p="hello";  
     cout<<"strlen(p) : "<<strlen(p)<<endl;  //返回字符串长度5  
-    cout<<"sizeof(p) : "<<sizeof(p)<<endl;  //返回指针p的内存空间大小4个字节   
+    cout<<"sizeof(p) : "<<sizeof(p)<<endl;  //返回指针p的内存空间大小4个字节，即sizeof(char*)
+    cout<<"sizeof(p) : "<<sizeof(*p)<<endl; //返回长度1，即第一个字符的长度，即sizeof(char)
 }  
 ```
 
