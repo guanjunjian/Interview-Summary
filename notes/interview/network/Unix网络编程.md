@@ -103,7 +103,7 @@ int poll (struct pollfd *fds, unsigned int nfds, int timeout);
 
 - 基本原理：poll本质上和select没有区别，它将用户传入的链表拷贝到内核空间，然后查询每个fd对应的设备状态，如果设备就绪则在设备等待队列中加入一项并继续遍历，如果遍历完所有fd后没有发现就绪设备，则挂起当前进程，直到设备就绪或者主动超时，被唤醒后它又要再次遍历fd。这个过程经历了多次无谓的遍历
 - 优点：
-  - 它没有最大连接数的限制，原因是它是基于链表来存储的
+  - 它没有最大连接数的限制，原因是它是用户定义的动态数组
 - 缺点：
   - 大量的fd的链表被整体复制于用户态和内核地址空间之间，而不管这样的复制是不是有意义
   - poll还有一个特点是“水平触发”，如果报告了fd后，没有被处理，那么下次poll时会再次报告该fd
@@ -114,6 +114,10 @@ int poll (struct pollfd *fds, unsigned int nfds, int timeout);
   - 调用函数时是否清空fd文件描述符集合
 
 **epoll**
+
+[IO多路复用之epoll总结](https://www.cnblogs.com/Anker/archive/2013/08/17/3263780.html)
+
+[arking](https://github.com/arkingc/note/blob/master/计算机网络/UNIX网络编程卷1.md#4epoll)
 
 ```c
 int epoll_create(int size)；//创建一个epoll的句柄，size用来告诉内核这个监听的数目一共有多大
@@ -142,7 +146,7 @@ int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout
 
 - 1.支持一个进程所能打开的最大连接数
   - select使用的是指针指向的long数组，位图
-  - poll使用的是pollfd链表
+  - poll使用的是pollfd动态数组
 
 ![](../../../pics/interview/network/select_poll_epoll_区别1.png)
 
