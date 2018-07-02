@@ -83,6 +83,23 @@ C++的static有两种用法：面向过程程序设计中的static和面向对�
 
 ## 3.volatile关键字作用
 
+[volatile关键字](http://www.cppblog.com/mzty/archive/2006/08/08/10959.html) 
+
+volatile关键字是一种类型修饰符，用它声明的类型变量表示可以被某些编译器未知的因素更改，比如：操作系统、硬件或者其它线程等。遇到这个关键字声明的变量，编译器对访问该变量的代码就不再进行优化，从而可以提供对特殊地址的稳定访问。 
+
+当要求使用volatile 声明的变量的值的时候，系统总是重新从它所在的内存读取数据，即使它前面的指令刚刚从该处读取过数据。而且读取的数据立刻被保存。 
+
+```c++
+volatile int i=10;
+int a = i;
+...
+//其他代码，并未明确告诉编译器，对i进行过操作
+
+int b = i;
+```
+
+volatile  指出  i是随时可能发生变化的，每次使用它的时候必须从i的地址中读取，因而编译器生成的汇编代码会重新从i的地址读取数据放在b中。而优化做法是，由于编译器发现两次从i读数据的代码之间的代码没有对i进行过操作，它会自动把上次读的数据放在b中。而不是重新从i里面读。这样以来，如果i是一个寄存器变量或者表示一个端口数据就容易出错，所以说volatile可以保证对特殊地址的稳定访问。 
+
 - 1).访问寄存器要比访问内存要块，因此CPU会优先访问该数据在寄存器中的存储结果，但是内存中的数据可能已经发生了改变，而寄存器中还保留着原来的结果。为了避免这种情况的发生将该变量声明为volatile，告诉CPU每次都**从内存去读取数据**。
 - 2).一个参数可以即是const又是volatile的吗？可以，一个例子是只读状态寄存器，是volatile是因为它可能被意想不到的被改变，是const告诉程序不应该试图去修改他
 
@@ -467,7 +484,39 @@ int main()
 }
 ```
 
----
+## 17.如何修改const变量、const与volatile、常量折叠
+
+[C++中如何修改const变量](https://blog.csdn.net/heyabo/article/details/8745942)
+
+[const变量通过指针修改 详解](https://blog.csdn.net/hyqsong/article/details/50867456)
+
+const只是编译时期的一种强类型安全检查机制的一种手段，他只是帮组我们发现无意中修改的常量，无法在二进制层面进行保护 
+
+- const全局变量存储在全局存储空间，其值只有可读属性，不能修改 
+- const局部变量存储在堆栈中，可通过指针修改其值； 
+- 但const变量在预处理时处理，编译器只对其值读取一次，因此如果想要真正能const变量的值改变，需要使用volatile关键字
+
+```c++
+#include <stdio.h>
+int main()
+{
+    const volatile int i = 10;
+    int* pi = (int*)(&i);
+    *pi = 100;
+    printf("*pi: %d\n",*pi);
+    printf("i: %d\n",i);
+    printf("pi: %p\n",pi);
+    printf("&i: %p\n", &i);
+    return 0;
+}
+```
+
+const如果不使用volatile即使使用指针方式修改后，也不能打印出改后值的原因：**常量折叠** 
+
+- 常量折叠的概念：在编译器里进行语法分析的时候，将常量表达式计算求值，并用求得的值来替换表达式，放入常量表，可以算作一种编译优化 
+
+- 可折叠的常量像宏一样，在预编译阶段对常量的引用一律被替换为常量所对应的值 
+- 常量折叠说的是，在编译阶段，对该变量进行值替换，同时，该常量拥有自己的内存空间，并非像宏定义一样不分配空间[C++常量折叠](https://blog.csdn.net/yby4769250/article/details/7359278)
 
 # 内存和动态内存
 
@@ -607,9 +656,10 @@ int main()
 
 [《C++Primber》笔记 第Ⅱ部分](https://guanjunjian.github.io/2017/01/26/study-21-cpp-primer-summary_2/)
 
-## 6.对象复用与零拷贝
+## 7.全局数组和局部数组的初始化
 
-//TODO
+- 全局数组存储在全局/静态数据区；局部数组存在栈
+- 全局不显示初始化，则全初始化为0；局部数组如果不显示初始化，它的值不确定 
 
 ---
 
@@ -672,9 +722,11 @@ virtual void funtion()=0
 
 > 1).为什么对于存在虚函数的类中析构函数要定义成虚函数？
 
--	为了实现多态进行动态绑定，将派生类对象指针绑定到基类指针上，指针销毁时，如果析构函数没有定义为析构函数，则只会调用基类的析构函数，显然只能销毁基类的数据。如果要调用派生类的析构函数，就需要将派生类的析构函数定义为虚函数，销毁时通过虚函数表找到对应的析构函数。此时，调用顺序为派生类析构函数、基类析构函数
+为了实现多态进行动态绑定，将派生类对象指针绑定到基类指针上，指针销毁时，如果析构函数没有定义为析构函数，则只会调用基类的析构函数，显然只能销毁基类的数据。如果要调用派生类的析构函数，就需要将派生类的析构函数定义为虚函数，销毁时通过虚函数表找到对应的析构函数。此时，调用顺序为派生类析构函数、基类析构函数
 
 > 2).析构函数能抛出异常吗
+
+[《Effective C++:条款8》](https://github.com/arkingc/note/blob/master/C++/EffectiveC++.md#%E6%9D%A1%E6%AC%BE08%E5%88%AB%E8%AE%A9%E5%BC%82%E5%B8%B8%E9%80%83%E7%A6%BB%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0) 
 
 不能。
 
@@ -686,15 +738,56 @@ C++标准指明析构函数不能、也不应该抛出异常。C++异常处理�
 
 > 3).构造函数和析构函数中能调用虚函数吗
 
-可以，但是达不到想要的效果，应该尽可能避免在构造函数和析构函数中调用虚函数。
+[《Effective C++:条款9》](https://github.com/arkingc/note/blob/master/C++/EffectiveC++.md#%E6%9D%A1%E6%AC%BE09%E7%BB%9D%E4%B8%8D%E5%9C%A8%E6%9E%84%E9%80%A0%E5%92%8C%E6%9E%90%E6%9E%84%E8%BF%87%E7%A8%8B%E4%B8%AD%E8%B0%83%E7%94%A8virtual%E5%87%BD%E6%95%B0) 
 
-- 1.构造函数或者析构函数调用虚函数并不会发挥虚函数动态绑定的特性，跟普通函数没区别（会调用基类的版本）
-- 2.即使构造函数或者析构函数如果能成功调用虚函数， 程序的运行结果也是不可控的
-
+《C++对象模型》5.2.2 虚函数表指针初始化语意
 
 [构造函数与析构函数中不调用虚函数](http://blog.csdn.net/linpengbin/article/details/51560276)
 
 [【C++】不要在构造函数或析构函数内调用虚函数](https://www.cnblogs.com/vincently/p/4754206.html)
+
+**在子类构造期间，virtual函数绝不会下降到派生类阶层。取而代之的是，对象的作为就像隶属基类类型一样。即派生类对象的基类构造期间，对象的类型是基类而不是派生类；除此之外，若使用运行期类型信息**（如dynamic_cast和typeid），也会把对象视为基类类型（这样对待是合理的：因为子类部分尚未初始化，如果调用的是子类的虚函数，通常会访问子类部分的数据，会引发安全问题） 
+
+**同样的道理也适用于析构函数。一旦派生类析构函数开始执行，对象内的派生类成员变量便呈现未定义值，所以C++视它们仿佛不再存在。进入基类析构函数后对象就成为一个基类对象** 
+
+在构造函数中，虚函数指针**初始化的时机为**： 
+
+- 在基类构造函数调用之后，在初始化列表和用户代码之前 
+- 这样可以保证在构造函数和析构函数中调用虚函数的正确性 
+
+```c++
+PVertex::PVertex( float x, float y, float z )
+    :_next(0), Vertex3d( x,y,z ), Point( x,y )
+{
+    if( spyOn )
+        cerr << "Within PVertex::PVertex()"
+        	<< "size: " << size() << endl; //size()为虚函数
+}
+
+//编译器的行为
+PVertex* PVertex::PVertex( PVertex* this, bool __most_derived, float x, float y, float z )
+{
+    //如果是最底层的派生类，调用虚基类构造函数
+    if(__most_derived!=false)
+        this->Point::Point( x,y );
+    //无条件地调用直接基类的构造函数
+    this->Vertext3d::Vertex3d( x, y, z );
+    
+    //初始化自身的虚函数表指针，指向正在构建的对象（子对象）的类的虚函数表
+    this->__vptr_PVertex = __vtbl_PVertex;
+    //初始化虚基类的虚函数表指针
+    this->__vptr_Point__PVertex = __vtbl_Point_PVertex;
+    
+    //用户代码
+    if( spyOn )
+        cerr << "Within PVertex::PVertex()"
+        << "size: "
+        //根据正在构建的对象（子对象）的类的虚函数表进行虚函数调用
+        << (*this->__vptr__PVertex[ 3 ].faddr)(this)
+        << endl;
+    return this;
+}
+```
 
 > 4).必须在构造函数初始化列表里进行初始化的数据成员有哪些
 
@@ -1209,7 +1302,109 @@ Son& Son::operator =(Son& ss)
 
 - 3.static const，在类外初始化
 
----
+## 17.struct和class的区别
+
+[C/C++的class和struct的区别](https://blog.csdn.net/u010575592/article/details/52176662)
+
+C的struct与C++的class的区别：
+
+- struct只是作为一种复杂数据类型定义，不能用于面向对象编程。
+- C++中的struct和class的区别：对于成员访问权限以及继承方式，class中默认的是private的，而struct中则是public的。class还可以用于表示模板类型，struct则不行。 
+
+## 18.成员函数体内、成员函数的参数列表的名字解析时机
+
+参考《C++对象模型》3.1 数据成员的绑定
+
+**类成员的inline成员函数的数据成员绑定：** 
+
+- 1.函数体中的变量值的解析工作，在类声明完成之后才会进行
+- 2.函数的参数列表中名称的解析工作，在出现参数列表代码的时候就开始进行
+
+```c++
+typedef int length;
+int _val = 10;
+
+class Point3d
+{
+public:
+    //length为int，被解析为global，即::length
+    // _val被解析为Point3d::_val;
+    void mumble( length val ) { _val = val; }
+
+private:
+    typedef float length;
+    //length被解析为float，即Point3d::length
+    length _val;
+};
+```
+
+为了避免2.中的情况，可以使用“防御性程序风格”
+
+- a.把所有数据成员放在class声明起头处，以确保正确的绑定
+
+除了a.之外，还有别的“防御性程序风格”，但这对解决上面2.的问题没有帮助
+
+- b.把所有的inline functions，不管大小，都放在class声明之外
+
+## 19.virtual函数动态绑定，缺省参数值静态绑定 
+
+[《Effective C++:条款37》](https://github.com/arkingc/note/blob/master/C++/EffectiveC++.md#%E6%9D%A1%E6%AC%BE37%E7%BB%9D%E4%B8%8D%E9%87%8D%E6%96%B0%E5%AE%9A%E4%B9%89%E7%BB%A7%E6%89%BF%E8%80%8C%E6%9D%A5%E7%9A%84%E7%BC%BA%E7%9C%81%E5%8F%82%E6%95%B0%E5%80%BC) 
+
+绝不重新定义继承而来的缺省参数值。原因就在于，virtual函数是动态绑定，而缺省参数值却是静态绑定。所以你可能调用了一个派生类的virtual函数，但是使用到的缺省参数，却是基类的
+但注意：对象调用时，是静态调用，使用的是派生类的缺省值
+
+总的来说，就是根据调用者的静态类型来确认缺省值
+
+```c++
+class Shape{
+public:
+    enum ShapeColor {Red,Green,Blue};
+    virtual void draw(ShapeColor color = Red) const = 0;
+    ...
+};
+
+class Rectangle : public Shape {
+public:
+    virtual void draw(ShapeColor color = Green) const;
+    ...
+};
+
+class Circle : public Shape {
+public:
+    virtual void draw(ShapeColor color) const;
+    ...
+};
+
+Rectangle r;
+Circle c;
+
+r.draw();           //调用Rectangle::draw，静态类型为Rectangle，所以缺省参数为Shape::Green
+//c.draw();         //调用Circle::draw，静态类型为Circle，没有缺省参数，因此错误，必须显示指定！
+
+Shape *pr = &r;
+Shape *pc = &c;
+
+//以下为容易引起困惑的地方，函数与参数不一致
+pr->draw();         //调用Rectangle::draw，但是静态类型为Shape，所以缺省参数Shape::Red
+pc->draw();         //调用Shape::draw，但是静态类型为Shape，所以缺省参数Shape::Red
+```
+
+## 20.定义类内常量的方法
+
+ [《Effective C++:条款2》](https://github.com/arkingc/note/blob/master/C++/EffectiveC++.md#%E6%9D%A1%E6%AC%BE02%E5%B0%BD%E9%87%8F%E4%BB%A5constenuminline%E6%9B%BF%E6%8D%A2define) 
+
+- 1.static const：一般来说需要类外定义，除类整型的值。但有一些编译器不支持类内初始化
+- 2.enum：类内定义
+  - 对于enum的内存占用：
+    - enum对象占用4字节
+    - 声明不占用空间
+
+```c++
+class GamePlayer{
+    enum {NumTurns = 5};
+    int scores[NumTurns];   //这就没问题了
+};
+```
 
 # 指针和引用
 
@@ -1413,7 +1608,7 @@ string str(pc);
 - c.dynamic_cast 主要用在继承体系中的安全向下转型（基类指针转向派生类指针）
 - d.它能安全地将指向基类的指针转型为指向派生类的指针或引用，并获知转型动作成功是否。转型失败会返回null（转型对象为指针时）或抛出异常（转型对象为引用时）
 - e.dynamic_cast 会动用运行时信息（RTTI）来进行类型安全检查，因此 dynamic_cast 存在一定的效率损失
-- d.dynamic_cast 只有在基类带有虚函数的情况下才允许将基类转换为子类（因为要检查typeid，而动态类型的typeid是在虚函数表中的）	
+	 d.dynamic_cast 只有在基类带有虚函数的情况下才允许将基类转换为子类（因为要检查typeid，而动态类型的typeid是在虚函数表中的）	
 
 > 旧式的强制类型转换
 
@@ -1444,7 +1639,21 @@ const int operator++(int){
 }
 ```
 
----
+## 3.如何比较浮点数大小？
+
+两个浮点数比较只能通过相减并与预先设定的精度比较，记得要取绝对值！ 
+
+相关函数：
+
+- `extern float fabs(float x); `
+- abs函数是针对整数的
+
+```c++
+if( fabs(f1-f2) < 预先指定的精度）
+{
+      ...
+}
+```
 
 # 函数
 
@@ -1633,6 +1842,21 @@ int main(int argc, char* argv[])
 ```
 
 ---
+
+## 5.static函数与普通函数的区别
+
+[c语言中static 函数和普通函数的区别](https://blog.csdn.net/junboyboy/article/details/17921763)
+
+>  静态函数 
+
+在函数的返回类型前加上关键字static，函数就被定义成为静态函数。
+
+函数的定义和声明默认情况下是extern的，但静态函数只是在声明他的文件当中可见，不能被其他文件所用
+
+定义静态函数的好处： 
+
+- 其他文件中可以定义相同名字的函数，不会发生冲突 
+- 静态函数不能被其他文件所用 
 
 # 模板
 
