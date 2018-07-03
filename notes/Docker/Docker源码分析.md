@@ -76,7 +76,7 @@ Docker源码分析
 ## Docker Server
 
 - 步骤：
-  - (1).解析HTTP请求中包含的请求参数：URL中大查询参数、HTTP Header中的认证信息
+  - (1).解析HTTP请求中包含的请求参数：URL中的查询参数、HTTP Header中的认证信息
   - (2).创建镜像下载Job、并为该Job配置环境变量
   - (3).触发执行镜像下载Job
 
