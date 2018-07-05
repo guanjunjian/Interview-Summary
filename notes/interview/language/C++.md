@@ -617,6 +617,8 @@ int main()
 
 ![](../../../pics/interview/language/C++/内存分布.png)
 
+![](../../../pics/interview/language/C++/内存分布图-包括内核空间.jpg)
+
 > 2).防止堆破碎的方法
 
 一个防止堆破碎的通用方法是从不同固定大小的内存池中分配不同类型的对象（类似slab），对每个类重载operator new 和operator delete。
@@ -629,8 +631,6 @@ int main()
 - (4). 生长方向不同：堆：内存地址增加的方向；栈，内存地址减小的方向
 - (5). 分配方式不同：堆，动态分配（malloc、new）；栈，动态分配（alloca），静态分配（局部变量）
 - (6). 分配效率不同：堆，机制复杂，效率低；栈，效率高
-
-
 
 ## 4.定位内存泄露 
 
@@ -672,8 +672,12 @@ int main()
 带括号表示调用指定的构造函数（带无参括号表示调用默认构造函数），不带括号表示调用默认构造函数，因此有
 
 - 1.如果该类没有定义构造函数，但编译器合成默认构造函数，则使用无参数括号和不使用括号，都会调用默认构造函数
+  - 但这里面还有些小区别：如果类内有内置类型，如int
+    - 使用无参数括号时，int相等于new int()，int被初始化为0
+    - 不使用括号时，int相等于new int，int不初始化
 - 2.如果该类没有定义构造函数，但编译器不合成默认构造函数，则使用无参括号时，会要求编译器合成默认构造函数，因此调用默认构造函数，但不使用括号时，则只分配内存，不调用默认构造函数
 - 3.如果该类定义了无参构造函数，则使用无参括号和不使用括号都调用用户定义的无参构造函数
+- 4.如果该类定义了构造函数（但没有无参构造函数），不使用括号时报错
 
 **某个类拥有以下四个条件之一，就会合成默认构造函数**
 
@@ -686,7 +690,45 @@ int main()
 
 int *a = new int;不会将申请到的int空间初始化，而int *a = new int();则会将申请到的int空间初始化为0。 
 
----
+## 9.new时内存不足 
+
+《effective C++》条款49
+
+如果operator new无法满足某一内存需求时，它会
+
+- 1.抛出异常
+- 2.（旧式）返回一个null，如果现在还想返回null，则可以使用`new (std::nothrow) Widget`（Widget为类名），但这只能保证调用operator new阶段不抛出异常，而不能保证整个语句不抛出异常，因为Widget的构造函数也有可能new，此时可能抛出异常
+  - 调用`new (std::nothrow) Widget`分为operator new和Widget构造函数两个阶段
+
+在抛出异常或返回null之前，会先调用一个客户指定的错误处理函数，new-handler，可以通过调用`std::set_new_handler()`来设置，`std::set_new_handler()`定义在`<new>`中：
+
+```
+namespace std{
+    typedef void (*new_handler)();
+    new_handler set_new_handler(new_handler p) throw(); 
+    //以上，throw()是一个异常声明，括号内无任何内容，表示不抛任何异常
+}
+```
+
+当operator new无法满足内存申请时，它会不断调用new-handler函数，直到找到足够内存。一个设计良好的new-handler函数必须做以下事情；
+
+- **让更多内存可被使用**：一个做法是程序一开始执行就分配一大块内存，而后当new-handler第一次被调用，将它们还给程序使用。这便造成operator new内的下一次内存分配动作可能成功
+- **安装另一个new-handler**：如果当前new-handler无法取得更多可用内存，可用安装另一个，下次operator new时会调用新的new-handler
+- **卸除new-handler**：将null指针传给set_new_handler
+- **抛出bad_alloc(或派生自bad_alloc)的异常**：这样的异常不会被operator new捕获，因此会被传播到内存索求处
+- **不返回**：通常调用abort或exit（abort会设置程序非正常退出，exit会设置程序正常退出，当存在未处理异常时C++会调用terminate， 它会回调由std::set_terminate设置的处理函数，默认会调用abort）
+
+## 10.malloc、calloc、realloc、alloca的使用和实现
+
+**malloc、calloc、realloc（堆操作）**
+
+- [《UNIX环境高级编程---Arking》5.进程堆空间的管理](https://github.com/arkingc/note/blob/master/操作系统/UNIX环境高级编程.md)
+
+**alloca（栈操作）**
+
+
+
+## 11.栈溢出
 
 # 类
 
