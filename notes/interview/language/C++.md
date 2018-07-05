@@ -2115,7 +2115,7 @@ T addValue(const T& x)
 }
 ```
 
-# 容器
+# 容器 STL
 
 ## 1.array与内置数组的区别
 
@@ -2184,7 +2184,235 @@ unordered_map和map类似，都是存储的key-value的值，可以通过key快�
 2. 但是unordered_map执行效率要比map高很多
 3. 对于unordered_map或unordered_set容器，其遍历顺序与创建该容器时输入的顺序不一定相同，因为遍历是按照哈希表从前往后依次遍历的
 
-#其他
+## 3.顺序容器与关联容器的比较？有哪些顺序容器与关联容器？
+
+[顺序容器和关联容器的比较](https://blog.csdn.net/JIEJINQUANIL/article/details/51175858)
+
+**区别简要总结如下：**
+
+- 1.关联容器(Associative Container)与顺序容器(Sequential Container)的本质区别在于：关联容器是通过键(key)存储和读取元素的，而顺序容器则通过元素在容器中的位置顺序存储和访问元素 
+- 2.在STL中，这里的“顺序”和“关联”指的是上层接口表现出来的访问方式，并非底层存储方式。为什么这样划分呢？因为对STL的用户来说，他们并不需要知道容器的底层实现机制，只要知道如何通过上层接口访问容器元素就可以了，否则违背了泛型容器设计的初衷 
+- 3.STL主要采用向量、链表、二叉树及他们的组合作为底层存储结构来实现容器。顺序容器主要采用向量和链表及其组合作为基本存储结构，如堆栈和各种队列，而关联式容器采用平衡二叉搜索树作为底层存储结构 
+
+顺序容器：array、vector、heap、priority_queue、list、deque、stack、queue
+
+关联容器：RB-tree、set、map、multiset、multimap、hashtable、unordered_set（hash_set）、unordered_map（hash_map）、unordered_multiset（hash_multiset）、unordered_multimap（hash_multimap）
+
+## 4.vector底层的实现？insert具体做了哪些事？resize()调用的是什么？
+
+> 迭代器类型
+
+迭代器类型为随机迭代器
+
+> 底层实现
+
+vector底层是一块连续的内存空间
+
+![](https://github.com/arkingc/note/raw/master/pic/stl-4-2.png) 
+
+> insert做的事情：
+
+```
+前提：当n不等于0时，才进行以下所有操作（n为新增元素个数）
+
+- (1)：如果备用空间大于等于“新增元素个数”，计算插入点之后的现有元素个数
+  - (1-1)：如果“插入点之后的现有元素个数”大于“新增元素个数”
+    - 1.先将“插入点之后的现有元素”的后n个移动到finish之后
+    - 2.更新finish
+    - 3.再将“插入点之后的现有元素”剩下的前几个元素向后移动
+    - 4.将新加入的元素从“插入点”填入
+  - (1-2)：“插入点后的现有元素个数”小于等于“新增元素个数”
+    - 1.在“现有元素”之后先添加“新增元素个数”比“插入点后的现有元素个数”多的数 
+    - 2.更新finish
+    - 3.将“插入点后的现有元素”全部拷贝到新finish之后
+    - 4.更新finish
+    - 5.填入剩余“新增元素个数”
+- (2)：备用空间小于“新增元素个数”（那就必须配置额外的内存），首先决定新长度：旧长度的两倍，或旧长度+新增元素个数
+  - 1.配置新的vector空间
+  - 2.首先将旧vector的插入点之前的元素复制到新空间
+  - 3.再将新增元素（初值皆为n）填入新空间
+  - 4.最后将旧vector的插入点之后的元素赋值到新空间
+    - 如果有异常发生，实现“commit or rollback”语意
+    - 若新空间分配成功，清除并释放旧vector空间
+      - 更新start、finish
+```
+
+**(1-1)**
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-4-3b-1.png) 
+
+**(1-2)**
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-4-3b-2.png) 
+
+**(2)**
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-4-3b-3.png) 
+
+> C.resize(n)
+
+resize成员函数只改变容器中元素的数目，而不是容器的容量 
+
+我们同样不能用resize来减少容器预留的内存空间
+
+```c++
+      void 
+      resize(size_type __new_size, value_type __x = value_type())
+      {  
+         //如果新的size比旧的size大，则将vector size变大，并填充x
+		if (__new_size > size())
+		  insert(end(), __new_size - size(), __x);
+         //否则，将尾部数据丢弃
+		else if (__new_size < size())
+		  _M_erase_at_end(this->_M_impl._M_start + __new_size);
+      }
+```
+
+> push_back()
+
+- 1.若size<capacity，则直接将数加入
+- 2.否则，分配新内存，通常是将capacity增加一倍（capacity为0时，增加为1）
+- 3.重新分配一块大小等于新capacity的内存
+- 4.复制旧元素至新内存
+- 5.释放旧内存，并追加新数
+
+> C.reserve(n):
+
+- 作用：至少分配容纳n个元素的内存空间
+- 详细说明：
+  - eserve并不改变容器中元素的数量，它仅影响vector预先分配多大的内存空间
+  - 只有当内存空间超过当前容量时，reserve调用才会改变vector的容量，如果需求大小大于当前容量，reserve至少分配与需求一样大的内存空间（可能更大）
+  - 如果需求大小小于或等于当前容量，reserve什么也不做。特别是，当需求大小小于当前容量时，容器不会退回内存空间
+  - 在调用reserve之后，capacity将会大于或等于传递给reserve的参数
+
+> vector的resize()与reserve()
+
+- 容器的size是指它已经保存的元素的数目；而capacity则是在不分配新的内存空间的前提下它最多可以保存多少元素（包括已经保存的元素）
+- 只要没有操作需求超出vector的容量，vector就不能重新分配内存空间
+- 每个vector实现都可以选择自己的内存分配策略，但必须遵守的一条原则是：只有迫不得已时才可以分配新的内存空间。只有在指向insert操作时size与capacity相等，或者调用resize或reserve时给定的大小超过当前capacity，vector才可能重新分配内存空间。分配多少超过给定容量的额外空间，取决于具体实现
+- reserve可能回导致扩容操作，resize也会因内部的insert导致扩容操作
+
+## 5.STL内存池的实现
+
+STL内存分配分为一级分配器和二级分配器，一级分配器就是采用malloc分配内存，二级分配器采用内存池。
+
+二级分配器设计的非常巧妙，分别给8k，16k,…, 128k等比较小的内存片都维持一个空闲链表，每个链表的头节点由一个数组来维护。需要分配内存时从合适大小的链表中取一块下来。假设需要分配一块10K的内存，那么就找到最小的大于等于10k的块，也就是16K，从16K的空闲链表里取出一个用于分配。释放该块内存时，将内存节点归还给链表。
+
+如果要分配的内存大于128K则直接调用一级分配器。 
+
+> 内存不足时
+
+allocate()发现free list中没有可用块区了时，就调用refill()，准备为free list重新填充空间。新的空间将取自内存池 
+
+如果剩余空间连一个区块都无法供应，则利用malloc()从heap中分配内存
+
+> 例子
+
+- 1.一开始，客端调用chunk_alloc(32,20)，于是malloc()分配40个32bytes区块，其中第1个交出，另19个交给free-list[3]维护，余20个留给内存池
+- 2.接下来客户调用chunk_alloc(64,20)，此时free_list[7]空空如也，必须向内存池申请。内存池只能供应(32*20)/64=10个64bytes区块（步骤1中剩余的），就把这10个区块返回，第1个交给客户，余9个由free_list[7]维护
+- 3.此时内存池全空。接下来再调用chunk_alloc(96,20)，此时free-list[11]空空如也，必须向内存池申请。而内存池此时也为空，于是以malloc()分配40+n(附加量)个96bytes区块，其中第1个交出，另19个交给free-list[11]维护，余20+n(附加量)个区块留给内存池...
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-2-6-%E5%8C%BA%E5%9D%97%E5%9B%9E%E6%94%B6-%E7%BA%B3%E5%85%A5free-list.png) 
+
+## 6.set和map的实现
+
+> 1).STL里set和map是基于什么实现的
+
+- set和map都是基于红黑树实现的。
+
+> 2).红黑树的特点？
+
+- 红黑树是一种平衡二叉查找树，与AVL树（自平衡二叉查找树）的区别是：AVL树是完全平衡的，红黑树基本上是平衡的，它不是严格控制左、右子树高度或节点数之差小于等于1。
+
+> 3).为什么选用红黑数？
+
+- 因为红黑数是平衡二叉树，其查找、插入、删除的效率都是O(logn)。与AVL相比红黑数插入和删除最多只需要3次旋转，而AVL树为了维持其完全平衡性，在坏的情况下要旋转的次数太多。
+
+> 4).红黑树的定义
+
+- 二叉平衡搜索树
+
+- 节点是红色或者是黑色
+- 根节点是黑色
+- 每个叶节点（NIL或空节点）是黑色
+- 每个红色节点的两个子节点都是黑色的（也就是说不存在两个连续的红色节点）
+- 从根节点到每个叶子节点路径上黑色节点的数量相同
+
+> 5).时间复杂度
+
+- 查找、插入、删除的效率都是O(logn)
+
+> 6).set和map的区别
+
+- 对于set来说key和value合一，value就是key，map的元素是一个pair，包括key和value
+- set不支持[]，map(不包括multimap)支持[]
+
+> 7).set(map)和multiset(multimap)的区别
+
+- set不允许key重复,其insert操作调用rb_tree的insert_unique函数
+- multiset允许key重复,其insert操作调用rb_tree的insert_equal函数
+
+> 8).set(multiset)和map(multimap)的迭代器
+
+- 由于set(multiset)key和value合一，迭代器不允许修改key
+- map(multimap)除了key有data，迭代器允许修改data不允许修改key
+
+> 9).map与unordered_map的区别？
+
+[unordered_map 与 map 的对比](https://www.cnblogs.com/NeilZhang/p/5724996.html)
+
+unordered_map和map类似，都是存储的key-value的值，可以通过key快速索引到value。不同的是unordered_map不会根据key的大小进行排序，
+
+存储时是根据key的hash值判断元素是否相同，即unordered_map内部元素是无序的，而map中的元素是按照二叉搜索树存储，进行中序遍历会得到有序遍历。
+
+所以使用时map的key需要定义operator<。而unordered_map需要定义hash_value函数并且重载operator==。但是很多系统内置的数据类型都自带这些，
+
+那么如果是自定义类型，那么就需要自己重载operator<或者hash_value()了
+
+## 7.list的底层实现
+
+>  迭代器类型
+
+迭代器类型为双向迭代器 
+
+> 底层实现
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-4-5.png) 
+
+## 8.deque的底层实现
+
+> 迭代器类型
+
+迭代器类型为随机迭代器 
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-4-11.png) 
+
+> 底层实现
+
+deque是一种双向开口的连续线性空间，可以在头尾两端分别做元素的插入和删除操作 
+
+deque系由一段一段的定量连续空间构成，一旦有必要在deque的前端或尾端增加新空间，便配置一段定量连续空间，串接在整个deque的头端或尾端。
+
+- **好处**：避开了“重新配置、复制、释放”的轮回（但map满了，仍然有这个过程）
+- **坏处**：复杂的迭代器架构
+
+deque采用一块所谓的map（注意，不是STL的map容器）作为主控，这里所谓的map是一小块连续空间，其中每个元素（此处称为一个节点，node）都是指针，指向另一端（较大的）连续线性空间，称为**缓冲区**。缓冲区才是deque的存储空间本身。SGI STL允许指定缓冲区大小，默认为0表示将使用512字节缓冲区
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-4-10.png) 
+
+## 9.deque与vector的差异
+
+- 1.deque允许于常数时间内对起头端进行元素的插入或移除操作
+- 2.deque没有所谓容量观念，因为它是动态地以分段连续空间组合而成，随时可以增加一段新的空间并链接起来（deque没有必要提供所谓的空间保留功能）
+- 3.vector的迭代器是普通指针，但deque的迭代器不是，因此deque迭代器效率较低
+
+**对deque进行排序的建议**：为了最高效率，可将deque先完整复制到一个vector，将vector排序后（利用STL sort算法），再复制回deque
+
+## 10.Traits编程技法
+
+
+
+# 其他
 
 ## 1.C++与JAVA的对比
 
