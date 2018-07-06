@@ -1575,6 +1575,126 @@ public继承表示：“是一个”
 
 - 可以减小Widget和Timer的编译依赖。如果是private继承（Widget继承Timer），在定义Widget的文件中势必需要引入#include"timer.h"。 但如果采用复合的方式，可以把WidgetTimer放到另一个文件中，在Widget中使用WidgetTimer*并声明WidgetTimer即可
 
+## 23. 数据成员的布局
+
+**非静态数据成员**：在每个类对象中的排序顺序与被声明的相对顺序一致，但不一定是连续的，介于两个数据成员之间的有可能是：
+
+- 1.因对齐产生的字节
+- 2.因虚功能产生的指针（虚函数指针、虚基类指针）
+  - 虚指针的位置：
+    - 传统：所有显示声明的成员的最后
+    - 现在：每个对象的最前端
+
+**静态数据成员**：存放在程序的静态/全局变量区，与类对象无关
+
+**访问控制区域（acesss section）：**
+
+- 1.指的是由public、private、protected声明的区域
+- 2.区域内部的变量是按声明顺序进行存放的
+- 3.区域之间并不保证与声明顺序一致，但区域之间，一般来说是连在一起，并按顺序存放的
+- 4.区域个数的多少，不会影响类对象所占的空间
+
+## 24. 数据成员的存取
+
+> 静态数据成员
+
+静态成员（数据成员、成员函数）的存取效率：使用对象和使用指针来访问静态成员，实际上都是通过`::`来访问
+
+静态成员（数据成员、成员函数）的继承：静态成员可以被继承
+
+- 1.继承的静态成员函数，派生类调用该函数时，是基类的实现版本
+- 2.继承的静态数据成员，派生类与基类指向的是同一块数据，作为引用计数时要小心
+
+> 非静态数据成员
+
+```c++
+//origin是类Point3d的一个对象
+origin._y = 0.0;
+
+//编译器的行为，&origin._y实际上等于
+&origin + (&Point3d::y - 1);
+//(&Point3d::y - 1)   为y的偏移位置
+```
+
+注意这里的-1，指向数据成员的指针，它的offset总是被加上1，目的是，用于区分：
+
+- 1.一个指向数据成员的指针，用以指出类的第一个成员
+- 2.一个指向数据成员的指针，没有指向任何成员（3.6节详细讲）
+
+每个非静态成员的偏移位置在编译时期就可获知，即使该成员是基类的子对象的成员
+
+**存取效率的比较：**
+
+- 1.非虚继承，存取基类数据成员和派生类定义的数据成员的效率是一样的
+- 2.虚继承，效率会比非虚继承慢，因为需要经过虚基指针寻址
+
+> **通过对象和指针访问数据成员的区别** 
+
+- 1.访问静态数据成员：没区别，都是通过`::`来访问，都是编译时确
+- 2.访问非静态数据成员
+  - 无继承：没区别，都是编译时确定 
+  - 非虚继承：没区别，都是编译时确定 
+  - 虚继承：有区别 
+    - 指针访问：运行时访问，因为编译期间无法确定虚基指针，需要在运行时根据虚基指针间接导引获得 
+    - 对象访问：编译时确定 
+
+## 25. 继承与数据成员
+
+[《深度探索C++对象模型》3.4 继承与数据成员](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/language/Inside_the_C++_Object_Mode.md)
+
+- 1.单一继承且不含虚函数（只要继承不要多态）
+- 2.单一继承并含虚函数（加上多态）
+- 3.多重继承
+- 4.虚继承
+
+> 1.单一继承且不含虚函数（只要继承不要多态）
+
+在继承的子对象之间要保证对齐，因此继承比组合会导致更多的空间浪费
+
+> 2.单一继承并含虚函数（加上多态）
+
+- 为每个类维护一个虚函数表，该表的slot个数一般为虚函数个数+一或两（用于存放runtime type identification，如type_info）
+- 为每个该类的对象导入一个虚函数表指针vptr，提供运行时的链接
+- 加强构造函数，使构造函数在构造对象时能为vptr设定初值，让对应类的虚函数表
+- 加强析构函数，需要析构虚函数表指针
+- 虚函数表指针的位置：类对象的头部 
+
+> 3.多重继承
+
+多重继承时，如果将派生类对象地址（指针）赋值给基类指针时，有可能需要修改偏移的操作 
+
+> 4.虚继承
+
+## 26. 指向数据成员的指针
+
+[《深度探索C++对象模型》3.6 指向数据成员的指针](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/language/Inside_the_C++_Object_Mode.md)
+
+[《C++Primber》笔记 第IV部分---19.4类成员指针](https://guanjunjian.github.io/2017/02/09/study-cpp-primer-summary_4/) 
+
+取一个类的非静态数据成员的地址，将会得到它在类中的偏移值。这种方法存取数据成员，效率更低
+
+- `&Point3d::z`
+- `float Point3d::*p1 = &Point3d::z;`
+
+取一个真正绑定于类对象上的数据成员的地址，将会得到该成员在内存中的真正地址
+
+- `&ob.z`，其中ob为Point3d的一个对象
+- `int *p2 = &ob.z;`
+
+## 27. 成员函数的各种调用方式
+
+[《深度探索C++对象模型》4.1 成员的各种调用方式](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/language/Inside_the_C++_Object_Mode.md)
+
+函数分类
+
+- 1.非静态成员函数
+- 2.虚成员函数
+- 3.静态成员函数
+
+> 1.非静态成员函数
+
+
+
 
 # 指针和引用
 
@@ -2410,7 +2530,50 @@ deque采用一块所谓的map（注意，不是STL的map容器）作为主控，
 
 ## 10.Traits编程技法
 
+> Traits的实现
 
+```
+//声明内嵌类型
+template <class Iterator>
+struct iterator_traits {
+  typedef typename Iterator::iterator_category iterator_category;
+  typedef typename Iterator::value_type        value_type;
+  typedef typename Iterator::difference_type   difference_type;
+  typedef typename Iterator::pointer           pointer;
+  typedef typename Iterator::reference         reference;
+};
+
+//偏特化：原生指针
+template <class T>
+struct iterator_traits<T*> {
+  typedef random_access_iterator_tag iterator_category;
+  typedef T                          value_type;
+  typedef ptrdiff_t                  difference_type;
+  typedef T*                         pointer;
+  typedef T&                         reference;
+};
+
+//偏特化：指向常数对象的指针
+template <class T>
+struct iterator_traits<const T*> {
+  typedef random_access_iterator_tag iterator_category;
+  typedef T                          value_type;
+  typedef ptrdiff_t                  difference_type;
+  typedef const T*                   pointer;
+  typedef const T&                   reference;
+};
+```
+
+> Traits的使用
+
+```
+template<class I>
+typename iterator_traits<I>::value_type  //函数的返回类型
+func(I ite)
+{
+    return *ite;
+}
+```
 
 # 其他
 
