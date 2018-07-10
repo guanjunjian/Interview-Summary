@@ -2,7 +2,7 @@ Unix网络编程
 
 [TOC]
 
-# 网络I/0模型
+## 1.网络I/0模型
 
 参考：
 
@@ -10,8 +10,6 @@ Unix网络编程
 2. [几种网络服务器模型的介绍与比较](https://www.ibm.com/developerworks/cn/linux/l-cn-edntwk/index.html?ca=drs-)
 3. [epoll为什么这么快](http://www.jianshu.com/p/b5bc204da984)(搞懂这篇文章，关于IO复用的问题就信手拈来了)
 4. [网络通信 --> IO多路复用之select、poll、epoll详解](http://www.cnblogs.com/jeakeven/p/5435916.html)
-
-
 
 > 1).IO模型
 
@@ -183,3 +181,157 @@ int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout
 >  4).epoll有两种触发模式？这两种触发模式有什么区别？编程的时候有什么区别？ 
 
 epoll有EPOLLLT和EPOLLET两种触发模式，LT是默认的模式，ET是“高速”模式。LT模式下，只要这个fd还有数据可读，每次 epoll_wait都会返回它的事件，提醒用户程序去操作，而在ET（边缘触发）模式中，它只会提示一次，直到下次再有数据流入之前都不会再提示了，无论fd中是否还有数据可读。所以在ET模式下，read一个fd的时候一定要把它的buffer读光，也就是说一直读到read的返回值小于请求值，或者遇到EAGAIN错误
+
+## 2.bcopy和memcpy的区别？
+
+[UNIX网络编程](https://github.com/arkingc/note/blob/master/计算机网络/UNIX网络编程卷1.md#22-字节操纵函数)
+
+操纵多字节字段的函数有2组：
+
+```
+/***********************************************************************
+ *  第一组：起源于4.2BSD，几乎所有现今支持套接字函数的系统仍然提供
+ **********************************************************************/
+#include <strings.h>
+void bzero(void *dest,size_t nbytes);
+void bcopy(const void *src,void *dest,size_t nbytes);
+int bcmp(const void *ptr1,const void *ptr2,size_t nbytes);
+
+/***********************************************************************
+ *  第二组：起源于ANSI C，支持ANSI C函数库的所有系统都提供
+ **********************************************************************/
+#include <string.h>
+void* memset(void *dest,int c,size_t len);
+void* memcpy(void *dest,const void *src,size_t nbytes);
+int memcmp(const void *ptr1,const void *ptr2,size_t nbytes);
+```
+
+- bzero相比于memset只有2个参数
+- bcopy能够正确处理源“字节串”与目标“字节串”重叠，memcpy不行（可以用memmove）
+
+> bzero和memset可用于**套接字地址结构**的初始化
+
+## 3.字节序
+
+**小端字节序**：将低序字节存储在起始地址
+
+**大端字节序**：将高序字节存储在起始地址
+
+”大端“、”小端“表示多个字节值的哪一端（小端或大端）存储在该值的起始地址
+
+**MSB**：most significant bit，最高有效位
+
+**LSB**：least significant bit，最低有效位
+
+**主机字节序**：某个给定系统所用的字节序称为主机字节序（不同系统有不同）
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/network/unp%E7%AC%94%E8%AE%B0/Pic_3_9_16%E4%BD%8D%E6%95%B4%E6%95%B0%E7%9A%84%E5%B0%8F%E7%AB%AF%E5%AD%97%E8%8A%82%E5%BA%8F%E5%92%8C%E5%A4%A7%E7%AB%AF%E5%AD%97%E8%8A%82%E5%BA%8F.png)
+
+```c
+union {
+	  short  s;
+      char   c[sizeof(short)];
+    } un;
+un.s = 0x0102; //两位一个字节
+if(un.c[0] == 1 && un.c[1] == 2); //大端
+if (un.c[0] == 2 && un.c[1] == 1); //小端
+```
+
+**网络字节序**：网络协议使用**大端字节序**来传递这些字节整数
+
+主机字节序与网络字节序之间的转换函数：
+
+```c
+#include <netinet/in.h>
+//h表示host, n表示network，s代表short，l代表long
+//均返回：网络字节序的值
+uint16_t htons(uint16_t host16bitvalue);    //主机to网络 short
+uint32_t htonl(uint32_t host32bitvalue);    //主机to网络 long
+
+//均返回：主机字节序的值
+uint16_t ntohs(uint16_t net16bitvalue);     //网络to主机 short
+uint32_t ntohl(uint32_t net32bitvalue);     //网络to主机 long
+```
+
+## 4.Linux服务器最大TCP连接数
+
+[单机最大tcp连接数](http://wanshi.iteye.com/blog/1256282)
+
+> 背景知识---如何标识一个TCP连接
+
+系统用一个4四元组来唯一标识一个TCP连接：{local ip, local port,remote ip,remote port} 
+
+> client的理论最大值
+
+理论值取决于端口号数量：65535
+
+client每次发起tcp连接请求时，除非绑定端口，通常会让系统选取一个空闲的本地端口（local port），该端口是独占的，不能和其他tcp连接共享，因此client端的tcp连接数取决于/受限于端口数量。tcp端口的数据类型是unsigned short，因此本地端口个数最大只有65536，端口0有特殊含义，不能使用，这样可用端口最多只有65535，所以在全部作为client端的情况下，一个client最大tcp连接数为65535，这些连接可以连到不同的server ip 
+
+> server的理论最大值
+
+理论最大值等于 `客户ip数*客户port数`，即 `2^32(ip个数) * 2^16(port个数)` 
+
+server通常固定在某个本地端口上监听，等待client的连接请求。不考虑地址重用（unix的SO_REUSEADDR选项）的情况下，即使server端有多个ip，本地监听端口也是独占的，因此server端tcp连接4元组中只有remote ip（也就是client ip）和remote  port（客户端port）是可变的，因此最大tcp连接为客户端ip数×客户端port数，对IPV4，不考虑ip地址分类等因素，最大tcp连接数约为2的32次方（ip数）×2的16次方（port数），也就是server端单机最大tcp连接数约为2的48次方。 
+
+> 实际值
+
+受限情况：
+
+- 1.内存 
+- 2.允许的文件描述符个数 
+- 3.1024以下的端口通常为保留端口 
+
+上面给出的是理论上的单机最大连接数，在实际环境中，受到机器资源、操作系统等的限制，特别是sever端，其最大并发tcp连接数远不能达到理论上限。在unix/linux下限制连接数的主要因素是内存和允许的文件描述符个数（每个tcp连接都要占用一定内存，每个socket就是一个文件描述符），另外1024以下的端口通常为保留端口。 
+
+对server端，通过增加内存、修改最大文件描述符个数等参数，单机最大并发TCP连接数**超过10万,甚至上百万** 是没问题的 
+
+> 相关题目
+
+[链接](https://www.nowcoder.com/questionTerminal/997f45dddc9b4c8ea7da76288aa439d1?orderByHotValue=1&pos=1)
+
+Linux中，一个端口能够接受tcp链接数量的理论上限是？ （答案：无上限）
+
+## 5.非阻塞connect
+
+> 阻塞与非阻塞的区别
+
+可能阻塞的**套接字调用**可分为以下4类： 
+
+- **1.输入操作**：包括read、readv、recv、recvfrom和recvmsg 
+  - **阻塞**：如果套接字的接收缓冲区中没有数据可读，进程将被投入睡眠，直到一些数据到达
+    - TCP：只要有数据到达（单个字节或万兆的TCP分节），就唤醒进程。如果想要等到某个固定数目的数据为止，使用readn函数或指定MSG_WAITALL标志
+    - UDP：只要有UDP数据报到达，就唤醒进程
+  - **非阻塞**：如果输入操作不能被满足（TCP至少一个字节，UDP至少一个数据报），相应调用将立即返回一个EWOULDBLOCK错误 
+- **2.输出操作**：包括write、writev、send、sendto和sendmsg 
+  - **阻塞**： 如果套接字的发送缓冲区中没有空间，进程将被投入睡眠 （**仅对于TCP**）
+    - **UDP**：输出函数调用将不会因**空间问题**阻塞，不过有可能因其他原因阻塞
+  - **非阻塞**：如果发送缓存区中根本没空间，返回一个EWOULDBLOCK错误；如果有一些空间，返回值是内核能够复制到该缓冲区中的字节数，也称为”不足计数“ （**仅对于TCP**）
+- **3.接受连接**：即accept函数
+  - **阻塞**：如果尚无新的连接到达，调用进程将被投入睡眠 
+  - **非阻塞**：如果尚无新的连接到达，调用将立即返回一个EWOULDBLOCK错误
+- **4.发起连接**：用于TCP的connect函数（UDP的connect不是真正的连接） 
+  - **阻塞**：connect将阻塞到3路握手的前2路完成（即至少阻塞1个RTT） 
+  - **非阻塞**：如果对于一个非阻塞的TCP套接字调用connect，并且连接不能立即建立，那么照样会发起连接（发出3路握手的第1个分组），但会返回一个EINPROGRESS错误
+    - 可以立即建立的连接：服务器和客户处于同一个主机 
+
+> 非阻塞connect
+
+如果对于一个非阻塞的TCP套接字调用connect，并且连接不能立即建立，那么照样会发起连接，但会返回一个EINPROGRESS错误。接着使用select检查这个连接或成功或失败的已建立条件
+
+非阻塞的connect有**3个用途**：
+
+- 1.**可以把3路握手叠加在其他处理上**（完成一个connect要花一个RTT，而RTT波动范围很大，这段时间内也许有想要执行的其他处理工作可执行） 
+- 2.**同时建立多个连接**
+- 3.既然使用select等待连接建立，**可以给select指定一个时间限制，缩短connect的超时**（许多实现有着75s到数分钟的connect超时时间） 
+
+使用非阻塞式connect时，**必须处理下列细节**：
+
+- 1.尽管套接字非阻塞，如果连接到的服务器在同一个主机上，那么当我们调用connect时，连接通常立刻建立。因此，必须处理这种情况
+- 2.源自Berkeley的实现对于select和非阻塞connect有以下两个规则：
+  - 当连接成功建立时，描述符变为可写
+  - 当连接建立遇到错误时，描述符变为既可读又可写
+
+> 被中断的connect
+
+被中断的connect：对于一个正常的阻塞式套接字，如果其上的connect调用在TCP三路握手完成前被中断（譬如捕获了某个信号）：如果connect调用不由内核自动重启，那么它将返回EINTR。不能再次调用connect等待未完成的连接继续完成，否则会返回EADDRINUSE错误。只能调用select像处理非阻塞式connect那样处理（关闭，重新调用connect）
+
