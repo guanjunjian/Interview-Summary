@@ -269,7 +269,7 @@ client每次发起tcp连接请求时，除非绑定端口，通常会让系统�
 
 > server的理论最大值
 
-理论最大值等于 `客户ip数*客户port数`，即 `2^32(ip个数) * 2^16(port个数)` 
+理论最大值等于 `客户ip数*客户port数`，即 `2^32(ip个数) * 2^16(port个数)` 。如果是多宿主机的话，还要考虑网卡个数；如果服务器监听多个端口的话，也要考虑多端口情况。
 
 server通常固定在某个本地端口上监听，等待client的连接请求。不考虑地址重用（unix的SO_REUSEADDR选项）的情况下，即使server端有多个ip，本地监听端口也是独占的，因此server端tcp连接4元组中只有remote ip（也就是client ip）和remote  port（客户端port）是可变的，因此最大tcp连接为客户端ip数×客户端port数，对IPV4，不考虑ip地址分类等因素，最大tcp连接数约为2的32次方（ip数）×2的16次方（port数），也就是server端单机最大tcp连接数约为2的48次方。 
 
@@ -335,3 +335,196 @@ Linux中，一个端口能够接受tcp链接数量的理论上限是？ （答�
 
 被中断的connect：对于一个正常的阻塞式套接字，如果其上的connect调用在TCP三路握手完成前被中断（譬如捕获了某个信号）：如果connect调用不由内核自动重启，那么它将返回EINTR。不能再次调用connect等待未完成的连接继续完成，否则会返回EADDRINUSE错误。只能调用select像处理非阻塞式connect那样处理（关闭，重新调用connect）
 
+## 6.连接建立过程中每个SYN可以包含哪些TCP选项？
+
+连接建立的前2次握手中，每一个SYN可以包含多个TCP选项：
+
+- [MSS选项](https://github.com/arkingc/note/blob/master/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/UNIX%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E5%8D%B71.md#1tcp_maxseg)：向对端通告**最大分节大小**，即MSS，也就是愿意接收的最大数据量。发送端TCP使用接收端的MSS值作为所发送分节的最大大小（可以通过TCP_MAXSEG套接字选项提取和设置）
+- [窗口规模选项](https://github.com/arkingc/note/blob/master/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%BD%91%E7%BB%9C/UNIX%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B%E5%8D%B71.md#4so_rcvbuf%E5%92%8Cso_sndbuf)：TCP首部中接收窗口首部为16位，意味着能通告对端的最大窗口大小是65535。然而这个值现今已不够用，窗口规模选项用于指定TCP首部中接收窗口必须扩大(即左移)的位数(0~14)，因此所提供的最大窗口接近1GB(65535x2^14)（**使用前提是两个端系统都支持该选项**）
+
+**TCP的窗口规模选项是在建立连接时用SYN分节与对端互换得到的**：
+
+- 对于客户，这意味着SO_RCVBUF选项必须在调用connect之前设置
+- 对于服务器，这意味着该选项必须在调用listen之前给监听套接字设置
+
+给已连接套接字设置该选项对于可能存在的窗口规模选项没有任何影响，因为accept直到TCP的三路握手完成才会创建并返回已连接套接字。这就是必须给监听套接字设置该选项的原因。（套接字缓冲区的大小总是由新创建的已连接套接字从监听套接字继承而来）
+
+## 7.TCP连接建立过程中的超时
+
+[参考链接](http://www.chengweiyang.cn/2017/02/18/linux-connect-timeout/)
+
+即TCP connect的超时时间。Linux 系统默认的建立 TCP 连接的超时时间为 127 秒（2^7-1）
+
+如果 TCP 握手的 SYN 包超时重试按照 2 的幂来 backoff， 那么：
+
+1. 第 1 次发送 SYN 报文后等待 1s（2 的 0 次幂），如果超时，则重试
+2. 第 2 次发送后等待 2s（2 的 1 次幂），如果超时，则重试
+3. 第 3 次发送后等待 4s（2 的 2 次幂），如果超时，则重试
+4. 第 4 次发送后等待 8s（2 的 3 次幂），如果超时，则重试
+5. 第 5 次发送后等待 16s（2 的 4 次幂），如果超时，则重试
+6. 第 6 次发送后等待 32s（2 的 5 次幂），如果超时，则重试
+7. 第 7 次发送后等待 64s（2 的 6 次幂），如果超时，则超时失败
+
+上面的结果刚好是 127 秒。也就是说 Linux 内核在尝试建立 TCP 连接时，最多会尝试 7 次
+
+> 修改超时实参的办法
+
+修改重试次数
+
+```shell
+# sysctl -a | grep tcp_syn_retries
+net.ipv4.tcp_syn_retries = 6   #重试6次
+    
+# sysctl net.ipv4.tcp_syn_retries=1  #重试1次
+```
+
+## 8.地址复用和端口复用 SO_REUSEADDR和SO_REUSEPOPT套接字
+
+[参考链接 7.5.11 SO_REUSEADDR和SO_REUSEPOPT套接字](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/network/unp笔记.md)
+
+## 9.已连接UDP套接字
+
+《unp 8.11》
+
+**给UDP套接字调用connect**：不给对端主机发送任何信息，没有三次握手过程，它完全是一个本地操作，内核只是检查是否存在立即可知的错误（如一个显然不可达的目的地），记录对端的IP地址和端口号（取自传递给connect的套接字地址结构），然后connect立即返回到调用进程。如果在一个未绑定到端口号的UDP套接字上调用connect同时也给该套接字指派一个临时端口
+
+**未连接UDP套接字**：新创建UDP套接字默认状态
+
+**已连接UDP套接字**：对UDP套接字调用connect的结果
+
+已连接套接字与未连接套接字相比，有**三个变化**：
+
+- 1.不再给输出操作指定目的IP地址和端口号，不使用sendto（也可以使用，但不能指定目的地址，即to、addrlen参数必须为空和0），而**改用write或send**。写到已连接UDP套接字上的任何内容都自动发送到由connect指定的协议地址
+- 2.不使用recvfrom获取数据报的发送者，而**改用read、recv或recvmsg**。在一个已连接UDP套接字上，由内核为输入操作返回的数据报只有那些来自connect所指定协议地址的数据报。目的地位这个已连接套接字的本地协议地址，发源地不是该套接字早先conncect到的协议地址的数据报，不会投递到给套接字。已连接套接字仅能与一个对端交换数据报
+- 3.由已连接UDP套接字引发的异步错误会返回给它们所在的进程，而未连接UDP套接字不接收任何异步错误
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/network/unp%E7%AC%94%E8%AE%B0/Pic_8_14_TCP%E5%92%8CUDP%E5%A5%97%E6%8E%A5%E5%AD%97%EF%BC%9A%E5%8F%AF%E6%8C%87%E5%AE%9A%E7%9B%AE%E7%9A%84%E5%8D%8F%E8%AE%AE%E5%9C%B0%E5%9D%80%E5%90%97.png)
+
+**不对应的数据报如何处理**：来自任何其他IP地址或端口的数据报，不投递给不与其对应的已连接UDP套接字，可能投递给同一个主机上的其他某个UDP套接字，如果没有匹配的其他套接字，UDP将丢弃它们，并生成相应的ICMP端口不可达错误
+
+## 10.Linux高性能服务器编程——进程池和线程池
+
+[Linux高性能服务器编程——进程池和线程池](https://blog.csdn.net/walkerkalr/article/details/37729323)
+
+- 半同步/半异步模式（同步线程用于处理客户逻辑，异步线程用于处理I/O时间（accept））
+- 半同步/半反应堆模式
+- 领导者/追随者模式
+
+在并发模式中，同步指的是程序完全按照代码序列的顺序执行；异步指的是程序的执行需要由系统事件来驱动。常见的系统事件包括中断、信号等。如下描述了同步的读操作和异步的读操作。 
+
+![](../../../pics/interview/network/同步与异步.jpg)
+
+---
+
+[第30章 服务/服务器程序设计范式](https://github.com/guanjunjian/Interview-Summary/blob/master/notes/network/unp笔记.md)
+
+- 多进程，子进程accept
+  - accept不使用锁，进程阻塞于accept，有些系统不支持
+  - accept使用文件锁，进程阻塞于锁
+  - accept使用线程锁（互斥量，需要将锁至于共享内存区，如使用mmap函数和/dev/zero设备），进程阻塞于锁
+- 多进程，父进程使用管道将fd传给子进程（子进程存于数组中），子进程需保存一个状态（是否空闲），进程阻塞于管道
+- 多线程，非主线程accept，使用线程锁保护accept，线程阻塞于锁
+- 多线程，主线程accept，使用数组存储fd，使用互斥量和条件变量保护数组，线程阻塞于互斥量或条件变量
+
+## 11.100万并发连接服务器性能调优
+
+[100万并发连接服务器笔记](http://www.blogjava.net/yongboy/archive/2013/04.html)
+
+[100万并发连接服务器笔记之1M并发连接目标达成](http://www.blogjava.net/yongboy/archive/2013/04/11/397677.html)
+
+[关于高负载服务器Kernel的TCP参数优化](https://www.cnblogs.com/94cool/p/5631905.html)
+
+遇到的问题：
+
+- 文件描述符数量受限：一般每个进程最多允许同时打开1024个文件 
+- 端口数量受限：单机端口上限为65535
+- 增加IP地址：由于65535个端口还是不够用，因此需要添加虚拟ip地址
+- tcp_mem
+
+> 文件描述符数量受限 解决方法
+
+root用户编辑/etc/security/limits.conf文件添加： 
+
+```
+* soft nofile 1048576
+* hard nofile 1048576
+```
+
+- soft是一个警告值，而hard则是一个真正意义的阀值，超过就会报错。
+- soft 指的是当前系统生效的设置值。hard 表明系统中所能设定的最大值
+- nofile - 打开文件的最大数目
+- 星号表示针对所有用户，若仅针对某个用户登录ID，请替换星号
+
+> 端口数量受限 解决方法
+
+端口为16进制，那么2的16次方值为65536，在linux系统里面，1024以下端口都是超级管理员用户（如root）才可以使用，普通用户只能使用大于1024的端口值。
+系统提供了默认的端口范围：
+
+    cat /proc/sys/net/ipv4/ip_local_port_range
+    32768 61000
+
+大概也就是共61000-32768=28232个端口可以使用，单个IP对外只能发送28232个TCP请求。
+以管理员身份，把端口的范围区间增到最大：
+
+    echo "1024 65535"> /proc/sys/net/ipv4/ip_local_port_range
+
+> 添加IP地址
+
+一般假设本机网卡名称为 eth0，那么手动再添加几个虚拟的IP：
+
+    ifconfig eth0:1 192.168.190.151
+    ifconfig eth0:2 192.168.190.152 ......
+> 修改tcp_mem
+
+需要调整的内核参数
+
+- tcp_mem：内核分配给TCP连接的内存，单位是Page，1 Page = 4096 Bytes
+- tcp_rmem：为每个TCP连接分配的读缓冲区大小，单位是Byte
+- tcp_wmem：为每个TCP连接分配的写缓冲区大小，单位是Byte
+
+```
+echo "net.ipv4.tcp_mem = 786432 2097152 3145728">> /etc/sysctl.conf
+echo "net.ipv4.tcp_rmem = 4096 4096 16777216">> /etc/sysctl.conf
+echo "net.ipv4.tcp_wmem = 4096 4096 16777216">> /etc/sysctl.conf
+```
+
+## 12.TIME_WAIT和CLOSE_WAIT状态详解及性能调优
+
+[你所不知道的TIME_WAIT和CLOSE_WAIT](http://blog.oldboyedu.com/tcp-wait/)
+
+## 13.accept与epoll惊群
+
+[accept与epoll惊群](https://pureage.info/2015/12/22/thundering-herd.html)
+
+惊群现象（thundering herd）就是当多个进程和线程在同时阻塞等待同一个事件时，如果这个事件发生，会唤醒所有的进程，但最终只可能有一个进程/线程对该事件进行处理，其他进程/线程会在失败后重新休眠，这种性能浪费就是惊群
+
+> accept
+
+accept惊群：主进程创建socket, bind,  listen之后，fork出多个子进程，每个子进程都开始循环处理（accept)这个socket。每个进程都阻塞在accpet上，当一个新的连接到来时，所有的进程都会被唤醒，但其中只有一个进程会accept成功，其余皆失败，重新休眠。这就是accept惊群 
+
+事实上，历史上，Linux 的 accpet 确实存在惊群问题，但现在的内核都解决该问题了。即，当多个进程/线程都阻塞在对同一个 socket 的 accept 调用上时，当有一个新的连接到来，内核只会唤醒一个进程，其他进程保持休眠，压根就不会被唤醒。 
+
+> epoll
+
+如果多个进程/线程阻塞在监听同一个 listening socket fd 的 epoll_wait 上，当有一个新的连接到来时，所有的进程都会被唤醒（没有被解决）
+
+内核不处理epoll惊群的原因：accept 确实应该只能被一个进程调用成功，内核很清楚这一点。但 epoll 不一样，他监听的文件描述符，除了可能后续被 accept  调用外，还有可能是其他网络 IO 事件的，而其他 IO  事件是否只能由一个进程处理，是不一定的，内核不能保证这一点，这是一个由用户决定的事情，例如可能一个文件会由多个进程来读写。所以，对 epoll  的惊群，内核则不予处理。 
+
+## 14.Reactor模式和Preactor模式
+
+[IO复用（Reactor模式和Preactor模式）——用epoll来提高服务器并发能力](https://www.cnblogs.com/binchen-china/p/5487795.html)
+
+[reactor和proactor模式（epoll和iocp）](https://blog.csdn.net/zccracker/article/details/38686339)
+
+## 15.使用同步IO模型实现的Reactor模式的工作流程
+
+[参考链接](https://github.com/arkingc/note/blob/master/interview/temp/IO.md)
+
+> 以epoll_wait为例
+
+- 主线程往epoll内核事件表中注册socket上的读就绪事件
+- 主线程调用epoll_wait等待socket上有数据可读
+- 当socket上有数据可读时，epoll_wait通知主线程。主线程将socket可读事件放入请求队列
+- 睡眠在请求队列上的某个工作线程被唤醒，它从socket读取数据，并处理客户请求，然后往epoll内核事件表中注册该socket上的写就绪事件
+- 主线程调用epoll_wait通知主线程。主线程将socket可写事件放入请求队列
+- 睡眠在请求队列上的某个工作线程被唤醒，它往socket上写入服务器处理客户请求的结果

@@ -8281,7 +8281,7 @@ sig_int(int signo)
 
 父进程在派生任何子进程之前创建监听套接字，而每次调用fork时，所有描述符也被复制。下图展示了proc结果（每个进程一个）、监听描述符的单个file结构以及单个socket结构之间的关系
 
-![](G:/OneDrive/Github/Interview-Summary/pics/network/unp%E7%AC%94%E8%AE%B0/Pic_30_13_proc_file%E5%92%8Csocket%E8%BF%99%E4%B8%89%E4%B8%AA%E7%BB%93%E6%9E%84%E4%B9%8B%E9%97%B4%E7%9A%84%E5%85%B3%E7%B3%BB.png)
+![](../../pics/network/unp笔记/Pic_30_13_proc_file和socket这三个结构之间的关系.png)
 
 **描述符**是本进程引用file结构的proc结构中一个数组中某个元素的下标。子进程中一个给定描述符引用的file结构正是父进程中同一个描述符引用的file结构
 
