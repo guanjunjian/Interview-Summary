@@ -2929,3 +2929,12 @@ FreeLibrary(handle);         // 释放载入的动态库
 
 auto,decltype、explicit、[lambda](https://mubu.com/doc/1ckW18B1Ak)、final 
 
+## 12.一个C语言程序到执行完文件的全过程
+
+[一个C语言程序到执行完文件的全过程](https://blog.csdn.net/hello_world6/article/details/51842247)
+
+- （1）预处理（Pre-Processing）
+- （2）编译（Compiling）
+- （3）汇编（Assembling）
+- （4）链接（Linking）
+
