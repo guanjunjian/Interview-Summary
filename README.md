@@ -49,8 +49,6 @@
 
 > [面经](notes/interview/面经.md)
 
-> [面试记录](notes/interview/面试记录.md)
-
 ## 他人总结
 
 下面是几份整理得比较好的复习总结。

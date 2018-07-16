@@ -782,6 +782,8 @@ void * alloca(size_t size);
 
 ## 12.memcmp比较两个struct是否相等
 
+> 解释1：
+
 主要考擦内容：内存对齐 
 
 ```c++
@@ -805,6 +807,52 @@ A.b = 10;
 使用gdb可以看到'a'字符后分别是’\344’ ‘\377’ ‘\377’，后面补齐的内容不确定，那么就造成了memcmp不能判断是否相等 
 
 ![](../../../pics/interview/language/C++/memcmp.png)
+
+> 解释2：
+
+[参考链接](https://blog.csdn.net/qq_16097611/article/details/74539663)
+
+结构体
+
+```
+typedef struct A {
+    short short_num;
+    int int_num;
+} A;
+```
+
+而多余的2个字节,不会自动置为0
+
+如: 
+
+```c++
+#include <stdio.h>
+typedef struct A {
+    short short_num;
+    int int_num;
+} A;
+ 
+int main() {
+    A a;
+    a.short_num = 3;
+    a.int_num = 3;
+    printf("%d,%d\n", a.short_num, a.int_num);
+    return 0;
+}
+```
+
+另通过gdb查看 
+
+```shell
+(gdb) x/8xb &a
+0x7fffffffdbc0:	0x03	0x00	0xff	0xff	0x03	0x00	0x00	0x00
+```
+
+系统环境为小端:因此这里的short_num对应的为 0x03 0x00 0xff 0xff, 可见补齐的两个字节并没有置0，还有可能是其他的数值 
+
+因此对于有补齐类型的结构体，其是不能通过判断内存存储的值是否相等而判断两个结构体是否相等的。 
+
+在实现map的key时可能更需要注意到这点。 
 
 # 类
 
@@ -2735,6 +2783,10 @@ func(I ite)
 
 [「十九」《C和指针》笔记](https://guanjunjian.github.io/2017/01/09/study-pointers-on-c-summary/#第18章-运行时环境)
 
+入栈顺序：
+
+
+
 ## 3.sizeof和strlen的区别？（运算符与函数、计算的对象、编译时运行时）
 
 [C++中sizeof与strlen的区别](https://blog.csdn.net/u012441543/article/details/45848913)
@@ -2937,4 +2989,118 @@ auto,decltype、explicit、[lambda](https://mubu.com/doc/1ckW18B1Ak)、final
 - （2）编译（Compiling）
 - （3）汇编（Assembling）
 - （4）链接（Linking）
+
+## 13.vs中debug和release的区别
+
+Debug 通常称为调试版本，它包含调试信息，并且不作任何优化，便于程序员调试程序。Release 称为发布版本，它往往是进行了各种优化，使得程序在代码大小和运行速度上都是最优的，以便用户很好地使用。   
+
+## 14.main函数的返回值
+
+[细谈C语言中的main返回值](https://blog.csdn.net/piaojun_pj/article/details/5986516)
+
+> 关于 void main
+
+在 C 和 C++ 中，不接收任何参数也不返回任何信息的函数原型为“void  foo(void);”。可能正是因为这个，所以很多人都误认为如果不需要程序返回值时可以把main函数定义成void main(void)  。然而这是错误的！main 函数的返回值应该定义为 int 类型，C 和 C++ 标准中都是这样规定的。虽然在一些编译器中，void main  可以通过编译（如 vc6），但并非所有编译器都支持 void main ，因为标准中从来没有定义过 void main  
+
+总而言之： void main 主函数没有返回值 main 默认为int 型，即 int main()， 返回整数。  注意，新标准不允许使用默认返回值，即int不能省，而且对应main函数不再支持void型返回值，因此为了使程序有很好的移植性，强烈建议使用：  int main() { return 0; /* 新标准主函数的返回值这条语句可以省略 */ } 
+
+> main函数返回值的作用
+
+main函数的返回值用于说明程序的退出状态。如果返回0，则代表程序正常退出。返回其它数字的含义则由系统决定。通常，返回非零代表程序异常退出
+
+> main函数返回值的获取
+
+下面我们在winxp环境下做一个小实验。首先编译下面的程序： 
+
+```c++
+int main( void )
+{
+    return 0;
+}
+```
+
+然后打开附件里的“命令提示符”，在命令行里运行刚才编译好的可执行文件，然后输入“echo  %ERRORLEVEL%”，回车，就可以看到程序的返回值为0。假设刚才编译好的文件是a.exe，如果输入“a &&  dir”，则会列出当前目录下的文件夹和文件。但是如果改成 "return -1”，或者别的非0值，重新编译后输入“a &&  dir”，则dir不会执行。因为&&的含义是：如果&&前面的程序正常退出，则继续执行&&后面的程序，否则不执行。也就是说，利用程序的返回值，我们可以控制要不要执行下一个程序。这就是int main的好处。也可以把main函数的返回值类型改成非int类型（如float），重新编译后执行“a &&  dir”，则程序异常退出，dir不会执行。顺便提一下，如果输入a || dir的话，则表示如果a异常退出，则执行dir。 
+
+如果是在linux下，在shell终端下输入echo $? 
+
+## 15.C++写的动态链接库能不能直接给C用
+
+[关于C和C++动态链接库的几个问题](https://blog.csdn.net/lxw907304340/article/detail)
+
+[C和C++之间库的互相调用](http://www.cppblog.com/wolf/articles/77828.html)
+
+Name Mangling会带了一个很常见的负面效应，就是C语言的程序调用C++的程序时，会比较棘手。因为C语言中的Name Mangling很简单，不如C++中这么复杂。
+
+> extern "C"的作用 
+
+不同的语言链接性是不同的，那么也决定了它们编译后的链接符号的不同，比如一个函数void fun(double  d)，C语言会把它编译成类似_fun这样的符号，C链接器只要找到该函数符号就可以链接成功，它假设参数类型信息是正确的。而C++会把这个函数编译成类似_fun_double或_xxx_funDxxx这样的符号，在符号上增加了类型信息，这也是C++可以实现重载的原因。 那么，对于用C编译器编译成的库，用C++直接链接势必会出现不能识别符号的问题，是的，需要extern "C"的时刻来了，它就是干这个用的。extern "C" 的作用就是让编译器知道要以C语言的方式编译和连接封装函数。 
+
+> C++调用C动态库
+
+**C库实现**
+
+```c++
+// hello.c:
+#include <stdio.h>
+void hello()
+{
+  printf("hello\n");
+}
+```
+
+**C++程序调用C库**
+
+```c++
+// test.cpp
+#include <iostream>
+extern "C" {               // 告诉编译器下列代码要以C链接约定的模式进行链接
+void hello();
+}
+int main()
+{
+  hello();
+  return 0;
+}
+```
+
+> C调用C++动态库
+
+需要二次封装
+
+**C++库实现**
+
+```c++
+// world.cpp
+#include <iostream>
+void world()
+{
+  std::cout << "world" << std::endl;
+}
+```
+
+**用cpp进行二次封装**
+
+```c++
+// mid.cpp
+#include <iostream>
+void world();
+extern "C" {  // 即使这是一个C++程序，下列这个函数的实现也要以C约定的风格来搞！
+  void m_world()
+  {
+    world();
+  }
+}
+```
+
+**C程序调用二次接口去调用C++库**
+
+```c++
+//tect.c
+#include <stdio.h>
+int main()
+{
+  m_world();
+  return 0;
+}
+```
 
