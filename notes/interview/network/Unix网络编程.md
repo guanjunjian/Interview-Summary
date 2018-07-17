@@ -492,6 +492,19 @@ echo "net.ipv4.tcp_wmem = 4096 4096 16777216">> /etc/sysctl.conf
 
 [你所不知道的TIME_WAIT和CLOSE_WAIT](http://blog.oldboyedu.com/tcp-wait/)
 
+> 如何避免time_wati
+
+/etc/sysctl.conf是一个允许改变正在运行中的Linux系统的接口，它包含一些TCP/IP堆栈和虚拟内存系统的高级选项，修改内核参数永久生效。也就是说/proc/sys下内核文件与配置文件sysctl.conf中变量存在着对应关系。 
+
+打开 sysctl.conf 文件，修改以下几个参数：
+
+- net.ipv4.tcp_tw_recycle = 1
+  - 内核会快速的回收处于TIME_WAIT状态的socket连接。多快？一个RTO（retransmission timeout，数据包重传的timeout时间）的时间，这个时间根据RTT动态计算出来，但是远小于2MSL。
+- net.ipv4.tcp_tw_reuse = 1
+  - 可以复用TIME_WAIT状态的连接。  
+- net.ipv4.tcp_timestamps = 1
+  - 两个4字节的时间戳字段，其中第一个4字节字段用来保存发送该数据包的时间，第二个4字节字段用来保存最近一次接收对方发送到数据的时间。 
+
 ## 13.accept与epoll惊群
 
 [accept与epoll惊群](https://pureage.info/2015/12/22/thundering-herd.html)

@@ -2798,6 +2798,8 @@ esp即图中的sp,称为**栈指针**
 
 ![](https://raw.githubusercontent.com/guanjunjian/guanjunjian.github.io/master/img/study/study-19-pointers-on-c-summary/img_18_4_1.png) 
 
+![](http://images.51cto.com/files/uploadimg/20081225/085530693.jpg) 
+
 
 
 也可参考[C函数调用机制及栈帧指针](https://blog.csdn.net/jjiss318/article/details/7185802)
@@ -3191,4 +3193,12 @@ int main()
 
 (size_t)&(((type *)0)->field)：将该地址（偏移量）转化为size_t型数据。
 ```
+
+## 17.C 语言的可变参数表函数的设计（printf可变参数的实现原理 ）
+
+[C 语言的可变参数表函数的设计](https://blog.csdn.net/hackbuteer1/article/details/7558979)
+
+> 一、printf函数的实现原理
+
+在C/C++中，对函数参数的扫描是从后向前的。C/C++的函数参数是通过压入堆栈的方式来给函数传参数的（堆栈是一种先进后出的数据结构），最先压入的参数最后出来，在计算机的内存中，数据有2块，一块是堆，一块是栈（函数参数及局部变量在这里），而栈是从内存的高地址向低地址生长的，控制生长的就是堆栈指针了，最先压入的参数是在最上面，就是说在所有参数的最后面，最后压入的参数在最下面，结构上看起来是第一个，所以最后压入的参数总是能够被函数找到，因为它就在堆栈指针的上方。**printf的第一个被找到的参数就是那个字符指针，就是被双引号括起来的那一部分，函数通过判断字符串里控制参数的个数来判断参数个数及数据类型，通过这些就可算出数据需要的堆栈指针的偏移量了**`printf("%d,%d",a,b);`
 
