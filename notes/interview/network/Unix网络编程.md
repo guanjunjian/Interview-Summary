@@ -513,7 +513,7 @@ echo "net.ipv4.tcp_wmem = 4096 4096 16777216">> /etc/sysctl.conf
 
 > accept
 
-accept惊群：主进程创建socket, bind,  listen之后，fork出多个子进程，每个子进程都开始循环处理（accept)这个socket。每个进程都阻塞在accpet上，当一个新的连接到来时，所有的进程都会被唤醒，但其中只有一个进程会accept成功，其余皆失败，重新休眠。这就是accept惊群 
+accept惊群：主进程创建socket, bind,  listen之后，fork出多个子进程，每个子进程都开始循环处理（accept）这个socket。每个进程都阻塞在accpet上，当一个新的连接到来时，所有的进程都会被唤醒，但其中只有一个进程会accept成功，其余皆失败，重新休眠。这就是accept惊群 
 
 事实上，历史上，Linux 的 accpet 确实存在惊群问题，但现在的内核都解决该问题了。即，当多个进程/线程都阻塞在对同一个 socket 的 accept 调用上时，当有一个新的连接到来，内核只会唤醒一个进程，其他进程保持休眠，压根就不会被唤醒。 
 
@@ -619,3 +619,13 @@ Preactor模式完全将IO处理和业务分离，使用异步IO模型，即内�
 - 睡眠在请求队列上的某个工作线程被唤醒，它从socket读取数据，并处理客户请求，然后往epoll内核事件表中注册该socket上的写就绪事件
 - 主线程调用epoll_wait通知主线程。主线程将socket可写事件放入请求队列
 - 睡眠在请求队列上的某个工作线程被唤醒，它往socket上写入服务器处理客户请求的结果
+
+## 16.linux信号调用机制
+
+[linux信号调用机制](https://www.cnblogs.com/3me-linux/p/3927221.html)
+
+信号的处理：
+
+- 1.忽略此信号
+- 2.捕捉信号（信号处理函数，如在信号处理函数里waitpid）
+- 3.执行系统默认动作，大多数信号的系统默认动作是终止该进程

@@ -131,3 +131,17 @@ pid_t waitpid (pid_t pid, int *statloc, int options);
 - 可选择等待结束的子进程
 - 可选择无可等待子进程时，不阻塞
 
+## 5.互斥锁和条件变量
+
+[再谈互斥锁与条件变量！（终于搞清楚了啊！！！！！）](http://blog.chinaunix.net/uid-27164517-id-3282242.html)
+
+> pthread_cond_boardcase和pthread_cond_signal的区别
+
+激发条件有两种形式，pthread_cond_signal()激活一个等待该条件的线程，存在多个等待线程时按入队顺序激活其中一个；而pthread_cond_broadcast()则激活所有等待线程。 
+
+## 6.互斥锁的唤醒顺序
+
+[使用互斥锁](https://docs.oracle.com/cd/E19253-01/819-7051/6n919hpag/index.html)
+
+缺省调度策略 `SCHED_OTHER` 不指定线程可以获取锁的顺序。如果多个线程正在等待一个互斥锁，则获取顺序是不确定的。出现争用时，缺省行为是按优先级顺序解除线程的阻塞。 
+
