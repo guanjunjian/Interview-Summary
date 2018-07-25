@@ -2637,6 +2637,19 @@ vector底层是一块连续的内存空间
 
 ![](https://github.com/arkingc/note/raw/master/pic/stl-4-2.png) 
 
+> vector的数据成员
+
+```
+class vector {
+  //表示目前使用空间的头
+  iterator start;
+  //表示目前使用空间的尾
+  iterator finish;
+  //表示目前可用空间的尾
+  iterator end_of_storage;
+};
+```
+
 > insert做的事情：
 
 ```
@@ -2806,6 +2819,28 @@ unordered_map和map类似，都是存储的key-value的值，可以通过key快�
 
 ![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-4-5.png) 
 
+> list的数据成员
+
+```c++
+template <class T>
+struct __list_node {
+  typedef void* void_pointer;
+  void_pointer next;
+  void_pointer prev;
+  T data;
+};
+
+template <class T, class Alloc = alloc>
+class list {
+  typedef __list_node<T> list_node;
+  typedef list_node* link_type;
+protected:
+  link_type node;
+}
+```
+
+
+
 ## 8.deque的底层实现
 
 > 迭代器类型
@@ -2946,7 +2981,7 @@ int main()
     const char *p="hello";  
     cout<<"strlen(p) : "<<strlen(p)<<endl;  //返回字符串长度5  
     cout<<"sizeof(p) : "<<sizeof(p)<<endl;  //返回指针p的内存空间大小4个字节，即sizeof(char*)
-    cout<<"sizeof(p) : "<<sizeof(*p)<<endl; //返回长度1，即第一个字符的长度，即sizeof(char)
+    cout<<"sizeof(*p) : "<<sizeof(*p)<<endl; //返回长度1，即第一个字符的长度，即sizeof(char)
 }  
 ```
 
@@ -3117,13 +3152,15 @@ FreeLibrary(handle);         // 释放载入的动态库
 
 ## 11.C++11新特性
 
-auto,decltype、explicit、[lambda](https://mubu.com/doc/1ckW18B1Ak)、final 
+auto、decltype、explicit、[lambda](https://mubu.com/doc/1ckW18B1Ak)、final 
 
 ## 12.一个C语言程序到执行完文件的全过程
 
 [一个C语言程序到执行完文件的全过程](https://blog.csdn.net/hello_world6/article/details/51842247)
 
 [gcc/g++等编译器 编译原理](https://blog.csdn.net/elfprincexu/article/details/45043971)
+
+[C语言编译过程详解](https://www.cnblogs.com/CarpenterLee/p/5994681.html)
 
 > （1）预处理（Pre-Processing）
 
@@ -3159,7 +3196,7 @@ auto,decltype、explicit、[lambda](https://mubu.com/doc/1ckW18B1Ak)、final
 
 这里涉及到一个重要的概念：函数库。
 
- 读者可以重新查看这个小程序，在这个程序中并没有定义”printf”的函数实现，且在预编译中包含进的”stdio.h”中也只有该函数的声明，而没有定义函数的实现，那么，是在哪里实现”printf”函数的呢？最后的答案是：系统把这些函数实现都被做到名为libc.so.6的库文件中去了，在没有特别指定时，Gcc会到系统默认的搜索路径”/usr/lib”下进行查找，也就是链接到libc.so.6库函数中去，这样就能实现函数”printf”了，而这也就是链接的作用。
+读者可以重新查看这个小程序，在这个程序中并没有定义”printf”的函数实现，且在预编译中包含进的”stdio.h”中也只有该函数的声明，而没有定义函数的实现，那么，是在哪里实现”printf”函数的呢？最后的答案是：系统把这些函数实现都被做到名为libc.so.6的库文件中去了，在没有特别指定时，Gcc会到系统默认的搜索路径”/usr/lib”下进行查找，也就是链接到libc.so.6库函数中去，这样就能实现函数”printf”了，而这也就是链接的作用。
 
  **函数库一般分为静态库和动态库两种。**
 
@@ -3392,7 +3429,7 @@ int main(int argc,char *argv[])
 }
 ```
 
-rgc 是 argument count的缩写，表示传入main函数的参数个数；
+argc 是 argument count的缩写，表示传入main函数的参数个数；
 
 argv 是 argument vector的缩写，表示传入main函数的参数序列或指针，并且第一个参数argv[0]一定是程序的名称，并且包含了程序所在的完整路径（绝对路径），所以确切的说需要我们输入的main函数的参数个数应该是argc-1个；
 
@@ -3400,6 +3437,6 @@ argv 是 argument vector的缩写，表示传入main函数的参数序列或指�
 
 main之前有启动例程，启动例程从内存获取命令行参数和环境变量值，传递给main
 
- 当内核执行c程序时，使用一个exec函数，在调用main函数之前先调用了一个特殊的启动例程。这个例程为程序的起始地址。启动例程从内核中取得命令行参数和环境变量值。 
+当内核执行c程序时，使用一个exec函数，在调用main函数之前先调用了一个特殊的启动例程。这个例程为程序的起始地址。启动例程从内核中取得命令行参数和环境变量值。 
 
  
