@@ -158,3 +158,32 @@ pid_t waitpid (pid_t pid, int *statloc, int options);
 - **不带缓冲**：标准I/O库不进行缓冲。此时任何I/O都立即执行实际的I/O操作 
 
 **在一个流上执行第一次I/O操作时，相关标准的I/O函数通常调用 malloc 获取使用的缓冲区** 
+
+## 8.内核编译过程
+
+[参考链接1](https://www.linuxidc.com/Linux/2016-12/137794.htm)
+
+[参考链接2](https://www.cnblogs.com/swyft/p/5578978.html)
+
+1.下载源码文件及解压
+
+2.`make mrproper `删除源代码目录中残留的.o文件和其它从属文件
+
+- 与make clean的区别：clean保留内核的配置文件.config。make mrproper删除的范围比make clean大，实际上，make mrproper在具体执行时第一步就是调用make clean[参考](https://blog.csdn.net/gchww/article/details/7407790)
+
+3.配置内核，有三种方法：
+
+- 命令行:  make  config 
+- 单模式的配置界面:  make menuconfig 
+- X window:make xconfig 
+
+4.编译内核 
+
+- `make dep `：建立编译时所需的从属文件 
+- `make clean`：清除内核编译的目标文件  
+- `make bzImage`：编译内核，生成一个名叫bzImage的内核映像文件（路径：/usr/src/kernels/linux-4.10/arch/x86/boot/bzImage）
+- `make modules`：编译可加载模块 
+- `make modelus_install`：安装可加载模块，会在/lib/modules目录下生成一个4.10子目录，里面存放着新内核的所有可加载模块 
+- 将bzImage拷贝到/boot目录下，命名为vmlinuz-4.10.0
+
+5.编辑grub配置文件，使用新内核启动
