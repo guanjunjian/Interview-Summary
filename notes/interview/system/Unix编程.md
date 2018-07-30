@@ -6,6 +6,8 @@ Unix编程
 
 [fork()、vfork()、clone()的区别](https://blog.csdn.net/gogokongyin/article/details/51178257)
 
+[unix环境高级编程](https://github.com/arkingc/note/blob/master/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/UNIX%E7%8E%AF%E5%A2%83%E9%AB%98%E7%BA%A7%E7%BC%96%E7%A8%8B.md#21-fork)
+
 这三个函数分别调用了sys_fork、sys_vfork、sys_clone，最终都调用了do_fork函数。
 
 进程的四要素
@@ -28,6 +30,8 @@ fork 创造的子进程复制了父亲进程的资源（写时复制技术），
 > 2).vfork
 
 vfork也是创建一个子进程，但是子进程共享父进程的空间。在vfork创建子进程之后，父进程阻塞，直到子进程执行了exec()或者exit()。 vfork是一个过时的应用,vfork最初是因为fork没有实现COW机制，而很多情况下fork之后会紧接着exec，而exec的执行相当于之前fork复制的空间全部变成了无用功，所以设计了vfork。现在fork使用了COW机制，唯一的代价仅仅是复制父进程页表的代价，所以vfork不应该出现在新的代码之中。
+
+虚地址也是相同的
 
 进程阻塞，直到子进程执行了exec()或者exit()
 
@@ -187,3 +191,8 @@ pid_t waitpid (pid_t pid, int *statloc, int options);
 - 将bzImage拷贝到/boot目录下，命名为vmlinuz-4.10.0
 
 5.编辑grub配置文件，使用新内核启动
+
+## 9.fork返回值
+
+- **父进程返回子进程ID**：原因是，一个进程的子进程可以有多个，并且没有一个函数使一个进程可以获得其所有子进程的进程ID
+- **子进程返回0**：原因是，子进程总是可以调用`getppid`获得父进程的ID（0号进程总是由内核交换进程使用，所以一个子进程的进程ID不可能为0）
