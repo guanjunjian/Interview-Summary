@@ -2995,6 +2995,103 @@ func(I ite)
 
 AVL二叉搜索树：既是二叉搜索树又是AVL树
 
+## 12.vector释放空间的过程
+
+> 方法一：swap
+
+[vector的内存释放](https://www.cnblogs.com/summerRQ/articles/2407974.html)
+
+由于vector的内存占用空间只增不减，比如你首先分配了10,000个字节，然后erase掉后面9,999个，留下一个有效元素，但是内存占用仍为10,000个。所有内存空间是在vector析构时候才能被系统回收。empty()用来检测容器是否为空的，clear()可以清空所有元素。但是即使clear()，vector所占用的内存空间依然如故，无法保证内存的回收。
+
+如果需要空间动态缩小，可以考虑使用deque。如果非vector不可，可以用swap()来帮助你释放内存。具体方法如下：
+
+```c++
+vector<int> nums; 
+nums.push_back(1);
+nums.push_back(1);
+nums.push_back(2);
+nums.push_back(2); 
+vector<int>().swap(nums); //或者nums.swap(vector<int> ())
+```
+
+注意1：如果nums是一个类的成员，不能把vector<int>.swap(nums)写进类的析构函数中，否则会导致double free or corruption (fasttop)的错误，原因可能是重复释放内存。标准解决方法如下：
+
+```c++
+template < class T >
+void ClearVector( vector< T >& vt ) 
+{
+    vector< T > vtTemp; 
+    veTemp.swap( vt );
+}
+```
+
+注意2：
+
+如果vector中存放的是指针，那么当vector销毁时，这些指针指向的对象不会被销毁，那么内存就不会被释放。如下面这种情况，vector中的元素时由new操作动态申请出来的对象指针：
+
+```
+#include <vector> 
+using namespace std; 
+
+vector<void *> v;
+```
+
+每次new之后调用v.push_back()该指针，在程序退出或者根据需要，用以下代码进行内存的释放： 
+
+```
+for (vector<void *>::iterator it = v.begin(); it != v.end(); it ++) 
+    if (NULL != *it) 
+    {
+        delete *it; 
+        *it = NULL;
+    }
+v.clear();
+```
+
+[vector的clear()和swap()比较](https://blog.csdn.net/u011450537/article/details/42367447)
+
+如果因为size与capacibility相差太大，可以这样做
+
+```c++
+vector<int>(v).swap(v);
+```
+
+如果想彻底释放，可以这样做
+
+```c++
+vector<int>().swap(v);
+```
+
+> 方法2：{}代码块
+
+[参考链接](https://blog.csdn.net/mfcing/article/details/8746256)
+
+```c++
+	//方法二、
+	{
+		vector<int> temp;//临时对象未初始化，其缓冲区大小为0，没有数据
+		arr.swap(temp);//与我们的对象交换数据，arr的缓冲区就没了。
+	}//临时变量会被析构，temp调用vector析构函数释放空间
+```
+
+## 13.STL vector swap相比自己实现的swap有什么优势
+
+迭代器类型、特化
+
+**__type_traits萃取的类型特性有**：
+
+- 1.是否具备“有用的默认构造函数”（non-trivial default constructor）
+- 2.是否具备“有用的拷贝构造函数”（non-trivial copy constructor）
+- 3.是否具备“有用的赋值操作运算符”（non-trivial assignment operator）
+- 4.是否具备“有用的析构函数”（non-trivial destructor）
+- 5.是否为POD
+
+如果被萃取的类型，前4种特性都是“无用的”，在对这个类别进行构造、拷贝、赋值、析构时，就可以采用最有效的措施（如根本不调用那些“无用的”相关函数），而采用内存直接处理操作如malloc()、memcopy()等等，以获得最高效率
+
+POD意指Plain Old Data，也就是标量类型(scalar types)或传统的C struct类型。POD类型必然拥有trivial ctor/dtor/copy/assignment函数。因此，可以对POD类型采用最有效的初值填写手法，而对non-POD类型采取最保险的做法 
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-2-8-%E4%B8%89%E4%B8%AA%E5%86%85%E5%AD%98%E5%9F%BA%E6%9C%AC%E5%87%BD%E6%95%B0%E7%9A%84%E6%B3%9B%E5%9E%8B%E7%89%88%E6%9C%AC%E4%B8%8E%E7%89%B9%E5%8C%96%E7%89%88%E6%9C%AC.png) 
+
 # 其他
 
 ## 1.C++与JAVA的对比
