@@ -3168,6 +3168,38 @@ void swap(vector<T, Alloc>& x) {
 }
 ```
 
+## 14.STL sort的内部实现
+
+**可用容器**：vector、deque
+
+**sort的大致思想**：
+
+- 1.数据量大时，Quick Sort，分段递归排序
+- 2.在`1.`的分段递归排序中，如果**数据量**小于某个阈值，改用Insertion Sort
+- 3.在`1.`的分段递归排序中，如果**递归层次**过深，改用Heap Sort
+
+## 15.stable_sort
+
+稳定排序，保证相等元素的原本相对次序在排序后保持不变。 
+
+内部实现：
+
+当元素少于15个时，使用插入排序
+
+当元素大于15个时，使用归并排序
+
+## 16.lower_bound和upper_bound
+
+应用于有序区间	
+
+二分查找的一种版本
+
+lower_bound：查找等于value的第一个元素的位置，不存在则返回第一个插入点 
+
+upper_bound：查找value的最后一个插入点，即如果存在元素等于value，那么插入最后一个等于value的元素之后 
+
+![](https://github.com/guanjunjian/Interview-Summary/raw/master/pics/language/STL%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/img-6-7.png) 
+
 # 其他
 
 ## 1.C++与JAVA的对比
