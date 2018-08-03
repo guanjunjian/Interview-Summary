@@ -3829,3 +3829,8 @@ repeat    "I am hungry"    now
 最小值：0x8000000、
 
 - 二进制：‭10000000000000000000000000000000‬（31个0）
+
+## 22.单例模式
+
+[ C++的单例模式与线程安全单例模式（懒汉/饿汉）](https://www.cnblogs.com/qiaoconglovelife/p/5851163.html)
+
