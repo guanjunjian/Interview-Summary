@@ -12,6 +12,8 @@
 
 > [数据结构](notes/algorithms/数据结构.md)：树、堆、哈希的相关知识和算法
 
+> [算法题总结](notes/algorithms/题目分类.md)
+
 ## C/C++
 
 > 《C++ Primer》

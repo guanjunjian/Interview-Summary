@@ -3834,3 +3834,9 @@ repeat    "I am hungry"    now
 
 [ C++的单例模式与线程安全单例模式（懒汉/饿汉）](https://www.cnblogs.com/qiaoconglovelife/p/5851163.html)
 
+## 23 printf遇到没有/0的字符串
+
+
+
+
+
