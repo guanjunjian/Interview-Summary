@@ -3834,7 +3834,41 @@ repeat    "I am hungry"    now
 
 [ C++的单例模式与线程安全单例模式（懒汉/饿汉）](https://www.cnblogs.com/qiaoconglovelife/p/5851163.html)
 
-## 23 printf遇到没有/0的字符串
+## 23.printf遇到没有/0的字符串
+
+[没有'\0'标记的字符串输出会是怎样的呢？](https://blog.csdn.net/zhongxiaoming1991/article/details/9903943)
+
+由于局部变量是压栈的，printf局部变量时，会把之前的变量也输出，直到遇到\0
+
+## 24.printf和scanf的使用
+
+## 25.fun()无参数修改x
+
+```c++
+int x；
+fun(){} //实现fun修改x的值，不能传参
+
+
+//方案如下
+void fun()
+{
+	int *p;
+	p = (int *)*(&p + 1); //获取main的ebp
+     p -= 1; //main的ebp-1就是x的地址
+	*p = 100;
+}
+
+int main()
+{
+	int x = 0;
+	fun();
+	cout << x << endl;
+	getchar();
+	return 0;
+}
+```
+
+![](../../../pics/interview/language/C++/fun()修改x.jpg)
 
 
 
