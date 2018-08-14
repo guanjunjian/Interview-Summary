@@ -1004,6 +1004,40 @@ kmalloc()、kzalloc()、vmalloc() 的区别是：
 4. kmalloc 分配内存的过程可以是原子过程（使用 GFP_ATOMIC），而 vmalloc 分配内存时则可能产生阻塞；
 5. kmalloc 分配内存的开销小，因此 kmalloc 比 vmalloc 要快；
 
+## 13. malloc的实现
+
+[如何实现一个malloc]http://blog.codinglabs.org/articles/a-malloc-tutorial.html
+
+## 14. 实现对齐的malloc
+
+[malloc函数字节对齐很经典的问题](https://blog.csdn.net/typhoonzb/article/details/4732520)
+
+[用malloc分配内存的字节对齐，指针对齐](https://www.douban.com/note/643194488/)
+
+```c++
+void* alignMalloc(int size, int align)
+{
+    char* mallocMemory = (char*)malloc(size+2*align);
+    char* alignMemory = (char*)((int)(mallocMemory+2*align) & ~(align-1));
+    ((int*)alignMemory)[-1] = mallocMemory;
+    return (void*)alignMemory;
+}
+```
+
+例如，要申请16大小，并且16对齐的，则
+
+```c++
+void* alignMalloc(int 16, int 16)
+{
+    char* mallocMemory = (char*)malloc(16+32);
+    char* alignMemory = (char*)((int)(mallocMemory+32) & ~(15));
+    ((int*)alignMemory)[-1] = mallocMemory;
+    return (void*)alignMemory;
+}
+```
+
+
+
 # 类
 
 ## 1.C++多态性与虚函数
@@ -3870,7 +3904,19 @@ int main()
 
 ![](../../../pics/interview/language/C++/fun()修改x.jpg)
 
+## 26. 二维数组为什么要按行访问
 
+[二维数组按行和按列遍历效率](https://blog.csdn.net/lbwo001/article/details/78817439)
 
+[按行与按列遍历二维数组的速度差异](https://blog.csdn.net/weixin_40497678/article/details/80733915)
 
+前提：二维数组的内存地址是连续的，当前行的尾与下一行的头相邻 
+
+1、CPU高速缓存：维基百科中有以下的内容：CPU高速缓存（英语：CPU  Cache，在本文中简称缓存）是用于减少处理器访问内存所需平均时间的部件。在金字塔式存储体系中它位于自顶向下的第二层，仅次于CPU寄存  器。其容量远小于内存，但速度却可以接近处理器的频率。当处理器发出内存访问请求时，会先查看缓存内是否有请求数据。如果存在（命中），则不经访问内存直接返回该数据；如果不存在（失效），则要先把内存中的相应数据载入缓存，再将其返回处理器。 
+
+```
+缓存从内存中抓取一般都是整个数据块，所以它的物理内存是连续的，几乎都是同行不同列的，而如果内循环以列的方式进行遍历的话，将会使整个缓存块无法被利用，而不得不从内存中读取数据，而从内存读取速度是远远小于从缓存中读取数据的。
+```
+
+2.分页调度：物理内存是以页的方式进行划分的，当一个二维数组很大是如  `int[128][1024]`,假设一页的内存为4096个字节，而每一行正好占据内存的一页，如果以列的形式进行遍历，就会发生128*1024次的页面调度，而如果以行遍历则只有128次页面调度，而页面调度是有时间消耗的，因而调度次数越多，遍历的时间就越长。 
 
