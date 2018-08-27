@@ -525,6 +525,12 @@ echo "net.ipv4.tcp_wmem = 4096 4096 16777216">> /etc/sysctl.conf
 - net.ipv4.tcp_timestamps = 1
   - 两个4字节的时间戳字段，其中第一个4字节字段用来保存发送该数据包的时间，第二个4字节字段用来保存最近一次接收对方发送到数据的时间。 
 
+> close_wait状态过多的原因
+
+- 应用程序写的有问题，没有合适的关闭socket
+- 你的服务器CPU处理不过来（CPU太忙）
+- 你的应用程序一直睡眠到其它地方(锁，或者文件I/O等等)，你的应用程序获得不到合适的调度时间，造成你的程序没法真正的执行close操作。  
+
 ## 13.accept与epoll惊群
 
 [accept与epoll惊群](https://pureage.info/2015/12/22/thundering-herd.html)
@@ -661,4 +667,8 @@ Preactor模式完全将IO处理和业务分离，使用异步IO模型，即内�
 - 1.忽略此信号
 - 2.捕捉信号（信号处理函数，如在信号处理函数里waitpid）
 - 3.执行系统默认动作，大多数信号的系统默认动作是终止该进程
+
+## 17.epoll详解及实现
+
+[epoll的内部实现 & 百万级别句柄监听 & lt和et模式非常好的解释](https://www.cnblogs.com/charlesblc/p/6242479.html)
 
