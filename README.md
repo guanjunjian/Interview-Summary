@@ -71,7 +71,7 @@
 
 > #### 数据结构和算法
 
-- [数据结构和算法](notes/algorithms/数据结构和算法.md)
+- [数据结构和算法](notes/interview/algorithms/数据结构和算法.md)
 - [智力题](notes/interview/algorithms/智力题.md)
 - [面试和笔试算法列表](notes/interview/algorithms/面试和笔试算法列表.md)
 
