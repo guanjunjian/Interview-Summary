@@ -57,7 +57,7 @@
 
 - [C++](notes/interview/language/C++.md)
 - [STL](notes/interview/language/STL.md)
-- [常用函数实现](notes/interview/language/常用函数实现.md)
+- [常用函数实现](notes/algorithms/常用函数实现.md)
 
 #### 操作系统
 
@@ -71,7 +71,7 @@
 
 #### 数据结构和算法
 
-- [数据结构和算法](notes/interview/network/Unix网络编程.md)
+- [数据结构和算法](notes/algorithms/数据结构和算法.md)
 - [智力题](notes/interview/algorithms/智力题.md)
 - [面试和笔试算法列表](notes/interview/algorithms/面试和笔试算法列表.md)
 
