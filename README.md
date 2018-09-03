@@ -43,13 +43,39 @@
 
 > [王道-3 操作系统部分](notes/Wangdao/王道程序员求职宝典_3.md)
 
+> [王道-4 设计模式和智力题](notes/Wangdao/王道程序员求职宝典_4.md)
+
 ## Docker
 
 > [《Docker源码分析》](notes/Docker/Docker源码分析.md)
 
 ## 面经
 
-> [面经](notes/interview/面经.md)
+#### 语言
+
+- C++(language/C++.md)
+- STL(language/STL.md)
+- 常用函数实现(language/常用函数实现.md)
+
+#### 操作系统
+
+- 操作系统基本原理(system/操作系统.md)
+- Unix编程(system/Unix编程.md)
+- Linux命令行(system/Linux命令行.md)
+
+#### 计算机网络
+
+- 计算机网络基本原理(network/计算机网络.md)
+- Unix网络编程(network/Unix网络编程.md)
+
+#### 数据结构和算法
+
+- 数据结构和算法(network/Unix网络编程.md)
+- 智力题(algorithms/智力题.md)
+
+#### 面试记录
+
+- [面试记录](interview/面试记录.md)
 
 ## 他人总结
 

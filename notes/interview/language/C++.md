@@ -2696,6 +2696,10 @@ T addValue(const T& x)
 }
 ```
 
+## 4.模板的定义和实现要放在同一编译单元中
+
+[C++将模板的声明和定义放置在同一个头文件里](https://blog.csdn.net/caoshangpa/article/details/53389234)
+
 # 容器 STL
 
 ## 1.array与内置数组的区别
