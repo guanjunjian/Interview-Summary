@@ -12,6 +12,8 @@
 
 > [数据结构](notes/algorithms/数据结构.md)：树、堆、哈希的相关知识和算法
 
+> [经典算法](notes/algorithms/经典算法)：01背包等
+
 > [算法题总结](notes/algorithms/题目分类.md)
 
 ## C/C++
@@ -53,29 +55,29 @@
 
 #### 语言
 
-- C++(language/C++.md)
-- STL(language/STL.md)
-- 常用函数实现(language/常用函数实现.md)
+- [C++](notes/interview/language/C++.md)
+- [STL](notes/interview/language/STL.md)
+- [常用函数实现](notes/interview/language/常用函数实现.md)
 
 #### 操作系统
 
-- 操作系统基本原理(system/操作系统.md)
-- Unix编程(system/Unix编程.md)
-- Linux命令行(system/Linux命令行.md)
+- [操作系统基本原理](notes/interview/system/操作系统.md)
+- [Unix编程](notes/interview/system/Unix编程.md)
 
 #### 计算机网络
 
-- 计算机网络基本原理(network/计算机网络.md)
-- Unix网络编程(network/Unix网络编程.md)
+- [计算机网络基本原理](notes/interview/network/计算机网络.md)
+- [Unix网络编程](notes/interview/network/Unix网络编程.md)
 
 #### 数据结构和算法
 
-- 数据结构和算法(network/Unix网络编程.md)
-- 智力题(algorithms/智力题.md)
+- [数据结构和算法](notes/interview/network/Unix网络编程.md)
+- [智力题](notes/interview/algorithms/智力题.md)
+- [面试和笔试算法列表](notes/interview/algorithms/面试和笔试算法列表.md)
 
 #### 面试记录
 
-- [面试记录](interview/面试记录.md)
+- [面试记录](notes/interview/面试记录.md)
 
 ## 他人总结
 
